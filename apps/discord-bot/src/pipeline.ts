@@ -58,6 +58,13 @@ export interface HandleResult {
 }
 
 export class BotPipeline {
+  /**
+   * Retained message rows, keyed by guild and then by pair. One process serves
+   * every guild under one customer id and one salt, so the same two Discord
+   * ids produce the same pair key in every server; the guild has to be part of
+   * the key or a bundle exported in one server could carry another server's
+   * messages (CLAUDE.md rule 8).
+   */
   private readonly timelines = new Map<string, TimelineRow[]>();
   /** Hashed uid to the Discord id, held in memory only so an alert can @ them. */
   private readonly displayIds = new Map<string, string>();
@@ -76,6 +83,8 @@ export class BotPipeline {
     }
 
     const inbound = mapped.event;
+    // toEvent refuses a message with no guild, so this is always the guild id.
+    const guildId = inbound.provenance.sourceId;
     const actorUid = hashUid(inbound.actorUid, this.deps.idSalt);
     const targetUid = hashUidOrNull(inbound.targetUid, this.deps.idSalt);
     this.displayIds.set(actorUid, inbound.actorUid);
@@ -101,7 +110,7 @@ export class BotPipeline {
     }
 
     const tier = scored.result.tier;
-    this.remember(actorUid, targetUid, {
+    this.remember(guildId, actorUid, targetUid, {
       ts: inbound.ts,
       channel: inbound.channel,
       direction: "actor_to_target",
@@ -147,16 +156,22 @@ export class BotPipeline {
   /**
    * Build the bundle the owner takes to report.cybertip.org. Anchored to the
    * audit head at export time and recorded as an export in the chain.
+   *
+   * The guild is the first argument because it is part of the lookup, not a
+   * label: rows scored in another server are not reachable from here. Returns
+   * null when this guild has no retained rows for the pair, so an export can
+   * never fall back to a bundle built from somewhere else.
    */
   async exportBundle(
+    guildId: string,
     actorUid: string,
     targetUid: string,
     tier: Tier,
-    guildId: string,
     rationale: string[],
-  ): Promise<EvidenceBundle> {
+  ): Promise<EvidenceBundle | null> {
+    const rows = this.timelines.get(pairKey(guildId, actorUid, targetUid));
+    if (!rows || rows.length === 0) return null;
     const head = await this.deps.audit.head();
-    const rows = this.timelines.get(pairKey(actorUid, targetUid)) ?? [];
 
     const bundle = buildEvidenceBundle({
       customerId: this.deps.customerId,
@@ -199,8 +214,8 @@ export class BotPipeline {
     return this.displayIds.get(hashedUid) ?? null;
   }
 
-  private remember(actorUid: string, targetUid: string, row: TimelineRow): void {
-    const key = pairKey(actorUid, targetUid);
+  private remember(guildId: string, actorUid: string, targetUid: string, row: TimelineRow): void {
+    const key = pairKey(guildId, actorUid, targetUid);
     const rows = this.timelines.get(key) ?? [];
     rows.push(row);
     const depth = this.deps.timelineDepth ?? 50;
@@ -208,6 +223,6 @@ export class BotPipeline {
   }
 }
 
-function pairKey(actorUid: string, targetUid: string): string {
-  return `${actorUid}:${targetUid}`;
+function pairKey(guildId: string, actorUid: string, targetUid: string): string {
+  return `${guildId}:${actorUid}:${targetUid}`;
 }

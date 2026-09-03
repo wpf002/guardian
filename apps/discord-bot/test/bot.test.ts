@@ -218,12 +218,13 @@ describe("pipeline", () => {
       );
     }
     const bundle = await p.exportBundle(
+      GUILD,
       last!.scored!.result.pair.actorUid,
       last!.scored!.result.pair.targetUid,
       "T2",
-      GUILD,
       last!.scored!.result.rationale,
     );
+    if (!bundle) throw new Error("expected a bundle for the guild the ladder was scored in");
     const draft = buildReportDraft(bundle, last!.scored!.result.rationale);
 
     expect(draft).toContain("You are the reporter");
@@ -233,17 +234,40 @@ describe("pipeline", () => {
     expect(bundle.timeline.length).toBeGreaterThan(0);
   });
 
+  it("cannot export a pair's messages from a server they were not scored in", async () => {
+    const p = pipeline();
+    let last = null;
+    for (const [i, content] of ladder.entries()) {
+      last = await p.handle(
+        message({ id: `m${i}`, content, createdAt: new Date(Date.parse("2026-09-02T12:00:00Z") + i * 120_000) }),
+        config(),
+        bands,
+      );
+    }
+    const actorUid = last!.scored!.result.pair.actorUid;
+    const targetUid = last!.scored!.result.pair.targetUid;
+
+    // One process serves every guild under one salt, so the pair key is the
+    // same in a server the attacker owns. The timeline must not be reachable
+    // from there (CLAUDE.md rule 8).
+    const elsewhere = await p.exportBundle("guild-attacker", actorUid, targetUid, "T2", []);
+    expect(elsewhere).toBeNull();
+
+    const own = await p.exportBundle(GUILD, actorUid, targetUid, "T2", []);
+    expect(own?.timeline.length).toBeGreaterThan(0);
+  });
+
   it("keeps no raw text for a pair that never left T0", async () => {
     const p = pipeline();
     await p.handle(message({ content: "gg good game" }), config(), bands);
     const bundle = await p.exportBundle(
+      GUILD,
       // Rebuild the same hash the pipeline used by scoring one more message.
       (await p.handle(message({ id: "m2", content: "nice" }), config(), bands)).scored!.result.pair.actorUid,
       (await p.handle(message({ id: "m3", content: "nice" }), config(), bands)).scored!.result.pair.targetUid,
       "T0",
-      GUILD,
       [],
     );
-    for (const row of bundle.timeline) expect(row.excerpt).toBeNull();
+    for (const row of bundle!.timeline) expect(row.excerpt).toBeNull();
   });
 });

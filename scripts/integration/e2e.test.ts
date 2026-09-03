@@ -1,4 +1,7 @@
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { AuditLog, PrismaAuditStore } from "@guardian/audit";
 import { PrismaCustomerStore, RedisEventQueue, buildServer, streamKey } from "@guardian/ingest";
 import { Kernel, PrismaKernelStore, persistScoredEvent, runWorker } from "@guardian/scorer";
@@ -14,16 +17,55 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  * The conversation is the nine message grooming ladder from
  * apps/scorer/test/kernel.test.ts, sent adult to child through the HTTP edge
  * with the customer's real key. Everything the run creates is keyed to a
- * customer minted for this run and removed in afterAll.
+ * customer minted for this run and removed in afterAll, with one deliberate
+ * exception: audit rows are never deleted.
  *
- * Skips, rather than fails, when either service is unreachable.
+ * The chain is one global hash sequence. Deleting this run's entries out of
+ * the middle of it leaves a sequence gap, verifyChain stops there, and
+ * `pnpm cli verify-audit` reports the whole chain broken from that row on,
+ * with no way to repair it. So the run appends under the deployment's own
+ * AUDIT_CHAIN_SECRET and leaves what it wrote in place: those entries are as
+ * genuine as any other.
+ *
+ * Skips, rather than fails, when either service is unreachable, when the
+ * secret cannot be found, or when the database is not a local one.
  */
 
 const DATABASE_URL =
   process.env.DATABASE_URL ?? "postgresql://guardian:guardian@localhost:5433/guardian";
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6381";
-const AUDIT_SECRET = "integration-test-secret";
 const STEP_TIMEOUT_MS = 60_000;
+
+/**
+ * The deployment's chain secret, from the environment or from the repo .env
+ * the bootstrap script writes it to. Appending under any other secret would
+ * leave entries that no later verify can check, and they cannot be deleted.
+ */
+function auditSecret(): string | null {
+  const fromEnv = process.env.AUDIT_CHAIN_SECRET?.trim();
+  if (fromEnv) return fromEnv;
+  const envFile = join(dirname(fileURLToPath(import.meta.url)), "..", "..", ".env");
+  try {
+    for (const line of readFileSync(envFile, "utf8").split("\n")) {
+      const match = /^AUDIT_CHAIN_SECRET=(.+)$/.exec(line.trim());
+      if (match && match[1]) return match[1].trim();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** Local only. This run writes to a shared chain that cannot be cleaned up. */
+function isLocalDatabase(url: string): boolean {
+  if (process.env.GUARDIAN_E2E_ALLOW_REMOTE === "1") return true;
+  try {
+    const host = new URL(url).hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "::1";
+  } catch {
+    return false;
+  }
+}
 
 type Infra = { db: PrismaClient; redis: Redis };
 
@@ -56,7 +98,13 @@ function message(err: unknown): string {
   return err instanceof Error ? err.message.split("\n")[0] ?? "" : String(err);
 }
 
-const infra = await probe();
+const AUDIT_SECRET = auditSecret();
+
+const infra = !isLocalDatabase(DATABASE_URL)
+  ? { unreachable: "DATABASE_URL is not local; set GUARDIAN_E2E_ALLOW_REMOTE=1 to override" }
+  : AUDIT_SECRET === null
+    ? { unreachable: "AUDIT_CHAIN_SECRET is not set and no .env holds one" }
+    : await probe();
 const skipReason = "unreachable" in infra ? infra.unreachable : null;
 const live = skipReason === null ? describe : describe.skip;
 if (skipReason) console.warn(`e2e skipped, ${skipReason}`);
@@ -91,13 +139,14 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
   const childUid = `child-${run}`;
 
   const customers = new PrismaCustomerStore(db);
-  const audit = new AuditLog(new PrismaAuditStore(db), AUDIT_SECRET);
+  const audit = new AuditLog(new PrismaAuditStore(db), AUDIT_SECRET ?? "");
 
   let customerId = "";
   let idSalt = "";
   let apiKey = "";
   let app: ReturnType<typeof buildServer> | null = null;
   let seqBefore = 0;
+  let rootVerifiedBefore = false;
 
   function inbound(line: Line, index: number) {
     const fromActor = line.from === "actor";
@@ -130,6 +179,8 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
     idSalt = created.customer.idSalt;
     apiKey = created.apiKey;
     seqBefore = (await audit.head()).seq;
+    // If the chain already verified from the root, it still must afterwards.
+    rootVerifiedBefore = (await audit.verify()).ok;
 
     app = buildServer({
       customers,
@@ -150,7 +201,10 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
       await db.event.deleteMany({ where });
       await db.actor.deleteMany({ where });
       await db.customerViolation.deleteMany({ where });
-      await db.auditEntry.deleteMany({ where });
+      // Audit rows stay. seq is one global sequence and every later row hashes
+      // the one before it, so deleting this run's entries would break
+      // verification for the whole chain with no way back. There is no foreign
+      // key from audit_entries to customers, so the customer row still goes.
       await db.customer.delete({ where: { id: customerId } });
       await redis.del(streamKey(customerId));
     }
@@ -208,6 +262,13 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
       const verdict = await audit.verify(seqBefore + 1);
       expect(verdict.ok).toBe(true);
       expect(verdict.checked).toBeGreaterThanOrEqual(groomingLadder.length + 1);
+
+      // And from the root. The run appends to the deployment's own chain, so
+      // a chain that verified before this test must still verify after it.
+      if (rootVerifiedBefore) {
+        const fromRoot = await audit.verify();
+        expect(fromRoot.ok ? null : `${fromRoot.reason} at ${fromRoot.brokenAt}`).toBeNull();
+      }
     },
     STEP_TIMEOUT_MS,
   );
@@ -220,7 +281,7 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
       // race for the same seq.
       const db2 = createPrismaClient(DATABASE_URL);
       try {
-        const audit2 = new AuditLog(new PrismaAuditStore(db2), AUDIT_SECRET);
+        const audit2 = new AuditLog(new PrismaAuditStore(db2), AUDIT_SECRET ?? "");
         const start = (await audit.head()).seq;
         const writers = [audit, audit2];
         const appends = Array.from({ length: 12 }, (_, i) =>

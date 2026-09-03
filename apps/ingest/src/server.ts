@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import {
   expiresAt,
   hashHint,
@@ -38,8 +38,23 @@ export interface ServerDeps {
    * counter on the server plus a warn line.
    */
   onPreAuthRefusal?: (reason: PreAuthRefusal) => void;
-  /** Per source address cap on /v1/events. Defaults to RATE_LIMIT_DEFAULT. */
+  /**
+   * Per customer cap on /v1/events, applied once the key resolved. Defaults to
+   * RATE_LIMIT_DEFAULT. This is the quota; one customer exhausting it never
+   * costs another customer a request.
+   */
   rateLimit?: RateLimitOptions | false;
+  /**
+   * Per source address cap, applied before authentication. A brake on an
+   * anonymous flood only. Defaults to PRE_AUTH_RATE_LIMIT_DEFAULT.
+   */
+  preAuthRateLimit?: RateLimitOptions | false;
+  /**
+   * What Fastify should trust for request.ip. Behind a proxy the TCP peer is
+   * the proxy, so set this to the number of hops or the proxy's addresses,
+   * never `true`: `true` takes the client's own X-Forwarded-For header.
+   */
+  trustProxy?: string[] | string | number;
   /**
    * Optional table-backed record of refusals, written alongside the audit
    * entry. Receives the redacted violations only: reason, path, detail.
@@ -64,22 +79,32 @@ export type PreAuthRefusal =
   | "rate_limited";
 
 export interface RateLimitOptions {
-  /** Requests allowed per source address per window. */
+  /** Requests allowed per key (a customer id, or a source address) per window. */
   max: number;
   windowMs: number;
 }
 
 /**
  * A customer batches up to 500 events per request, so a legitimate source
- * rarely needs more than a few requests a second. The limit is per source
- * address and in process; it is a brake on an unauthenticated flood, not a
- * quota.
+ * rarely needs more than a few requests a second. The quota is per customer
+ * and in process.
  */
 export const RATE_LIMIT_DEFAULT: RateLimitOptions = { max: 600, windowMs: 60_000 };
+
+/**
+ * The pre-authentication brake, per source address. It is deliberately much
+ * looser than the per-customer quota: behind a platform proxy every customer
+ * arrives from the same peer address, so a tight bucket here would let one
+ * anonymous flood refuse every real customer's batches. The quota that matters
+ * is the per-customer one, which an unauthenticated caller cannot reach.
+ */
+export const PRE_AUTH_RATE_LIMIT_DEFAULT: RateLimitOptions = { max: 3_000, windowMs: 60_000 };
 
 /** Counters the server exposes for whoever scrapes them. Never request content. */
 export interface IngestCounters {
   preAuthRefusals: Record<PreAuthRefusal, number>;
+  /** Authenticated requests refused by the per-customer quota. */
+  rateLimited: number;
   queueFull: number;
   auditAppendFailures: number;
 }
@@ -98,14 +123,17 @@ function emptyCounters(): IngestCounters {
       bad_signature: 0,
       rate_limited: 0,
     },
+    rateLimited: 0,
     queueFull: 0,
     auditAppendFailures: 0,
   };
 }
 
 /**
- * Fixed window counter per source address. Entries expire with the window, so
- * memory is bounded by the number of distinct addresses seen per window.
+ * Fixed window counter. Entries expire with the window, so memory is bounded
+ * by the number of distinct keys seen per window. The window is fixed rather
+ * than sliding, so up to twice `max` can land across a boundary; that is
+ * acceptable for a brake and a quota, neither of which is a billing meter.
  */
 export class SourceRateLimiter {
   private readonly hits = new Map<string, { count: number; windowStart: number }>();
@@ -141,10 +169,18 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   // Log level sits at warn so Fastify's per-request info lines never fire. A
   // request line can carry a channel name or a uid and nothing here needs to be
   // in a log file.
-  const app = Fastify({
+  const options: FastifyServerOptions = {
     logger: deps.logger ? { level: "warn" } : false,
     bodyLimit: maxBodyBytes,
-  });
+  };
+  // Off unless the deployment names its proxy. request.ip is only used for the
+  // pre-auth brake, and an unbounded trustProxy would let any caller pick
+  // their own bucket with a header. A number is a hop count, which Fastify
+  // accepts at runtime but does not carry in its option type.
+  if (deps.trustProxy !== undefined) {
+    options.trustProxy = deps.trustProxy as FastifyServerOptions["trustProxy"];
+  }
+  const app = Fastify(options);
 
   app.addContentTypeParser("*", (_req, payload, done) => {
     // Anything that is not JSON is refused before a parser touches it.
@@ -164,7 +200,15 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
 
   const counters = emptyCounters();
   app.decorate("counters", counters);
-  const limiter =
+  // Two buckets. The pre-auth one is keyed on the source address, which behind
+  // a proxy is shared by every customer, so it is only a flood brake. The
+  // quota is keyed on the customer id resolved from the key, so one customer
+  // can never spend another customer's budget.
+  const preAuthLimiter =
+    deps.preAuthRateLimit === false
+      ? null
+      : new SourceRateLimiter(deps.preAuthRateLimit ?? PRE_AUTH_RATE_LIMIT_DEFAULT);
+  const customerLimiter =
     deps.rateLimit === false ? null : new SourceRateLimiter(deps.rateLimit ?? RATE_LIMIT_DEFAULT);
 
   const preAuthRefused = (reason: PreAuthRefusal): void => {
@@ -181,7 +225,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     // Nothing before this line writes anywhere. An unauthenticated caller
     // gets a status code and a counter increment and never a row in the
     // audit chain, which is append-only and shared with every customer.
-    if (limiter && !limiter.allow(request.ip)) {
+    if (preAuthLimiter && !preAuthLimiter.allow(request.ip)) {
       preAuthRefused("rate_limited");
       return reply.code(429).header("retry-after", "60").send({ error: "too many requests" });
     }
@@ -199,6 +243,15 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       return reply.code(auth.status).send({ error: auth.error });
     }
     const customer = auth.customer;
+
+    // The quota, now that there is a customer to charge it to.
+    if (customerLimiter && !customerLimiter.allow(customer.id)) {
+      counters.rateLimited += 1;
+      return reply
+        .code(429)
+        .header("retry-after", "60")
+        .send({ error: "too many requests for this customer" });
+    }
 
     const contentTypeViolation = checkContentType(request.headers["content-type"]);
     if (contentTypeViolation) {
@@ -343,12 +396,16 @@ function headerValue(headers: Record<string, unknown>, name: string): string | n
 /**
  * PII minimization. Uids and device hints are replaced with per-customer salted
  * hashes, and the retention class and expiry are stamped before the event is
- * queued. Text survives this step; the scorer drops it for T0 within 24h
- * (DESIGN.md 7).
+ * queued, both from the receiving clock. Text survives this step; the scorer
+ * drops it for T0 within 24h (DESIGN.md 7).
  */
-export function minimize(inbound: InboundEvent, customer: Customer): Event {
+export function minimize(inbound: InboundEvent, customer: Customer, receivedAt = new Date()): Event {
   const retention = retentionForTier("T0");
-  const expiry = expiresAt(retention, inbound.ts) ?? new Date(inbound.ts.getTime() + 86_400_000);
+  // Retention runs from receipt, never from the customer's own ts. The clock
+  // that governs deletion has to be ours (rule 7); inboundEventSchema bounds
+  // how far ahead ts may sit, and a backdated ts must not shorten the window
+  // either.
+  const expiry = expiresAt(retention, receivedAt) ?? new Date(receivedAt.getTime() + 86_400_000);
 
   return {
     externalId: inbound.externalId,
@@ -373,7 +430,7 @@ export function minimize(inbound: InboundEvent, customer: Customer): Event {
             : undefined,
         }
       : null,
-    provenance: { ...inbound.provenance, receivedAt: new Date() },
+    provenance: { ...inbound.provenance, receivedAt },
     retention,
     expiresAt: expiry,
   };

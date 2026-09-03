@@ -40,12 +40,12 @@ function fixture(): Fixture {
 
   const pipeline = {
     async exportBundle(
+      guildId: string,
       actorUid: string,
       targetUid: string,
       tier: Tier,
-      guildId: string,
       rationale: string[],
-    ): Promise<EvidenceBundle> {
+    ): Promise<EvidenceBundle | null> {
       exports.push({ actorUid, targetUid, tier, guildId });
       const head = await audit.head();
       const bundle = buildEvidenceBundle({
@@ -143,7 +143,7 @@ describe("permissions", () => {
 
   it("refuses an export from a member without Manage Server", async () => {
     const f = fixture();
-    f.pairs.record("h_adult", "h_kid", "T2", ["reason"], NOW);
+    f.pairs.record(GUILD, "h_adult", "h_kid", "T2", ["reason"], NOW);
     const reply = await run(
       f,
       { name: "export", senderId: "adult", recipientId: "kid" },
@@ -156,7 +156,7 @@ describe("permissions", () => {
   it("lets anyone read status", async () => {
     const f = fixture();
     const reply = await run(f, { name: "status" }, { canManageGuild: false });
-    expect(reply.content).toContain("Scoring: off");
+    expect(reply.content).toContain("not scoring");
   });
 
   it("does nothing outside a server", async () => {
@@ -273,9 +273,10 @@ describe("status", () => {
       trustedRoleIds: ["role-mod"],
       excludedChannelIds: ["chan-adults"],
     });
-    f.pairs.record("a", "b", "T1", [], NOW);
-    f.pairs.record("c", "d", "T2", ["reason"], NOW);
-    f.pairs.record("e", "f", "T2", ["reason"], new Date("2026-08-01T00:00:00Z"));
+    f.pairs.record(GUILD, "a", "b", "T1", [], NOW);
+    f.pairs.record(GUILD, "c", "d", "T2", ["reason"], NOW);
+    f.pairs.record(GUILD, "e", "f", "T2", ["reason"], new Date("2026-08-01T00:00:00Z"));
+    f.pairs.record("guild-other", "g", "h", "T2", ["reason"], NOW);
     await f.audit.append({ kind: "score.assigned", customerId: "cus_discord", payload: {} });
 
     const reply = await run(f, { name: "status" });
@@ -288,6 +289,29 @@ describe("status", () => {
     expect(reply.content).toContain("1 pairs at T2");
     expect(reply.content).toContain("Audit chain: 1 entries");
     expect(reply.content).toContain("not findings about any person");
+  });
+
+  it("tells a member Guardian is here without mapping where it is blind", async () => {
+    const f = fixture();
+    await seedConfig(f, {
+      roleBands: { "role-kid": "A9_12" },
+      trustedRoleIds: ["role-mod"],
+      excludedChannelIds: ["chan-vent", "chan-art"],
+      autoTimeoutOnT2: true,
+    });
+    f.pairs.record(GUILD, "a", "b", "T2", ["reason"], NOW);
+
+    const reply = await run(f, { name: "status" }, { canManageGuild: false });
+    expect(reply.content).toContain("Guardian is on in this server");
+    // The exclusion list is a map of where Guardian does not look.
+    expect(reply.content).not.toContain("chan-vent");
+    expect(reply.content).not.toContain("chan-art");
+    expect(reply.content).not.toContain(MOD_CHANNEL);
+    expect(reply.content).not.toContain("role-mod");
+    expect(reply.content).not.toContain("role-kid");
+    expect(reply.content).not.toContain("Timeout");
+    expect(reply.content).not.toContain("pairs at T2");
+    expect(reply.content).not.toContain("Audit chain");
   });
 
   it("reports scoring off with an unconfigured guild", async () => {
@@ -311,10 +335,21 @@ describe("export", () => {
 
   it("refuses a pair that never rose above T0", async () => {
     const f = fixture();
-    f.pairs.record("h_adult", "h_kid", "T0", [], NOW);
+    f.pairs.record(GUILD, "h_adult", "h_kid", "T0", [], NOW);
     const reply = await run(f, { name: "export", senderId: "adult", recipientId: "kid" });
     expect(reply.content).toContain("tier T0");
     expect(f.exports).toHaveLength(0);
+  });
+
+  it("refuses to export a pair that was scored in another server", async () => {
+    const f = fixture();
+    // The same two accounts, scored in a server the invoker does not own.
+    f.pairs.record("guild-elsewhere", "h_adult", "h_kid", "T2", ["reason"], NOW);
+    const reply = await run(f, { name: "export", senderId: "adult", recipientId: "kid" });
+    expect(reply.content).toContain("no scored history for that pair in this server");
+    expect(reply.files).toBeUndefined();
+    expect(f.exports).toHaveLength(0);
+    expect(f.auditStore.size()).toBe(0);
   });
 
   it("refuses the same account twice", async () => {
@@ -326,7 +361,7 @@ describe("export", () => {
 
   it("attaches the report draft as a file on an ephemeral reply", async () => {
     const f = fixture();
-    f.pairs.record("h_adult", "h_kid", "T2", ["Supervision probing followed by a migration ask."], NOW);
+    f.pairs.record(GUILD, "h_adult", "h_kid", "T2", ["Supervision probing followed by a migration ask."], NOW);
     const reply = await run(f, { name: "export", senderId: "adult", recipientId: "kid" });
 
     expect(reply.ephemeral).toBe(true);
@@ -346,9 +381,9 @@ describe("export", () => {
 
   it("keeps the highest tier a pair reached", () => {
     const pairs = new MemoryPairLookup();
-    pairs.record("a", "b", "T2", ["reason"], NOW);
-    pairs.record("a", "b", "T1", [], NOW);
-    return pairs.history("a", "b").then((h) => {
+    pairs.record(GUILD, "a", "b", "T2", ["reason"], NOW);
+    pairs.record(GUILD, "a", "b", "T1", [], NOW);
+    return pairs.history(GUILD, "a", "b").then((h) => {
       expect(h?.tier).toBe("T2");
       expect(h?.messages).toBe(2);
       expect(isBundleable(h)).toBe(true);

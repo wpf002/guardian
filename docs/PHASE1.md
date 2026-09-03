@@ -15,7 +15,7 @@ Kernel v0 and the Discord bot (DESIGN.md section 11, step 1). This page says wha
 | Retention classes, escalation, expiry | `packages/schema/src/retention.ts` | 5 tests |
 | Accusation guard and workspace source scan | `packages/schema/src/language.ts` | 5 tests, one of which walks every `.ts` and `.py` file |
 | Hash-chained audit log, tamper detection naming the row, Postgres store with an advisory lock per append | `packages/audit` | 13 tests, plus the section 10 tamper test, plus the concurrent-append e2e |
-| Ingest edge: auth, HMAC, media refusal, PII minimization, per-customer stream | `apps/ingest` | 28 tests |
+| Ingest edge: auth, HMAC, media refusal, PII minimization, per-customer stream | `apps/ingest` | 62 tests |
 | Prisma customer store: key hash only, salt, violations table, operator CLI (`create-customer`, `verify-audit`) | `apps/ingest/src/prisma-customers.ts`, `cli.ts` | 17 tests |
 | Retention sweep, scheduled hourly from `main.ts`; skips legal holds and bundles with a report | `apps/ingest/src/retention-job.ts` | 3 tests |
 | Signal detectors over the lexicon | `apps/scorer/src/detectors` | see kernel tests |
@@ -28,7 +28,7 @@ Kernel v0 and the Discord bot (DESIGN.md section 11, step 1). This page says wha
 | Event row persistence: text kept by tier, versions, capped excerpts | `apps/scorer/src/persist.ts` | see scorer tests |
 | Redis Streams worker and signed webhook dispatch, customers loaded from the table | `apps/scorer/src/worker.ts`, `webhook.ts` | e2e below |
 | Customer SDK with client-side byte refusal | `packages/sdk-ts` | 11 tests |
-| Discord bot: config, role to band, mapping, alerts, actions, pipeline, report draft | `apps/discord-bot` | 25 tests |
+| Discord bot: config, role to band, mapping, alerts, actions, pipeline, report draft | `apps/discord-bot` | 31 tests |
 | Slash commands: `/guardian setup, role, trusted, timeout, exclude, status, export, verify`; Prisma guild config | `apps/discord-bot/src/commands.ts`, `prisma-config.ts`, `register.ts` | 27 tests |
 | ML service: PII classifier with rule fallback, script index, stage classifier interface | `services/ml` | 16 tests |
 | Evaluation suite | `scripts/eval` | 9 tests, 5 of them required gates |
@@ -54,15 +54,81 @@ The `false-positive traps` eval test runs 300 conversations per class and assert
 
 `pnpm eval` prints a header saying this and it bears repeating. The conversations are generated from case-file structure because every public grooming dataset is decoy-based and none can be mirrored. The generators draw on the same phrase families the lexicon holds. A 100% here is a floor, not a result. The first honest precision number comes from reviewer decisions on real traffic, which is why the bot ships to three friendly servers before anything else.
 
+## Decisions from the first review pass
+
+These changed behaviour, not just code.
+
+- **Everything the bot remembers is keyed by guild.** One process serves every
+  guild under one customer id and one salt, so the same two Discord ids hashed
+  to the same pair key in every server. `MemoryPairLookup` and
+  `BotPipeline.timelines` now key on `guildId` first, `PairLookup.history` and
+  `exportBundle` take the guild, and `exportBundle` returns null rather than
+  falling back to rows from somewhere else. Before this, an owner of any server
+  the bot was in could run `/guardian export` on two ids and receive another
+  server's retained message text (rule 8).
+- **`/guardian status` answers by permission.** Any member still gets the overt
+  disclosure rule 3 requires: Guardian is here, and whether it is scoring.
+  Manage Server gets the rest. The excluded channel list in particular is a map
+  of where Guardian does not look and no longer goes to everyone.
+- **`PrismaPairStats` is no longer wired into the bot.** The pairs table has no
+  guild column, so its counts are the whole deployment's. `/guardian status`
+  reports the in-process, guild-scoped counts until pairs carry a source id.
+- **`guild_configs` is keyed on (guildId, customerId).** Migration
+  `20260903200000_guild_config_customer_key`. The read was tenant-scoped and
+  the upsert was not, so a second deployment sharing the database rewrote the
+  customer id of a row it could not read and the first deployment silently fell
+  back to defaults.
+- **Both gateway listeners are guarded** (`registerHandlers` in `bot.ts`), with
+  an `Events.Error` listener and a process-level `unhandledRejection` backstop.
+  discord.js re-emits a rejected listener promise as an `error` event, so a
+  deleted mod channel in one guild used to end the process for every guild.
+- **The dead-letter stream carries no payload.** `guardian:dead:<customer>` has
+  no retention class, no expiry and nothing that sweeps it, so the copied event
+  JSON kept raw message text past the 24 hour T0 window. Entries now name the
+  customer, stream, stream id, external id, reason and delivery count. There is
+  no replay from the dead-letter stream any more; a replay path needs a
+  Postgres row under an explicit retention class.
+- **`reclaimStale` no longer acknowledges what XCLAIM declined to return.**
+  XCLAIM omits an entry both when it was trimmed and when another consumer
+  claimed it first, and acking on that guess dropped a message that was still
+  being processed elsewhere. Redis prunes trimmed ids from the pending list
+  itself.
+- **Pair signal excerpts follow the tier.** `putPair` wrote quoted spans for
+  every pair, including ones the model only ever scored T0, and the 30 day pair
+  clock kept them. Excerpts are now written only while the pair's own tier
+  retains text; excerpts already stored are left alone, so a pair that reached
+  T2 and fell back does not lose them. The row itself stays WATCH_30D because
+  the kernel needs the trajectory across days.
+- **Retention runs on our clock.** `minimize` stamps the expiry from
+  `receivedAt` rather than the customer's `ts`, `inboundEventSchema` refuses a
+  `ts` more than five minutes ahead (`MAX_EVENT_CLOCK_SKEW_MS`), and
+  `clearExpiredText` filters on `createdAt`. A broken customer clock could
+  otherwise put `expiresAt` in 2099, which no sweep predicate would ever match.
+  Backdated events are still accepted; a backfill is legitimate.
+- **The ingest quota is per customer.** The pre-auth brake stays on the source
+  address but is loose (3000/min); the 600/min quota is charged to the customer
+  id resolved from the key. Behind a proxy every customer is the same peer
+  address, so one anonymous flood used to refuse every real customer's batches.
+  `GUARDIAN_TRUST_PROXY` takes a hop count or proxy addresses, never `true`.
+- **The e2e never deletes audit rows.** seq is one global sequence, so deleting
+  a run's entries out of the middle leaves a gap that `verify-audit` reports as
+  a broken chain with no repair. The suite now appends under the deployment's
+  own `AUDIT_CHAIN_SECRET` (environment, or the repo `.env`), leaves its rows
+  in place, asserts the chain still verifies from the root, and skips unless
+  the database is local.
+
 ## Open
 
 - **Roblox PII Classifier v2 weights.** The loader is in place behind `GUARDIAN_PII_MODEL`. Wiring the real weights and comparing against the rule fallback on the Roblox benchmark is the next ML task.
 - **Lexicon mining.** DESIGN.md 6.5 says to periodically mine T2+ confirmed cases for tokens the detectors missed. No confirmed cases yet.
 - **Discord message-content intent verification** above 100 servers, around week 10.
-- **Bot audit log and pair counts.** The bot's audit chain is still in memory even with `DATABASE_URL` set, because nothing seeds a customer row for the guild's `GUARDIAN_CUSTOMER_ID`. `/guardian status` reads T1/T2 counts from `pairs`, which fill only when the scorer worker runs beside the bot. Export history is in-process and empty after a restart.
+- **Bot audit log and pair counts.** The bot's audit chain is still in memory even with `DATABASE_URL` set, because nothing seeds a customer row for the guild's `GUARDIAN_CUSTOMER_ID`. Pair counts and the export timeline are in process and guild-scoped, so both are empty after a restart. Database-backed counts need a guild or source id on `pairs`.
 - **Worker partition list is loaded once.** A new customer needs a scorer restart. Ids from the `GUARDIAN_CUSTOMER_IDS` fallback have no webhook and cannot persist rows until the customer row exists.
 - **Open-channel messages have no events row.** The kernel returns null for events with no `targetUid`, so only actor state is written for them.
 - **Actor skew read back 0 after the smoke ladder** (fanOut7d 1, minorFanOut7d 1). That is `scoreActor`'s output passed straight through `recordTier`; worth a look by the kernel owner.
+- **Redis stream retention.** `guardian:events:<customer>` is trimmed by `MAXLEN ~ 100000` and has no TTL, so a queued event's raw text can sit in Redis well past the 24 hour T0 window even after it has been scored and the row's text dropped. Rule 7 wants a time bound here: an `XTRIM MINID` by timestamp, or a TTL on both the event and dead-letter key families. Not addressed by the dead-letter fix above, which only stops the copy.
+- **`events.features` keeps excerpts for T0 rows.** `persist` drops `events.text` by tier but writes the detection excerpts into the `features` json regardless, and the sweep's text clear does not touch that column. Same shape as the pair signals fix, one table over.
+- **Retention ratchet is read-modify-write.** `keepRetention` in `prisma-store.ts` and `persist.ts` omits the class from the update patch when it has not changed but always writes `expiresAt` from the pre-upsert read, so a concurrent escalation can have its expiry pulled back. Unreachable today because nothing produces a class above WATCH_30D until a reviewer can record T3. It has to be a guarded single statement (`updateMany` with `expiresAt: { lt: computed }`, or `GREATEST`) before the phase 2 review path lands.
 - **`events.expiresAt` is NOT NULL** while pairs, actors and bundles are nullable, so LEGAL_HOLD on an event cannot be open ended. The sweep excludes LEGAL_HOLD regardless of the column.
 
 ### Schema review findings not yet applied

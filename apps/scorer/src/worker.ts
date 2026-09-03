@@ -27,9 +27,11 @@ import { dispatch, toWebhookPayload, type WebhookTarget } from "./webhook.js";
  *     process before a crash or by one that never came back. The consumer
  *     name is stable across restarts for the same reason.
  *   - An entry that cannot be parsed, or that has failed `maxDeliveries`
- *     times, goes to the customer's dead-letter stream with an event.rejected
- *     entry in the chain, and only then is acknowledged. Nothing is dropped
- *     without a row saying so.
+ *     times, is recorded on the customer's dead-letter stream with an
+ *     event.rejected entry in the chain, and only then is acknowledged.
+ *     Nothing is dropped without a row saying so. The dead-letter entry names
+ *     the entry and the reason and carries no payload, because that stream has
+ *     no retention class and nothing sweeps it (rule 7).
  *
  * One instance reads a partition at a time. Instances take a lease per
  * customer before reading and renew it every loop, so two processes cannot
@@ -259,8 +261,16 @@ async function reclaimStale(
     const [id, fields] = entry;
     await deliver(opts, stream, id, fields, deliveries.get(id) ?? 1);
   }
-  const trimmedIds = pending.map(([id]) => id).filter((id) => !claimed.some((c) => c !== null && c[0] === id));
-  for (const id of trimmedIds) await opts.redis.xack(stream, CONSUMER_GROUP, id);
+
+  // Ids XPENDING listed but XCLAIM did not hand back are left alone. XCLAIM
+  // omits an entry for two reasons that cannot be told apart from here: it no
+  // longer exists in the stream, or another consumer claimed it in the window
+  // between the two calls and its idle time is now below the threshold.
+  // Acknowledging on that guess would take an entry out of the pending list
+  // while another instance is still holding it, and the message would never be
+  // scored, persisted or dead-lettered. Redis drops a genuinely trimmed entry
+  // from the pending list during XCLAIM itself, so there is nothing to clean up
+  // here; anything still pending is picked up by the next reclaim pass.
 }
 
 /**
@@ -278,7 +288,7 @@ async function deliver(
   const parsed = parseEntry(fields);
 
   if (!parsed.ok) {
-    await deadLetter(opts, stream, id, fields, parsed.reason, deliveries, null);
+    await deadLetter(opts, stream, id, parsed.reason, deliveries, null);
     return;
   }
 
@@ -289,7 +299,7 @@ async function deliver(
     const detail = describeError(err);
     if (deliveries >= maxDeliveries) {
       console.error(`scoring failed ${deliveries} times for ${stream} ${id} (${detail}); dead-lettering`);
-      await deadLetter(opts, stream, id, fields, "scoring_failed", deliveries, parsed.event.externalId);
+      await deadLetter(opts, stream, id, "scoring_failed", deliveries, parsed.event.externalId);
       return;
     }
     console.error(`scoring failed for ${stream} ${id} on delivery ${deliveries} (${detail}); left pending`);
@@ -316,15 +326,21 @@ function parseEntry(fields: string[]): ParsedEntry {
 }
 
 /**
- * Move an entry to the customer's dead-letter stream and record that in the
- * chain, then acknowledge it. If either write fails the entry stays pending
- * and the next reclaim pass tries again; an entry is never dropped silently.
+ * Record that an entry was rejected and acknowledge it. If either write fails
+ * the entry stays pending and the next reclaim pass tries again; an entry is
+ * never dropped silently.
+ *
+ * The dead-letter entry is metadata only. The original fields carry the
+ * serialized Event, which holds the raw message text, and this stream has no
+ * retention class, no expiry and nothing that sweeps it: a copy here would sit
+ * in Redis past the 24 hour window rule 7 gives T0 text and outside any
+ * deletion request. The stream id and the external id are enough to say what
+ * was rejected and why.
  */
 async function deadLetter(
   opts: WorkerOptions,
   stream: string,
   id: string,
-  fields: string[],
   reason: string,
   deliveries: number,
   externalId: string | null,
@@ -337,7 +353,10 @@ async function deadLetter(
       "~",
       String(DEAD_LETTER_MAX_LEN),
       "*",
-      ...fields,
+      "customerId",
+      customerId,
+      "externalId",
+      externalId ?? "",
       "reason",
       reason,
       "source",

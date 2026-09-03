@@ -204,6 +204,14 @@ function samplePair(): PairState {
   };
 }
 
+/** samplePair with the quoted spans dropped, as a T0 pair is stored. */
+function withoutSignalText(state: PairState): PairState {
+  return {
+    ...state,
+    signals: state.signals.map(({ excerpt: _excerpt, matched: _matched, ...rest }) => rest),
+  };
+}
+
 function sampleActor(): ActorState {
   let state = emptyActorState("A21_PLUS");
   state = observeActor(state, {
@@ -261,10 +269,51 @@ function tierResult(tier: Tier, producedBy: TierResult["producedBy"] = "model"):
 
 describe("PrismaKernelStore pairs", () => {
   it("round trips pair state through the column mapping", async () => {
-    const { store } = makeStore();
+    const { store, pairs } = makeStore();
+    // A pair already at a tier that retains text, so the excerpts survive.
+    pairs.seed({ customerId: CUS, actorUid: ACTOR, targetUid: TARGET, tier: "T1" });
     const state = samplePair();
     await store.putPair(CUS, ACTOR, TARGET, state);
     expect(await store.getPair(CUS, ACTOR, TARGET)).toEqual(state);
+  });
+
+  it("keeps no quoted message text on a pair the model has only scored T0", async () => {
+    const { store, pairs } = makeStore();
+    await store.putPair(CUS, ACTOR, TARGET, samplePair());
+
+    // The trajectory is kept for 30 days because the kernel needs it. The
+    // child's words are not (CLAUDE.md rule 7, T0 keeps nothing).
+    const signals = pairs.row().signals as Array<Record<string, unknown>>;
+    expect(signals.map((signal) => signal.kind)).toEqual([
+      "supervision_probe",
+      "off_platform_migration",
+    ]);
+    for (const signal of signals) {
+      expect(signal.excerpt).toBeUndefined();
+      expect(signal.matched).toBeUndefined();
+    }
+    expect(JSON.stringify(pairs.row())).not.toContain("are your parents home");
+    expect(pairs.row().retention).toBe("WATCH_30D");
+  });
+
+  it("leaves excerpts already stored alone when a later message scores T0", async () => {
+    const { store, pairs } = makeStore();
+    const kept = {
+      kind: "supervision_probe",
+      stage: "probe",
+      weight: 1,
+      excerpt: "are your parents home",
+      matched: "supervision_probe:parents_home",
+      eventExternalId: "m1",
+      ts: "2026-09-03T11:00:00.000Z",
+    };
+    // A pair that reached T2 earlier and has since fallen back to T0.
+    pairs.seed({ customerId: CUS, actorUid: ACTOR, targetUid: TARGET, tier: "T0", signals: [kept] });
+
+    await store.putPair(CUS, ACTOR, TARGET, samplePair());
+    const signals = pairs.row().signals as Array<Record<string, unknown>>;
+    expect(signals[0]?.excerpt).toBe("are your parents home");
+    expect(signals[1]?.excerpt).toBeUndefined();
   });
 
   it("returns null for a pair that was never written", async () => {
@@ -294,6 +343,7 @@ describe("PrismaKernelStore pairs", () => {
 
   it("upserts on the unique key instead of adding rows", async () => {
     const { store, pairs } = makeStore();
+    pairs.seed({ customerId: CUS, actorUid: ACTOR, targetUid: TARGET, tier: "T1" });
     await store.putPair(CUS, ACTOR, TARGET, samplePair());
     const next = { ...samplePair(), actorMessages: 9, knownCsamMatch: true };
     await store.putPair(CUS, ACTOR, TARGET, next);
@@ -444,8 +494,9 @@ describe("PrismaKernelStore recordTier", () => {
     expect(row.fusionVersion).toBe("rules-v1");
     expect(row.retention).toBe("WATCH_30D");
     expect(row.customerId).toBe(CUS);
-    // State columns are untouched.
-    expect(await store.getPair(CUS, ACTOR, TARGET)).toEqual(samplePair());
+    // State columns are untouched. The pair was at T0 when the state was
+    // written, so its signals carry no quoted text.
+    expect(await store.getPair(CUS, ACTOR, TARGET)).toEqual(withoutSignalText(samplePair()));
 
     const actor = actors.row(ACTOR);
     expect(actor.skewScore).toBe(0.4);

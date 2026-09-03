@@ -35,7 +35,13 @@ export const SUBCOMMANDS = [
 ] as const;
 export type Subcommand = (typeof SUBCOMMANDS)[number];
 
-/** Anyone in the server may read status. Everything else needs Manage Server. */
+/**
+ * Anyone in the server may run status, but what it answers depends on the
+ * caller. A member gets the overt disclosure rule 3 requires: Guardian is here
+ * and whether it is scoring. Only Manage Server sees the settings, and in
+ * particular the list of channels Guardian does not read, because that list is
+ * a map of where it is blind.
+ */
 export const OPEN_SUBCOMMANDS: readonly Subcommand[] = ["status"];
 
 /** Bounds for the opt-in T2 timeout, matching guildConfigSchema. */
@@ -226,10 +232,16 @@ export interface PairHistory {
   lastSeenAt: Date;
 }
 
+/**
+ * Pair memory is per guild. The bot serves many servers from one process under
+ * one customer id and one salt, so two Discord ids hash the same everywhere;
+ * without the guild in the key an owner could export a conversation that
+ * happened in someone else's server (CLAUDE.md rule 8).
+ */
 export interface PairLookup {
-  history(actorUid: string, targetUid: string): Promise<PairHistory | null>;
-  /** Pairs at T1 and T2 touched since `since`, from the pairs table when there is one. */
-  recentTierCounts(since: Date): Promise<{ T1: number; T2: number }>;
+  history(guildId: string, actorUid: string, targetUid: string): Promise<PairHistory | null>;
+  /** Pairs at T1 and T2 in this guild touched since `since`. */
+  recentTierCounts(guildId: string, since: Date): Promise<{ T1: number; T2: number }>;
 }
 
 export interface CommandDeps {
@@ -249,8 +261,15 @@ export interface CommandDeps {
 export class MemoryPairLookup implements PairLookup {
   private readonly pairs = new Map<string, PairHistory>();
 
-  record(actorUid: string, targetUid: string, tier: Tier, rationale: string[], at: Date): void {
-    const key = `${actorUid}:${targetUid}`;
+  record(
+    guildId: string,
+    actorUid: string,
+    targetUid: string,
+    tier: Tier,
+    rationale: string[],
+    at: Date,
+  ): void {
+    const key = pairKey(guildId, actorUid, targetUid);
     const previous = this.pairs.get(key);
     this.pairs.set(key, {
       // A pair's tier is its trajectory; a quiet message after a T2 does not lower it.
@@ -261,19 +280,26 @@ export class MemoryPairLookup implements PairLookup {
     });
   }
 
-  async history(actorUid: string, targetUid: string): Promise<PairHistory | null> {
-    return this.pairs.get(`${actorUid}:${targetUid}`) ?? null;
+  async history(guildId: string, actorUid: string, targetUid: string): Promise<PairHistory | null> {
+    return this.pairs.get(pairKey(guildId, actorUid, targetUid)) ?? null;
   }
 
-  async recentTierCounts(since: Date): Promise<{ T1: number; T2: number }> {
+  async recentTierCounts(guildId: string, since: Date): Promise<{ T1: number; T2: number }> {
     const counts = { T1: 0, T2: 0 };
-    for (const pair of this.pairs.values()) {
+    const prefix = `${guildId}:`;
+    for (const [key, pair] of this.pairs) {
+      if (!key.startsWith(prefix)) continue;
       if (pair.lastSeenAt < since) continue;
       if (pair.tier === "T1") counts.T1 += 1;
       if (pair.tier === "T2") counts.T2 += 1;
     }
     return counts;
   }
+}
+
+/** Guild first, so one server's pair state can never be read from another. */
+function pairKey(guildId: string, actorUid: string, targetUid: string): string {
+  return `${guildId}:${actorUid}:${targetUid}`;
 }
 
 function tierRank(tier: Tier): number {
@@ -391,8 +417,12 @@ export async function handleCommand(input: CommandInput, deps: CommandDeps): Pro
     }
 
     case "status": {
+      // A member is told Guardian is here and whether it is scoring, and
+      // nothing else. Which channels are excluded, which roles are trusted and
+      // how many pairs are at each tier stay with Manage Server.
+      if (!input.canManageGuild) return reply(formatPublicStatus(config), where);
       const now = deps.now?.() ?? new Date();
-      const counts = await deps.pairs.recentTierCounts(new Date(now.getTime() - WEEK_MS));
+      const counts = await deps.pairs.recentTierCounts(input.guildId, new Date(now.getTime() - WEEK_MS));
       const head = await deps.audit.head();
       return reply(formatStatus(config, counts, head), where);
     }
@@ -403,7 +433,9 @@ export async function handleCommand(input: CommandInput, deps: CommandDeps): Pro
       }
       const actorUid = deps.hashUid(request.senderId);
       const targetUid = deps.hashUid(request.recipientId);
-      const history = await deps.pairs.history(actorUid, targetUid);
+      // Scoped to the invoking guild. The same two accounts may be scored in
+      // another server this bot serves; that history belongs to that server.
+      const history = await deps.pairs.history(input.guildId, actorUid, targetUid);
       if (history === null || history.messages === 0) {
         return reply(
           "Guardian has no scored history for that pair in this server, so there is nothing to bundle. Guardian only keeps what it scored while enabled here, and the sender must be listed first.",
@@ -417,12 +449,21 @@ export async function handleCommand(input: CommandInput, deps: CommandDeps): Pro
         );
       }
       const bundle = await deps.pipeline.exportBundle(
+        input.guildId,
         actorUid,
         targetUid,
         history.tier,
-        input.guildId,
         history.rationale,
       );
+      // The pipeline keeps its timeline under the same guild key, so a bundle
+      // is only ever built from what was scored in this server. Null means the
+      // memory of it is gone, most often after a restart.
+      if (bundle === null) {
+        return reply(
+          "Guardian has no retained messages for that pair in this server, so there is nothing to bundle. Message memory is held in process and is empty after a restart.",
+          where,
+        );
+      }
       const draft = buildReportDraft(bundle, history.rationale);
       return reply(
         [
@@ -449,6 +490,23 @@ export async function handleCommand(input: CommandInput, deps: CommandDeps): Pro
       );
     }
   }
+}
+
+/**
+ * What any member sees. Rule 3 says this surface is overt, so the answer is
+ * honest about whether Guardian is scoring. It stops there: the mod channel,
+ * the excluded channels, the trusted roles, the band map, the timeout setting
+ * and the tier counts are all operational detail, and the exclusion list in
+ * particular tells a reader exactly where Guardian does not look.
+ */
+function formatPublicStatus(config: GuildConfig): string {
+  return [
+    isReady(config)
+      ? "Guardian is on in this server. It reads messages in channels it has access to and scores conversation patterns, then tells the moderators when a pattern needs a human look."
+      : "Guardian is installed in this server but is not scoring. A member with Manage Server finishes setup with /guardian setup.",
+    "It stores age bands rather than birthdates, never images or video, and tiers describe message patterns for human review. They are not findings about any person.",
+    "Settings and activity are shown to members with Manage Server. If a conversation here worries you, tell a moderator of this server.",
+  ].join("\n");
 }
 
 function formatStatus(

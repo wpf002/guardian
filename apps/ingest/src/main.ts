@@ -11,7 +11,8 @@ import { buildServer } from "./server.js";
  * Postgres; events go onto a per-customer Redis Stream; the retention sweep
  * runs on an hourly timer (CLAUDE.md rule 7).
  *
- * Environment: DATABASE_URL, REDIS_URL, AUDIT_CHAIN_SECRET, INGEST_PORT.
+ * Environment: DATABASE_URL, REDIS_URL, AUDIT_CHAIN_SECRET, INGEST_PORT, and
+ * GUARDIAN_TRUST_PROXY when the service sits behind a proxy.
  * Customers are created with `pnpm cli create-customer <name>`.
  */
 
@@ -19,6 +20,24 @@ const port = Number(process.env.INGEST_PORT ?? 3001);
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
 const auditSecret = process.env.AUDIT_CHAIN_SECRET ?? "";
 const sweepIntervalMs = Number(process.env.RETENTION_SWEEP_INTERVAL_MS ?? 60 * 60 * 1000);
+
+/**
+ * How far to trust X-Forwarded-For, from GUARDIAN_TRUST_PROXY: a hop count
+ * ("1") or a comma separated list of proxy addresses or CIDRs. Never `true`,
+ * which would take whatever header the caller sent. Unset means the TCP peer
+ * address is used, which is correct with no proxy in front.
+ */
+function trustProxyFromEnv(): string[] | number | undefined {
+  const raw = process.env.GUARDIAN_TRUST_PROXY?.trim();
+  if (!raw || raw === "false") return undefined;
+  if (raw === "true") {
+    console.warn("GUARDIAN_TRUST_PROXY=true is not accepted: set a hop count or the proxy addresses");
+    return undefined;
+  }
+  const hops = Number(raw);
+  if (Number.isInteger(hops) && hops > 0) return hops;
+  return raw.split(",").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+}
 
 /**
  * PrismaAuditStore built from the client takes a database advisory lock per
@@ -54,6 +73,7 @@ async function start(): Promise<void> {
     queue,
     audit,
     violations: { record: (customerId, violations) => customers.recordViolation(customerId, violations) },
+    trustProxy: trustProxyFromEnv(),
     logger: true,
   });
 

@@ -109,6 +109,15 @@ export const deviceHintsSchema = z
   .strict();
 
 /**
+ * How far ahead of the receiving clock an event timestamp may sit. A customer
+ * clock is never exactly ours, but an unbounded future ts poisons the pair
+ * window and, before retention was moved to receipt time, produced rows that
+ * no sweep could ever reach. Backdated events are allowed: a backfill is a
+ * legitimate use, and retention is stamped from receipt regardless.
+ */
+export const MAX_EVENT_CLOCK_SKEW_MS = 5 * 60_000;
+
+/**
  * The canonical Event, as submitted by a customer. Uids here are the customer's
  * own user ids; ingest replaces them with per-customer salted hashes before
  * anything is stored or queued (CLAUDE.md rule 8).
@@ -120,7 +129,11 @@ export const inboundEventSchema = z
     actorUid: z.string().min(1).max(256),
     targetUid: z.string().min(1).max(256).nullish(),
     channel: z.string().min(1).max(128),
-    ts: z.coerce.date(),
+    ts: z.coerce
+      .date()
+      .refine((value) => value.getTime() <= Date.now() + MAX_EVENT_CLOCK_SKEW_MS, {
+        message: `ts is more than ${MAX_EVENT_CLOCK_SKEW_MS / 60_000} minutes in the future`,
+      }),
     text: z.string().max(8000).nullish(),
     media: mediaRefSchema.nullish(),
     actorBand: ageBandSchema.default("UNKNOWN"),

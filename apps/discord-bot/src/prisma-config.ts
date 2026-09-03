@@ -7,9 +7,11 @@ import { guildConfigSchema, type GuildConfig, type GuildConfigStore } from "./co
  * The delegate types below are the minimal shape this store needs, in the
  * style of packages/audit/src/prisma-store.ts, so the bot compiles without the
  * generated client and the real PrismaClient satisfies them structurally.
- * Every row carries the customer id (CLAUDE.md rule 7) and reads are scoped to
- * that customer, so a guild row written under another customer is invisible
- * here rather than silently adopted (rule 8).
+ * Every row carries the customer id (CLAUDE.md rule 7) and both reads and
+ * writes are scoped to that customer. The row's identity is (guildId,
+ * customerId), so a second deployment sharing this database writes its own row
+ * for the same guild rather than taking ownership of one it cannot read
+ * (rule 8).
  */
 
 export interface GuildConfigRow {
@@ -38,10 +40,18 @@ export interface GuildConfigWrite {
   enabled: boolean;
 }
 
+/** The compound key of a guild_configs row: one row per guild per customer. */
+export interface GuildConfigKey {
+  guildId: string;
+  customerId: string;
+}
+
 export interface GuildConfigDelegate {
-  findUnique(args: { where: { guildId: string } }): Promise<GuildConfigRow | null>;
+  findUnique(args: {
+    where: { guildId_customerId: GuildConfigKey };
+  }): Promise<GuildConfigRow | null>;
   upsert(args: {
-    where: { guildId: string };
+    where: { guildId_customerId: GuildConfigKey };
     create: GuildConfigWrite & { guildId: string };
     update: GuildConfigWrite;
   }): Promise<unknown>;
@@ -70,7 +80,9 @@ export class PrismaGuildConfigStore implements GuildConfigStore {
   ) {}
 
   async get(guildId: string): Promise<GuildConfig | null> {
-    const row = await this.delegate.findUnique({ where: { guildId } });
+    const row = await this.delegate.findUnique({
+      where: { guildId_customerId: { guildId, customerId: this.customerId } },
+    });
     if (!row || row.customerId !== this.customerId) return null;
     return guildConfigSchema.parse({
       guildId: row.guildId,
@@ -97,8 +109,10 @@ export class PrismaGuildConfigStore implements GuildConfigStore {
       excludedChannelIds: config.excludedChannelIds,
       enabled: config.enabled,
     };
+    // Keyed on both columns. Upserting on the guild alone would rewrite the
+    // customer id of a row this store cannot even read (rule 8).
     await this.delegate.upsert({
-      where: { guildId: config.guildId },
+      where: { guildId_customerId: { guildId: config.guildId, customerId: this.customerId } },
       create: { guildId: config.guildId, ...data },
       update: data,
     });

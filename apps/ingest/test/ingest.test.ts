@@ -140,7 +140,7 @@ describe("refusals before authentication", () => {
   });
 
   it("rate limits a source address before any key lookup or chain write", async () => {
-    const limited = setup({ rateLimit: { max: 3, windowMs: 60_000 } });
+    const limited = setup({ preAuthRateLimit: { max: 3, windowMs: 60_000 } });
     const codes: number[] = [];
     for (let i = 0; i < 5; i += 1) {
       const res = await limited.app.inject({
@@ -156,7 +156,41 @@ describe("refusals before authentication", () => {
     expect(limited.app.counters.preAuthRefusals.rate_limited).toBe(2);
   });
 
-  it("limits per source and resets with the window", () => {
+  it("gives two customers behind one source address their own budgets", async () => {
+    // Behind a platform proxy every customer is the same TCP peer. The quota
+    // has to be charged to the key, or one flood refuses everyone.
+    const ctx = setup({ rateLimit: { max: 2, windowMs: 60_000 }, preAuthRateLimit: false });
+    const second = ctx.customers.create("cus_2", "Second Guild", "gk_second_key");
+    expect(second.id).toBe("cus_2");
+
+    const codes: number[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const res = await post(ctx.app, { ...validEvent, externalId: `a-${i}` });
+      codes.push(res.statusCode);
+    }
+    expect(codes).toEqual([202, 202, 429, 429]);
+    expect(ctx.app.counters.rateLimited).toBe(2);
+
+    // The second customer's budget is untouched by the first one's flood.
+    const other = await ctx.app.inject({
+      method: "POST",
+      url: "/v1/events",
+      headers: { "content-type": "application/json", "x-guardian-key": "gk_second_key" },
+      payload: JSON.stringify({ ...validEvent, externalId: "b-1" }),
+    });
+    expect(other.statusCode).toBe(202);
+  });
+
+  it("does not spend the customer quota on an unauthenticated request", async () => {
+    const ctx = setup({ rateLimit: { max: 1, windowMs: 60_000 }, preAuthRateLimit: false });
+    for (let i = 0; i < 5; i += 1) {
+      await post(ctx.app, validEvent, { "x-guardian-key": "nope" });
+    }
+    const res = await post(ctx.app, validEvent);
+    expect(res.statusCode).toBe(202);
+  });
+
+  it("limits per key and resets with the window", () => {
     let clock = 0;
     const limiter = new SourceRateLimiter({ max: 2, windowMs: 1000 }, () => clock);
     expect(limiter.allow("a")).toBe(true);
@@ -285,6 +319,25 @@ describe("pii minimization", () => {
     const [event] = ctx.queue.eventsFor("cus_1");
     expect(event!.retention).toBe("EPHEMERAL_24H");
     expect(new Date(event!.expiresAt).getTime()).toBeGreaterThan(new Date(event!.ts).getTime());
+  });
+
+  it("stamps the expiry from receipt, not from the customer's clock", async () => {
+    // A backdated event still gets a full 24 hours from receipt, and a ts
+    // years ahead cannot buy retention the class does not allow (rule 7).
+    const before = Date.now();
+    await post(ctx.app, { ...validEvent, externalId: "old-1", ts: "2020-01-01T00:00:00Z" });
+    const [event] = ctx.queue.eventsFor("cus_1");
+    const expiry = new Date(event!.expiresAt).getTime();
+    expect(expiry).toBeGreaterThanOrEqual(before + 86_400_000 - 5_000);
+    expect(expiry).toBeLessThanOrEqual(Date.now() + 86_400_000 + 5_000);
+    expect(new Date(event!.provenance.receivedAt!).getTime()).toBeGreaterThanOrEqual(before);
+  });
+
+  it("refuses an event timestamped far in the future", async () => {
+    const res = await post(ctx.app, { ...validEvent, externalId: "future-1", ts: "2099-01-01T00:00:00Z" });
+    expect(res.statusCode).toBe(207);
+    expect(res.json().rejected[0].error).toContain("future");
+    expect(ctx.queue.eventsFor("cus_1")).toHaveLength(0);
   });
 
   it("takes the customer id from the key and not from the body", async () => {
@@ -519,6 +572,29 @@ describe("retention sweep", () => {
     await delegate.deleteExpiredPairs(new Date());
     expect(seen[0]!.reviews).toEqual({ none: {} });
     expect(seen[0]!.resolvedAt).toBeNull();
+  });
+
+  it("clears T0 text on the column the server stamped, not the customer's ts", async () => {
+    const seen: Array<Record<string, unknown>> = [];
+    const capture = {
+      deleteMany: async () => ({ count: 0 }),
+    };
+    const delegate = prismaRetentionDelegate({
+      event: {
+        ...capture,
+        updateMany: async (args: { where: Record<string, unknown> }) => {
+          seen.push(args.where);
+          return { count: 0 };
+        },
+      },
+      pair: capture,
+      actor: capture,
+      evidenceBundle: capture,
+    });
+    const cutoff = new Date("2026-09-02T12:00:00Z");
+    await delegate.clearExpiredText(cutoff);
+    expect(seen[0]!.createdAt).toEqual({ lt: cutoff });
+    expect(seen[0]!.ts).toBeUndefined();
   });
 
   it("never deletes a legal hold", () => {

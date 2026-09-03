@@ -324,8 +324,12 @@ model CustomerViolation {
 
 /// Per-guild configuration for the Discord surface. Scoring is off until the
 /// owner names a mod channel and enables it.
+///
+/// The key is (guildId, customerId), not the guild alone. Two deployments can
+/// share a database and both be present in one guild; each owns its own row,
+/// and neither can take over the other's by writing on the guild id (rule 8).
 model GuildConfig {
-  guildId    String   @id
+  guildId    String
   customerId String
   modChannelId String?
   roleBands  Json     @default("{}")
@@ -338,6 +342,7 @@ model GuildConfig {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@id([guildId, customerId])
   @@index([customerId])
   @@map("guild_configs")
 }

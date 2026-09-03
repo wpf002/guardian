@@ -3,6 +3,7 @@ import {
   expiresAt as expiryFor,
   retentionForTier,
   signalHitSchema,
+  textRetainedForTier,
   type AgeBand,
   type RetentionClass,
   type SignalHit,
@@ -97,6 +98,8 @@ export interface PairRow {
   customerId: string;
   actorUid: string;
   targetUid: string;
+  /** Last tier recorded on this pair. Absent on a row written before it existed. */
+  tier?: Tier | null;
   firstStageAt: unknown;
   signals: unknown;
   messageCounts: unknown;
@@ -249,7 +252,10 @@ export class PrismaKernelStore implements KernelStore {
       await this.ensureActor(customerId, actorUid, state.actorBand, now);
       await this.ensureActor(customerId, targetUid, state.targetBand, now);
     }
-    await this.upsertPair(key, existing, pairColumns(state), "WATCH_30D", now);
+    // Quoted spans follow the tier, the way event text does. A pair the model
+    // has only ever scored T0 keeps its numeric trajectory for the 30 days the
+    // kernel needs, and none of the child's words (CLAUDE.md rule 7).
+    await this.upsertPair(key, existing, pairColumns(state, existing), "WATCH_30D", now);
   }
 
   async getActor(customerId: string, actorUid: string): Promise<ActorState | null> {
@@ -389,10 +395,21 @@ function keepRetention(
   return { retention, expiresAt, patch };
 }
 
-function pairColumns(state: PairState): PairStateColumns {
+/**
+ * Pair state as columns. Signal excerpts are the one part of this that is raw
+ * message text, so they are written only while the pair's own tier retains
+ * text. Excerpts already stored are left alone: a pair that reached T2 and has
+ * since fallen back does not lose the words that put it there.
+ */
+function pairColumns(state: PairState, existing: PairRow | null): PairStateColumns {
+  const keepText = textRetainedForTier(existing?.tier ?? "T0");
+  const alreadyStored = keepText ? new Set<string>() : storedSignalKeys(existing);
   return {
     firstStageAt: { ...state.firstStageAt },
-    signals: state.signals.map(storedSignal),
+    signals: state.signals.map((hit) => {
+      const stored = storedSignal(hit);
+      return keepText || alreadyStored.has(signalKey(stored)) ? stored : withoutText(stored);
+    }),
     messageCounts: {
       actorMessages: state.actorMessages,
       targetMessages: state.targetMessages,
@@ -468,6 +485,25 @@ function actorStateFromRow(row: ActorRow): ActorState | null {
     outboundBurstMax1h: graph.outboundBurstMax1h ?? 0,
     recentOutboundTs: [...(graph.recentOutboundTs ?? [])],
   };
+}
+
+/** Identity of one stored signal, for deciding whether its text is already on the row. */
+function signalKey(signal: StoredSignal): string {
+  return `${signal.kind}|${signal.eventExternalId ?? ""}|${signal.ts}`;
+}
+
+function storedSignalKeys(existing: PairRow | null): Set<string> {
+  const keys = new Set<string>();
+  if (!existing || !Array.isArray(existing.signals)) return keys;
+  for (const signal of existing.signals as StoredSignal[]) {
+    if (isObject(signal) && typeof signal.excerpt === "string") keys.add(signalKey(signal));
+  }
+  return keys;
+}
+
+function withoutText(signal: StoredSignal): StoredSignal {
+  const { excerpt: _excerpt, matched: _matched, ...rest } = signal;
+  return rest;
 }
 
 function storedSignal(hit: SignalHit): StoredSignal {

@@ -21,7 +21,7 @@ import type { AuditLog } from "@guardian/audit";
  */
 
 export interface RetentionDelegate {
-  /** T0 events past the text window. Returns how many had text cleared. */
+  /** T0 events written before the cutoff. Returns how many had text cleared. */
   clearExpiredText(cutoff: Date): Promise<number>;
   /** Rows past expiry, excluding legal holds. Returns how many were deleted. */
   deleteExpiredEvents(now: Date): Promise<number>;
@@ -117,8 +117,11 @@ function describeError(err: unknown): string {
 export function prismaRetentionDelegate(prisma: PrismaLike): RetentionDelegate {
   return {
     async clearExpiredText(cutoff) {
+      // createdAt, not ts. ts is the customer's own clock and a wrong one, or
+      // a backfill, would decide when text is dropped; createdAt is stamped by
+      // the database on the write.
       const result = await prisma.event.updateMany({
-        where: { retention: "EPHEMERAL_24H", ts: { lt: cutoff }, text: { not: null } },
+        where: { retention: "EPHEMERAL_24H", createdAt: { lt: cutoff }, text: { not: null } },
         data: { text: null },
       });
       return result.count;
