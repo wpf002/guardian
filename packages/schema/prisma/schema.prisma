@@ -1,0 +1,336 @@
+// Guardian data model.
+//
+// Two rules shape every table here. Every stored row carries a customerId and a
+// retentionClass, and deletion is a scheduled job rather than a hope
+// (CLAUDE.md rule 7). Customer user ids are stored only as per-customer salted
+// hashes, so nothing joins across customers without the customer's key
+// (CLAUDE.md rule 8).
+//
+// There is no column anywhere for image or video bytes. Media appears only as a
+// sha256 and the operator's own scanner verdict (CLAUDE.md rule 1).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Six bands matching Roblox's scheme, plus unknown. Never a birthdate.
+enum AgeBand {
+  UNDER_9
+  A9_12
+  A13_15
+  A16_17
+  A18_20
+  A21_PLUS
+  UNKNOWN
+}
+
+enum Tier {
+  T0
+  T1
+  T2
+  T3
+}
+
+enum RetentionClass {
+  EPHEMERAL_24H
+  WATCH_30D
+  CASE_1Y
+  LEGAL_HOLD
+}
+
+enum Stage {
+  none
+  contact
+  trust
+  probe
+  migrate
+  sexualize
+  coerce
+}
+
+enum ActorRole {
+  member
+  moderator
+  trusted_adult
+  unknown
+}
+
+enum Surface {
+  discord
+  platform_sdk
+  parent_app
+  investigator
+}
+
+enum ReviewDecision {
+  dismiss
+  watch
+  confirm
+  report
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  /// sha256 of the API key. The key itself is shown once, at creation.
+  apiKeyHash String  @unique
+  /// Hex salt for hashing this customer's user ids. Never leaves the process.
+  idSalt    String
+  /// Shared secret for signing webhooks in both directions.
+  webhookSecret String
+  webhookUrl    String?
+  /// Lantern-style cross-customer sharing is opt-in and off by default.
+  crossCustomerOptIn Boolean @default(false)
+  /// Per-customer lexicon extension, merged over the base at load.
+  lexiconExtension   Json?
+  createdAt DateTime @default(now())
+
+  actors  Actor[]
+  events  Event[]
+  pairs   Pair[]
+  bundles EvidenceBundle[]
+  audit   AuditEntry[]
+  violations CustomerViolation[]
+
+  @@map("customers")
+}
+
+model Actor {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  /// Salted hash of the customer's user id.
+  hashedUid  String
+  ageBand    AgeBand  @default(UNKNOWN)
+  role       ActorRole @default(unknown)
+  accountAgeHours Float?
+  firstSeen  DateTime @default(now())
+  lastSeen   DateTime @default(now())
+  /// Recency-weighted fraction of recent messages carrying a flagged pattern.
+  skewScore  Float    @default(0)
+  fanOut7d   Int      @default(0)
+  minorFanOut7d Int   @default(0)
+  /// Rolling daily counters and contact sets. Trimmed to 30 days by the retention job.
+  graphState Json?
+  /// Hashed device and network hints, for alt clustering within one customer.
+  hints      String[] @default([])
+  /// Set when the operator actions this account. Feeds alt clustering.
+  actionedAt DateTime?
+  retention  RetentionClass @default(WATCH_30D)
+  expiresAt  DateTime?
+
+  pairsAsActor  Pair[] @relation("PairActor")
+  pairsAsTarget Pair[] @relation("PairTarget")
+
+  @@unique([customerId, hashedUid])
+  @@index([customerId, expiresAt])
+  @@map("actors")
+}
+
+model Event {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  /// The customer's own message id. Idempotency key within a customer.
+  externalId String
+  actorUid   String
+  targetUid  String?
+  channel    String
+  ts         DateTime
+  /// Dropped by the retention job for T0 pairs within 24h (DESIGN.md 7).
+  text       String?
+  /// sha256 only. There is no column for bytes.
+  mediaSha256 String?
+  knownCsamVerdict String?
+  actorBand  AgeBand  @default(UNKNOWN)
+  targetBand AgeBand  @default(UNKNOWN)
+  actorRole  ActorRole @default(unknown)
+  features   Json?
+  stageProbs Json?
+  stage      Stage?
+  surface    Surface
+  sourceId   String
+  modelVersion   String?
+  lexiconVersion String?
+  fusionVersion  String?
+  retention  RetentionClass @default(EPHEMERAL_24H)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, externalId])
+  @@index([customerId, actorUid, ts])
+  @@index([customerId, targetUid, ts])
+  @@index([expiresAt])
+  @@map("events")
+}
+
+model Pair {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  actorUid   String
+  targetUid  String
+  actor      Actor?   @relation("PairActor", fields: [customerId, actorUid], references: [customerId, hashedUid], onDelete: Cascade)
+  target     Actor?   @relation("PairTarget", fields: [customerId, targetUid], references: [customerId, hashedUid], onDelete: Cascade)
+  /// First time each stage was reached, in event time. Order is the signal.
+  firstStageAt Json
+  /// Gated signal hits kept for the evidence bundle. Capped.
+  signals    Json
+  pairScore  Float    @default(0)
+  actorScore Float    @default(0)
+  fusedScore Float    @default(0)
+  tier       Tier     @default(T0)
+  /// Set when a critical signal forced the tier, so a reviewer sees why.
+  criticalSignals String[] @default([])
+  messageCounts   Json?
+  lastInboundMediaAt DateTime?
+  windowStart DateTime?
+  windowEnd   DateTime?
+  modelVersion   String?
+  lexiconVersion String?
+  fusionVersion  String?
+  retention  RetentionClass @default(EPHEMERAL_24H)
+  expiresAt  DateTime?
+  /// Set when a reviewer takes the pair off the queue.
+  resolvedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  reviews Review[]
+  bundles EvidenceBundle[]
+
+  @@unique([customerId, actorUid, targetUid])
+  @@index([customerId, tier, updatedAt])
+  @@index([expiresAt])
+  @@map("pairs")
+}
+
+/// A human decision. This is the only thing that can produce T3
+/// (CLAUDE.md rule 6). The model writes Pair.tier and never Review.
+model Review {
+  id         String   @id @default(cuid())
+  pairId     String
+  pair       Pair     @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  reviewerId String
+  decision   ReviewDecision
+  /// Free text from the reviewer. Feeds the learned fusion model in phase 2.
+  reason     String?
+  /// Tier the model had assigned when the reviewer opened the case.
+  modelTier  Tier
+  /// Tier after the decision. Only a confirm or report may set T3.
+  resultTier Tier
+  /// Minutes the reviewer spent. Reviewer minutes per 1,000 users is a
+  /// first-class metric (DESIGN.md 6.4).
+  minutesSpent Float?
+  createdAt  DateTime @default(now())
+
+  @@index([pairId, createdAt])
+  @@index([reviewerId, createdAt])
+  @@map("reviews")
+}
+
+/// Text excerpts, hashes, timestamps and model versions. No imagery, ever.
+model EvidenceBundle {
+  id         String   @id @default(cuid())
+  bundleId   String   @unique
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pairId     String?
+  pair       Pair?    @relation(fields: [pairId], references: [id], onDelete: SetNull)
+  actorUid   String
+  targetUid  String
+  tier       Tier
+  timeline   Json
+  signals    Json
+  provenance Json
+  modelVersion   String
+  lexiconVersion String
+  fusionVersion  String
+  /// Hash chain head at generation time, anchoring the bundle to the log.
+  auditHead  String
+  retention  RetentionClass @default(WATCH_30D)
+  expiresAt  DateTime?
+  generatedAt DateTime @default(now())
+
+  report CyberTiplineReport?
+
+  @@index([customerId, tier, generatedAt])
+  @@map("evidence_bundles")
+}
+
+/// One reporting path: NCMEC CyberTipline (CLAUDE.md rule 4). Phase 3.
+model CyberTiplineReport {
+  id         String   @id @default(cuid())
+  bundleId   String   @unique
+  bundle     EvidenceBundle @relation(fields: [bundleId], references: [bundleId], onDelete: Cascade)
+  customerId String
+  /// The customer is the 2258A provider and the reporter of record.
+  reporterCustomerId String
+  /// Report id returned by the ESP API, or null for a drafted public-form bundle.
+  ncmecReportId String?
+  status     String   @default("draft")
+  submittedAt DateTime?
+  /// 18 USC 2258A: one year from submission.
+  preserveUntil DateTime?
+  retention  RetentionClass @default(CASE_1Y)
+  createdAt  DateTime @default(now())
+
+  @@index([customerId, status])
+  @@map("cybertipline_reports")
+}
+
+/// Hash-chained append-only log. Every score, reviewer action and export.
+model AuditEntry {
+  seq        Int      @id @default(autoincrement())
+  ts         DateTime @default(now())
+  kind       String
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  payload    Json
+  prevHash   String
+  hash       String
+
+  @@index([customerId, seq])
+  @@index([kind, ts])
+  @@map("audit_entries")
+}
+
+/// A customer sent something the edge refused, most often media bytes. Recorded
+/// against the customer, never against a user, and never with the content.
+model CustomerViolation {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  reason     String
+  path       String
+  detail     String
+  createdAt  DateTime @default(now())
+
+  @@index([customerId, createdAt])
+  @@map("customer_violations")
+}
+
+/// Per-guild configuration for the Discord surface. Scoring is off until the
+/// owner names a mod channel and enables it.
+model GuildConfig {
+  guildId    String   @id
+  customerId String
+  modChannelId String?
+  roleBands  Json     @default("{}")
+  trustedRoleIds String[] @default([])
+  defaultBand AgeBand @default(A13_15)
+  autoTimeoutOnT2 Boolean @default(false)
+  autoTimeoutMinutes Int  @default(60)
+  excludedChannelIds String[] @default([])
+  enabled    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([customerId])
+  @@map("guild_configs")
+}

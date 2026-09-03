@@ -1,0 +1,24 @@
+{
+  "name": "@guardian/eval",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "all": "tsx src/cli.ts",
+    "json": "tsx src/cli.ts --json",
+    "test": "EVAL_QUICK=1 tsx src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@guardian/schema": "workspace:*",
+    "@guardian/audit": "workspace:*",
+    "@guardian/scorer": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

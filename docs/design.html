@@ -1,0 +1,435 @@
+<title>Guardian Design Doc</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F5F7F9; --surface:#FFFFFF; --ink:#172029; --ink-2:#4B5966; --line:#D6DDE4; --line-2:#E9EEF2;
+  --accent:#1E5F7C; --accent-ink:#FFFFFF; --accent-soft:#E3EEF3;
+  --warn:#B4581B; --warn-soft:#F8EAD9; --crit:#9C2A2A; --crit-soft:#F6E1E1; --ok:#2E6B45; --ok-soft:#E1EFE5;
+  --code-bg:#EEF2F5;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111820; --surface:#18212B; --ink:#E6ECF1; --ink-2:#A2AFBB; --line:#2C3946; --line-2:#22303C;
+    --accent:#6FB3D0; --accent-ink:#0E1A22; --accent-soft:#1C2F3A;
+    --warn:#E6924E; --warn-soft:#3A2A1A; --crit:#E07070; --crit-soft:#3B1F1F; --ok:#7CC496; --ok-soft:#1C3324;
+    --code-bg:#0F161D;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111820; --surface:#18212B; --ink:#E6ECF1; --ink-2:#A2AFBB; --line:#2C3946; --line-2:#22303C;
+  --accent:#6FB3D0; --accent-ink:#0E1A22; --accent-soft:#1C2F3A;
+  --warn:#E6924E; --warn-soft:#3A2A1A; --crit:#E07070; --crit-soft:#3B1F1F; --ok:#7CC496; --ok-soft:#1C3324;
+  --code-bg:#0F161D;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+.wrap{max-width:1140px;margin:0 auto;padding:40px 24px 96px;display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px}
+@media (max-width:860px){.wrap{grid-template-columns:minmax(0,1fr);gap:24px}}
+nav.toc{position:sticky;top:24px;align-self:start;font-size:13px}
+@media (max-width:860px){nav.toc{position:static}}
+nav.toc .eyebrow{margin-bottom:10px}
+nav.toc a{display:block;color:var(--ink-2);text-decoration:none;padding:5px 0;border-left:2px solid var(--line-2);padding-left:10px}
+nav.toc a:hover{color:var(--ink);border-color:var(--accent)}
+main{max-width:72ch}
+.eyebrow{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
+h1{font-family:Archivo,"IBM Plex Sans",sans-serif;font-weight:800;font-size:44px;line-height:1.05;letter-spacing:-.02em;margin:8px 0 12px;text-wrap:balance}
+h2{font-family:Archivo,"IBM Plex Sans",sans-serif;font-weight:700;font-size:26px;line-height:1.15;letter-spacing:-.01em;margin:64px 0 14px;padding-top:20px;border-top:1px solid var(--line);text-wrap:balance}
+h3{font-family:Archivo,"IBM Plex Sans",sans-serif;font-weight:700;font-size:18px;margin:32px 0 8px;text-wrap:balance}
+p{margin:0 0 14px}
+.lede{font-size:19px;color:var(--ink-2);line-height:1.45;margin-bottom:28px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-2);margin-bottom:36px}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;margin:12px 0 18px;font-size:15px}
+.kv dt{color:var(--ink-2);font-family:"IBM Plex Mono",monospace;font-size:12.5px;padding-top:3px}
+.kv dd{margin:0}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:14px 18px;margin:18px 0;border-radius:0 6px 6px 0}
+.callout.warn{border-color:var(--warn);background:var(--warn-soft)}
+.callout.crit{border-color:var(--crit);background:var(--crit-soft)}
+.callout p:last-child{margin:0}
+.tablewrap{overflow-x:auto;margin:14px 0 22px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th,td{padding:9px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line-2)}
+th{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);font-weight:500;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+code,pre{font-family:"IBM Plex Mono",ui-monospace,monospace}
+code{font-size:.9em;background:var(--code-bg);padding:1px 5px;border-radius:3px}
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.5;margin:12px 0 20px}
+pre code{background:none;padding:0}
+.pill{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
+.pill.crit{color:var(--crit);border-color:var(--crit);background:var(--crit-soft)}
+.pill.warn{color:var(--warn);border-color:var(--warn);background:var(--warn-soft)}
+.pill.ok{color:var(--ok);border-color:var(--ok);background:var(--ok-soft)}
+.pill.acc{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+ul,ol{padding-left:22px;margin:0 0 14px}
+li{margin-bottom:6px}
+.surfaces{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0 8px}
+@media (max-width:640px){.surfaces{grid-template-columns:minmax(0,1fr)}}
+.surface{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px 18px}
+.surface h4{font-family:Archivo,sans-serif;font-size:16px;margin:0 0 4px}
+.surface .who{font-size:13px;color:var(--ink-2);margin-bottom:10px}
+.surface ul{font-size:14px;padding-left:18px;margin:0}
+.diagram{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:12px;margin:14px 0 22px;overflow-x:auto}
+.diagram svg{display:block;min-width:640px;width:100%;height:auto}
+.stages{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin:14px 0 20px}
+@media (max-width:760px){.stages{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:10px;font-size:12.5px;line-height:1.35}
+.stage b{display:block;font-family:Archivo,sans-serif;font-size:13px;margin-bottom:4px}
+.stage span{color:var(--ink-2)}
+.src{font-size:13.5px;color:var(--ink-2)}
+.src li{margin-bottom:4px}
+small.fn{color:var(--ink-2);font-size:13px}
+</style>
+
+<div class="wrap">
+<nav class="toc">
+  <div class="eyebrow">Contents</div>
+  <a href="#findings">1. What the research says</a>
+  <a href="#walls">2. Hard constraints</a>
+  <a href="#threat">3. Threat model</a>
+  <a href="#shape">4. Product shape</a>
+  <a href="#signals">5. Signal catalog</a>
+  <a href="#algo">6. Scoring algorithm</a>
+  <a href="#arch">7. Architecture</a>
+  <a href="#surfaces">8. The four surfaces</a>
+  <a href="#legal">9. Legal guardrails</a>
+  <a href="#eval">10. Evaluation</a>
+  <a href="#build">11. Build order</a>
+  <a href="#risks">12. Open risks</a>
+  <a href="#sources">Sources</a>
+</nav>
+
+<main>
+<div class="eyebrow">Design doc · v0.1 · Sept 3, 2026</div>
+<h1>Guardian</h1>
+<p class="lede">One detection kernel and one reporting pipeline for online child grooming, sextortion, and trafficking recruitment. Four surfaces on top: a platform SDK, a Discord bot, an investigator triage tool, and a parent app.</p>
+<div class="meta">
+  <span>owner: Will</span><span>status: pre-code</span><span>stack: TS / Fastify / Prisma / Postgres / Railway + Python FastAPI for ML</span>
+</div>
+
+<div class="callout">
+<p><b>Name.</b> Guardian. Not coupled to Warden.</p>
+</div>
+
+<h2 id="findings">1. What the research says</h2>
+<p>Twenty-eight sources plus a sweep of the current tech and legal picture. The parts that change the design:</p>
+
+<h3>The detection gap is at small and mid-size platforms</h3>
+<p>NCMEC took 21.3M CyberTipline reports in 2025; five companies filed over 75% of them. Online enticement reports (grooming + sextortion) hit 1.4M, up 158% year over year. Roblox, with 100M+ daily users and 3,000 moderators, had no automated grooming detection before 2022 and the word "grooming" wasn't in its 2022 moderation guide. Its actual catches came from YouTubers. Everything below Roblox's size has nothing.</p>
+
+<h3>The investigation gap is victim identification</h3>
+<p>HSI's Cyber Crimes Center had roughly 7–10 full-time victim-ID analysts against 89,000 unidentified CSAM image series (up from 57,000 in 2024). Stanford's 2024 study found CyberTipline reports are often incomplete or duplicative and the ones most likely to rescue a child aren't sufficiently investigated. The Renewed Hope funding ($108.5M, 200 positions, June 2026) helps, but triage is still the bottleneck. ICAC's 61 task forces ran ~347,000 investigations in 2025 with 17,000 arrests.</p>
+
+<h3>Predators run a repeatable playbook</h3>
+<p>Every source describes the same sequence. Contact in open chat → trust via mirroring → probe for supervision gaps ("are your parents divorced?") → sexualize → request images → coerce. Bait is Robux, gift cards, Cash App, Amazon. The move off-platform to Snapchat, Discord, Telegram is a near-universal step, and kids and predators both encode it (👻 = Snapchat, 💿 = Discord, "leVe" for "leave"). DHS notes the whole sequence can compress into minutes. Financial sextortion is even more templated: 90% of victims are boys 14–17, two-thirds financial, 47% of offenders tied to Nigeria/Côte d'Ivoire, 38% of threats reuse "ruin your life" verbatim, payment demanded within minutes of a reciprocal image.</p>
+
+<h3>Open-source models now exist, without weights</h3>
+<p>Roblox open-sourced Sentinel (Aug 2025, Apache-2.0) and, via ROOST in Aug 2026, Sentinel v2, a PII/off-platform-migration classifier (189 languages, F1 90.5, on Hugging Face) and a voice safety classifier. Sentinel ships the framework and code but no trained weights or exemplars. Thorn's Safer Predict text classifier (six categories including grooming and sextortion) is sold B2B, also resold through Hive's API. Academic grooming classifiers hit F1 0.89–0.99 on PAN-2012, but that dataset is decoy-based, English, and 14 years old. Nobody publishes precision at production base rates.</p>
+
+<h3>Civilian hunting is a dead end</h3>
+<p>Schlep got a cease-and-desist and permanent ban from Roblox for decoy stings, despite six arrests. A Pennsylvania judge dismissed vigilante-sting cases for not meeting the legal standard. Prosecutors say only sworn officers can pose as minors. Evidence fails on chain of custody, entrapment, and edited video. Roblox's position after settling with Ruben Sim for $150K: "safety enforcement should be left to trained professionals." That's the policy every platform will adopt.</p>
+
+<h2 id="walls">2. Hard constraints</h2>
+<p>These aren't preferences. Each one has a criminal statute or a dismissed case behind it.</p>
+
+<div class="tablewrap"><table>
+<tr><th>Constraint</th><th>Why</th><th>Design consequence</th></tr>
+<tr><td>Never possess, store, download, or train on suspected CSAM</td><td>18 USC 2252/2252A. No detection or research exception. Only defense is &lt;3 items promptly destroyed or reported.</td><td>Images and video are hash-only. PhotoDNA / Safer / Google Content Safety API run on the platform's side or via hosted API; Guardian stores the hash and the verdict, never bytes.</td></tr>
+<tr><td>No decoy accounts posing as minors</td><td>Entrapment, evidence dismissal, platform ToS bans, and in some counties charges against the hunter.</td><td>Guardian observes real traffic only. No persona generation, ever. Product refuses that feature request.</td></tr>
+<tr><td>No covert interception of messages</td><td>ECPA/Wiretap Act; 12 all-party-consent states; vicarious parental consent (Pollock) is unsettled and never covers someone else's kid.</td><td>Parent surface is overt, device-owner-authorized, on-device-first. Platform and Discord surfaces run with the operator's authority over their own service.</td></tr>
+<tr><td>Report to NCMEC, not to police directly, and not to the public</td><td>18 USC 2258A provider duty (REPORT Act 2024): report on actual knowledge, preserve 1 year, fines to $1M for willful failure. Immunity under 2258B covers providers, not freelance collectors.</td><td>One reporting path: CyberTipline ESP API. No "expose" feature. No public wall of shame.</td></tr>
+<tr><td>Don't act at police direction</td><td>Private-search doctrine (<i>US v. Wilson</i>, 9th Cir. 2021): a tool steered by police becomes a government agent and evidence gets suppressed.</td><td>Investigator surface consumes LE data and tips; it doesn't take LE tasking into Guardian's private-platform detection.</td></tr>
+<tr><td>Children's data is COPPA data</td><td>Amended COPPA rule enforceable since Apr 22, 2026: separate consent for third-party disclosure, written retention policy, biometrics are PII.</td><td>Minimize: store features and hashes, not raw chat, wherever the score allows. Retention policy written before the first customer.</td></tr>
+<tr><td>Your classifier output isn't protected by Section 230</td><td>230 covers hosting user content. A false accusation generated by Guardian is Guardian's speech.</td><td>Guardian never asserts "this user is a predator." It emits a risk tier and evidence bundle for human review. Wording matters in every UI string.</td></tr>
+</table></div>
+
+<h2 id="threat">3. Threat model</h2>
+<p>Three offender patterns, one shared front end. The stage model is Child Rescue Coalition's six steps, which lines up with DHS, FBI, and the Bloomberg case files.</p>
+
+<div class="stages">
+  <div class="stage"><b>1 Contact</b><span>Open chat, game lobby, server. Fake peer-age profile. "You look nice."</span></div>
+  <div class="stage"><b>2 Trust</b><span>Open-ended questions, mirroring, gifts. Robux, gift cards, art commissions.</span></div>
+  <div class="stage"><b>3 Supervision probe</b><span>Parents' marital status, siblings, who checks your phone, own device?</span></div>
+  <div class="stage"><b>4 Isolate / migrate</b><span>Move to Snapchat, Discord, Telegram. Coded emoji. "Delete this."</span></div>
+  <div class="stage"><b>5 Sexualize / request</b><span>Dating talk, "u single", image ask, reciprocal image.</span></div>
+  <div class="stage"><b>6 Coerce</b><span>Threats to expose, payment demand, countdown, meetup.</span></div>
+</div>
+
+<div class="tablewrap"><table>
+<tr><th>Pattern</th><th>Who</th><th>Tempo</th><th>Where it ends</th><th>Decisive signal</th></tr>
+<tr><td>Relationship grooming</td><td>Individual adult, often a game dev, moderator, or "older friend"; runs many alt accounts</td><td>Days to years</td><td>Image production or in-person abduction (Castillo, Penczak, McElroy cases)</td><td>Stage 3 + stage 4 in the same relationship. Supervision probing followed by migration is almost never innocent.</td></tr>
+<tr><td>Financial sextortion</td><td>Organized crews, mostly West Africa, scripted</td><td>Minutes to hours</td><td>Payment via Cash App / gift cards / crypto; repeat extortion</td><td>Reciprocal image → payment handle or threat template within one session. New account, catfish profile.</td></tr>
+<tr><td>Trafficking recruitment</td><td>Recruiter posing as boyfriend, employer, or peer; ~1/3 of trafficking is familial</td><td>Weeks</td><td>Runaway, sex ad, controlled "boyfriend"</td><td>Off-platform migration + travel/meetup logistics + promised money or housing. Downstream: the kid's face or handle in an ad.</td></tr>
+</table></div>
+
+<h2 id="shape">4. Product shape</h2>
+<p>You asked for all four surfaces. They only make sense as one product if they share the expensive parts. The expensive parts are the detection kernel, the evidence and reporting pipeline, and the review queue. Each surface is a thin adapter that decides what traffic enters the kernel and what happens to a tiered result.</p>
+
+<div class="diagram">
+<svg viewBox="0 0 900 380" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, sans-serif" font-size="13">
+  <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-2)"/></marker></defs>
+  <!-- surfaces -->
+  <g fill="var(--surface)" stroke="var(--line)">
+    <rect x="20" y="20" width="190" height="64" rx="5"/>
+    <rect x="240" y="20" width="190" height="64" rx="5"/>
+    <rect x="460" y="20" width="190" height="64" rx="5"/>
+    <rect x="680" y="20" width="200" height="64" rx="5"/>
+  </g>
+  <g fill="var(--ink)" font-weight="600">
+    <text x="115" y="45" text-anchor="middle">Platform SDK / API</text>
+    <text x="335" y="45" text-anchor="middle">Discord bot</text>
+    <text x="555" y="45" text-anchor="middle">Parent app</text>
+    <text x="780" y="45" text-anchor="middle">Investigator triage</text>
+  </g>
+  <g fill="var(--ink-2)" font-size="11.5">
+    <text x="115" y="66" text-anchor="middle">webhook / batch events</text>
+    <text x="335" y="66" text-anchor="middle">gateway events</text>
+    <text x="555" y="66" text-anchor="middle">on-device scoring, upload flags</text>
+    <text x="780" y="66" text-anchor="middle">tips, ads, LE exports</text>
+  </g>
+  <!-- arrows down -->
+  <g stroke="var(--ink-2)" stroke-width="1.5" fill="none" marker-end="url(#arr)">
+    <path d="M115,84 L115,120"/><path d="M335,84 L335,120"/><path d="M555,84 L555,120"/><path d="M780,84 L780,120"/>
+  </g>
+  <!-- ingest -->
+  <rect x="20" y="122" width="860" height="44" rx="5" fill="var(--accent-soft)" stroke="var(--accent)"/>
+  <text x="450" y="149" text-anchor="middle" fill="var(--ink)" font-weight="600">Ingest &amp; normalize → canonical Event {actor, target, channel, text, media_hash, ts, age_band, provenance}</text>
+  <path d="M450,166 L450,196" stroke="var(--ink-2)" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+  <!-- kernel -->
+  <rect x="20" y="198" width="860" height="96" rx="5" fill="var(--surface)" stroke="var(--line)"/>
+  <text x="34" y="220" fill="var(--ink)" font-weight="600">Detection kernel</text>
+  <g fill="var(--bg)" stroke="var(--line)">
+    <rect x="34" y="232" width="150" height="48" rx="4"/><rect x="196" y="232" width="150" height="48" rx="4"/><rect x="358" y="232" width="150" height="48" rx="4"/><rect x="520" y="232" width="150" height="48" rx="4"/><rect x="682" y="232" width="184" height="48" rx="4"/>
+  </g>
+  <g fill="var(--ink)" font-size="12" text-anchor="middle">
+    <text x="109" y="252">Stage classifier</text><text x="109" y="268" fill="var(--ink-2)" font-size="11">text, per message</text>
+    <text x="271" y="252">Migration / PII</text><text x="271" y="268" fill="var(--ink-2)" font-size="11">Roblox weights</text>
+    <text x="433" y="252">Script matcher</text><text x="433" y="268" fill="var(--ink-2)" font-size="11">MinHash, sextortion</text>
+    <text x="595" y="252">Graph features</text><text x="595" y="268" fill="var(--ink-2)" font-size="11">fan-out, age gap, alts</text>
+    <text x="774" y="252">Skew tracker + fusion</text><text x="774" y="268" fill="var(--ink-2)" font-size="11">per pair, per actor → tier</text>
+  </g>
+  <path d="M450,294 L450,322" stroke="var(--ink-2)" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+  <!-- outputs -->
+  <g fill="var(--surface)" stroke="var(--line)">
+    <rect x="20" y="324" width="270" height="40" rx="5"/><rect x="315" y="324" width="270" height="40" rx="5"/><rect x="610" y="324" width="270" height="40" rx="5"/>
+  </g>
+  <g fill="var(--ink)" font-weight="600" text-anchor="middle">
+    <text x="155" y="349">Review queue (human)</text>
+    <text x="450" y="349">Evidence bundle + hash-chained audit</text>
+    <text x="745" y="349">CyberTipline report + 1-yr preserve</text>
+  </g>
+</svg>
+</div>
+
+<p>The kernel never sees who the customer is. It scores an event stream and returns a tier per (actor, target) pair and per actor. That's what lets one model serve a 40-person Discord server, a 2M-user game, and a single family's phone.</p>
+
+<h2 id="signals">5. Signal catalog</h2>
+<p>Every signal below comes from a documented case or a published classifier. Weights are starting points for the fusion layer, not gospel. The last column is what will burn you.</p>
+
+<div class="tablewrap"><table>
+<tr><th>Signal</th><th>Stage</th><th>Extractor</th><th>Weight</th><th>False-positive trap</th></tr>
+<tr><td>Supervision probing: parents' status, who checks your phone, own room/device, home alone</td><td>3</td><td>Stage classifier + pattern list</td><td class="num">high</td><td>Peers ask this too. Needs age-gap or asymmetry to fire alone.</td></tr>
+<tr><td>Off-platform migration ask: handle exchange, "add me on", emoji codes, "dm me", QR</td><td>4</td><td>Roblox PII classifier v2 + emoji/leet lexicon</td><td class="num">high</td><td>Kids swap handles with each other constantly. Weight by age gap and initiator.</td></tr>
+<tr><td>Secrecy instruction: "don't tell", "delete this", "our secret"</td><td>4</td><td>Pattern + classifier</td><td class="num">high</td><td>Surprise-party planning. Rare enough to accept.</td></tr>
+<tr><td>Economic bait: Robux, gift cards, Cash App, "I'll buy you", art commission from a minor</td><td>2</td><td>Entity extraction (payment handles, currency, item names)</td><td class="num">med</td><td>Legit trading and giveaways in game communities. Requires directionality adult→minor.</td></tr>
+<tr><td>Age/relationship framing: "u single", "age is just a number", dating talk to under-13</td><td>5</td><td>Stage classifier</td><td class="num">high</td><td>Teen-to-teen romance is lawful. Age bands decide.</td></tr>
+<tr><td>Image solicitation, reciprocal image offer</td><td>5</td><td>Stage classifier; media event without bytes</td><td class="num">high</td><td>Selfie exchange among friends. Combine with 3/4.</td></tr>
+<tr><td>Threat template: "ruin your life", "send to your parents/school", countdown timers</td><td>6</td><td>MinHash against script corpus; regex for countdowns</td><td class="num">crit</td><td>Almost none. Scripts are reused verbatim.</td></tr>
+<tr><td>Payment demand within N minutes of a media exchange</td><td>6</td><td>Temporal join: media event → payment entity</td><td class="num">crit</td><td>None in practice.</td></tr>
+<tr><td>Meetup logistics: address, travel, "pick you up", bus/ride</td><td>6</td><td>Entity + classifier</td><td class="num">crit</td><td>Local friends. Age gap gates it.</td></tr>
+<tr><td>Actor fan-out: one account initiating with many under-13/under-16 targets</td><td>1</td><td>Graph feature, rolling 7/30 day</td><td class="num">med</td><td>Popular streamers, mods, teachers. Whitelist roles, still surface.</td></tr>
+<tr><td>Account age &lt; 72h + high outbound DM rate + no prior public activity</td><td>1</td><td>Graph feature</td><td class="num">med</td><td>New legit users. Only a multiplier.</td></tr>
+<tr><td>Alt-account clustering: device/IP/typing-fingerprint matches to a banned actor</td><td>1</td><td>Platform-supplied identifiers, hashed</td><td class="num">high</td><td>Shared household devices.</td></tr>
+<tr><td>Skew: actor's message distribution drifting toward grooming index over time, not averaging out</td><td>all</td><td>Sentinel-style contrastive skew</td><td class="num">high</td><td>Requires exemplar set you build yourself.</td></tr>
+<tr><td>Known-CSAM hash match</td><td>5–6</td><td>PhotoDNA / Safer on operator side</td><td class="num">crit</td><td>Hash collisions are rare; still human-reviewed by the operator, never by Guardian.</td></tr>
+<tr><td>Sex-ad content featuring a known minor's handle, face-hash, or phone (investigator surface only)</td><td>traffick</td><td>Scraper + hash join against tip data</td><td class="num">crit</td><td>Ad content is adult by default. Only joins to an existing tip count.</td></tr>
+</table></div>
+
+<h2 id="algo">6. Scoring algorithm</h2>
+<p>The mistake in every academic grooming paper is scoring a conversation as a whole and averaging. Averaging buries a 30-second escalation inside a week of "what's your favorite game." Sentinel's core insight is right: track skew, not mean. Guardian scores three things and fuses them.</p>
+
+<h3>6.1 Per-message stage probability</h3>
+<p>A small fine-tuned encoder (start with DeBERTa-v3-small or a distilled LLaMA-3.2-1B, whichever hits F1 ≥ 0.85 on the held-out PANC + your own labeled set) emits a distribution over {none, contact, trust, probe, migrate, sexualize, coerce}. It runs on every inbound message from an actor whose age band is above the target's. Messages between same-band accounts are scored at reduced priority.</p>
+
+<h3>6.2 Per-pair trajectory score</h3>
+<p>For each (actor, target) pair, maintain a stage vector over time. The score is not the sum. It's the ordered progression: how many stages have been hit, in what order, over what window. Stage 3 followed by stage 4 within 24 hours is the single strongest pattern in the case files, and it's cheap to compute.</p>
+<pre><code>pair_score(P) =
+    w_prog * progression(stage_hits, order_weights)     // did they walk the ladder
+  + w_vel  * velocity(stage_hits, window=24h)           // how fast
+  + w_asym * asymmetry(initiator_ratio, question_ratio) // who's driving
+  + w_gap  * age_gap_multiplier(actor_band, target_band)
+  + w_econ * economic_bait_events
+  + crit_override(threat_template | payment_after_media | meetup_logistics)
+
+progression: pairs of consecutive stages hit in order get bonus,
+  (3→4) and (5→6) transitions weighted 2x.
+crit_override: any critical signal sets tier ≥ T2 regardless of sum.</code></pre>
+
+<h3>6.3 Per-actor skew score</h3>
+<p>Embed each of the actor's messages (same encoder, mean-pooled). Maintain two reference centroids: a grooming exemplar set and a benign chat set for the platform. The actor score is the fraction of their recent messages closer to the grooming centroid, weighted by recency, plus the graph features (fan-out to younger bands, account age, alt clustering). An actor whose skew is rising across many pairs is the fan-out predator Roblox missed for years.</p>
+
+<h3>6.4 Fusion and tiers</h3>
+<p>Fusion is a gradient-boosted model over the three scores plus raw features, trained on your labeled review outcomes once you have them. Until then it's hand-tuned. Output is one of four tiers, and every tier maps to an action the operator configured, never an accusation.</p>
+
+<div class="tablewrap"><table>
+<tr><th>Tier</th><th>Meaning</th><th>Default action</th><th>Target PPV</th></tr>
+<tr><td><span class="pill">T0</span></td><td>Nothing notable</td><td>Discard features after retention window</td><td class="num">—</td></tr>
+<tr><td><span class="pill acc">T1 watch</span></td><td>One or two mid signals</td><td>Retain features 30d; raise priority on the pair; no human</td><td class="num">≥ 10%</td></tr>
+<tr><td><span class="pill warn">T2 review</span></td><td>Progression pattern or one critical signal</td><td>Human review queue within 4h; operator may friction the actor (rate-limit, block DMs to minors)</td><td class="num">≥ 40%</td></tr>
+<tr><td><span class="pill crit">T3 report</span></td><td>Reviewer-confirmed enticement, sextortion, or CSAM hash</td><td>CyberTipline report, 1-year preservation, operator enforcement</td><td class="num">≥ 90%</td></tr>
+</table></div>
+
+<div class="callout warn">
+<p><b>Base rates will wreck naive thresholds.</b> PAN-12 is 3% positive. Real platforms are closer to 0.01%. A classifier with 99% specificity at that rate produces about 100 false alarms per true hit. That's why T2 requires either a progression pattern or a critical signal, and why the reviewer, not the model, is the only thing that can produce T3. Budget reviewer minutes per 1,000 users as a first-class metric.</p>
+</div>
+
+<h3>6.5 Evasion handling</h3>
+<p>Coded language and out-of-vocabulary tokens are the documented failure mode of fine-tuned encoders. Three cheap counters: a normalization layer that maps known emoji and leet codes before tokenization (👻→snapchat, 💿→discord, "leVe"→leave), a per-platform lexicon that operators can extend, and the skew tracker, which catches distribution drift even when individual messages don't classify. Periodically mine T2+ confirmed cases for new tokens the encoder missed and feed them back into the lexicon.</p>
+
+<h2 id="arch">7. Architecture</h2>
+<p>Standard stack. The only Python is the ML service.</p>
+
+<div class="tablewrap"><table>
+<tr><th>Service</th><th>Tech</th><th>Job</th></tr>
+<tr><td><code>ingest</code></td><td>Fastify, TS</td><td>Auth per customer (API key + HMAC on webhooks), schema validation, PII minimization, canonical Event write to a queue. Rejects raw media bytes at the edge; accepts hashes only.</td></tr>
+<tr><td><code>queue</code></td><td>Redis Streams (reuse the Hive routing pattern)</td><td>Fan events to feature workers. Per-customer partitions so a noisy platform can't starve a small one.</td></tr>
+<tr><td><code>features</code></td><td>TS workers</td><td>Normalization, entity extraction, graph features, temporal joins. Stateless; state lives in Postgres + Redis.</td></tr>
+<tr><td><code>ml</code></td><td>Python FastAPI, GPU on demand</td><td>Stage classifier, embeddings, Roblox PII classifier, MinHash script index. Versioned models; every score records model version.</td></tr>
+<tr><td><code>scorer</code></td><td>TS</td><td>Pair trajectory, actor skew, fusion, tier assignment, action dispatch to the customer's webhook.</td></tr>
+<tr><td><code>cases</code></td><td>Postgres via Prisma</td><td>Pairs, actors, tiers, reviewer decisions, evidence bundles (text excerpts + hashes + timestamps + model versions), retention timers.</td></tr>
+<tr><td><code>audit</code></td><td>Hash-chained append-only log (Latch pattern)</td><td>Every score, every reviewer action, every export. Chain of custody is what makes a report survive a defense motion.</td></tr>
+<tr><td><code>report</code></td><td>TS</td><td>CyberTipline ESP API client. Builds the report from the evidence bundle, submits, stores the report ID, starts the 1-year preservation timer.</td></tr>
+<tr><td><code>review</code></td><td>Next.js</td><td>Reviewer queue: evidence timeline, stage annotations, one-click decisions (dismiss / watch / confirm / report). Records decision + reason, feeds the fusion model.</td></tr>
+</table></div>
+
+<h3>Data handling rules</h3>
+<ul>
+<li>Media: hash in, hash stored, bytes never transit Guardian. If a customer sends bytes, the edge drops the request and logs a customer-side violation.</li>
+<li>Text: T0 events keep features only, raw text discarded within 24h. T1+ keep the excerpts needed for the evidence bundle. T3 keeps everything for one year per 2258A.</li>
+<li>Identifiers: customer-supplied user IDs are salted-hashed per customer. Guardian can't join across customers without the customer's key. (Lantern-style cross-platform sharing is a later, opt-in feature.)</li>
+<li>Age bands, not birthdates. Six bands matching Roblox's scheme so their classifiers drop in.</li>
+<li>Every stored row carries a retention class and a customer ID. Deletion is a job, not a hope.</li>
+</ul>
+
+<h2 id="surfaces">8. The four surfaces</h2>
+
+<div class="surfaces">
+<div class="surface">
+<h4>Platform SDK / API <span class="pill ok">core</span></h4>
+<div class="who">Small and mid games, chat apps, edtech, kids' communities. The customer is a 2258A provider and Guardian is their processor.</div>
+<ul>
+<li>TS and Python SDKs wrapping the Event schema; webhook for tiers.</li>
+<li>Customer runs PhotoDNA/Safer themselves or through Guardian's hosted proxy; Guardian gets the verdict.</li>
+<li>Review queue is white-label; customer's own reviewers make T3 calls. Guardian files the CyberTipline report as the customer's agent.</li>
+<li>Pricing per monthly active minor-band user plus reviewer seats.</li>
+<li>Must not: return "predator" labels, accept media bytes, expose one customer's signals to another without opt-in.</li>
+</ul>
+</div>
+<div class="surface">
+<h4>Discord bot <span class="pill ok">wedge</span></h4>
+<div class="who">Owners of kid-heavy servers (Roblox, Minecraft, Fortnite communities). Ships first.</div>
+<ul>
+<li>Reads server messages the bot is authorized to see. Cannot read DMs, and that's fine: the DM <i>request</i> happens in public channels first.</li>
+<li>Age bands from server roles + Discord's teen-by-default status; owner tags trusted adults.</li>
+<li>Actions: flag to a mod channel, auto-timeout on T2 if the owner enables it, evidence bundle for the owner to file at report.cybertip.org (owner is the reporter; Guardian drafts).</li>
+<li>Migration-ask and economic-bait detectors do most of the work here.</li>
+<li>Must not: scrape servers it isn't installed in, DM the suspected actor, DM the kid.</li>
+</ul>
+</div>
+<div class="surface">
+<h4>Investigator triage <span class="pill warn">partner-gated</span></h4>
+<div class="who">ICAC units, NCPTF-style NGOs, Tebow Foundation "Find" partners, C3 victim-ID analysts. Needs one real LE or NGO partner before you build past a demo.</div>
+<ul>
+<li>Tip triage: dedupe and cluster CyberTipline exports the unit already holds (Stanford's exact complaint), rank by identifiable-victim, production, enticement, live-stream.</li>
+<li>Victim-ID assist: incidental-detail extraction from case notes (not media): brands, place names, school mascots, dialect. Scout-style scope gating, every query logged.</li>
+<li>Sex-ad monitor: scrape new ads, extract handles/phones/face-hashes, join against the unit's existing minor tips. Alert only on a join. Mirrors the "Find" model TTF funds.</li>
+<li>Guardian never holds the imagery. It holds the unit's structured data and produces leads.</li>
+<li>Must not: take tasking that steers the platform kernel (private-search doctrine), operate without a signed agreement and a named custodian.</li>
+</ul>
+</div>
+<div class="surface">
+<h4>Parent app <span class="pill">last</span></h4>
+<div class="who">Parents of 8–15 year olds. Crowded market, weakest legal footing, iOS blocks in-app scanning.</div>
+<ul>
+<li>On-device scoring: the encoder runs on the phone; only tier events leave the device. Parent sees "a contact is pushing your kid to move to Snapchat and asking about your custody arrangement," never the transcript by default.</li>
+<li>Kid-visible. The app tells the child it's running. Overt monitoring is what makes vicarious consent defensible and what the child-safety orgs recommend (Safe House Project: collaborative monitoring).</li>
+<li>Android first via accessibility/notification access; iOS via Screen Time API + charger-sync fallback like Bark.</li>
+<li>Reports go through the parent (NCMEC public form, Know2Protect tipline 1-833-591-5669). Guardian drafts, preserves originals unaltered per DHS guidance.</li>
+<li>Must not: monitor a device the account holder doesn't own, monitor covertly, store transcripts server-side.</li>
+</ul>
+</div>
+</div>
+
+<h2 id="legal">9. Legal guardrails</h2>
+<p>Things to do before the first paying customer. Get counsel for the two flagged items; I'm not one.</p>
+<ol>
+<li>Written data retention and security program (COPPA amended rule). Retention classes are in the schema from day one.</li>
+<li>Processor agreement template making the customer the 2258A provider and reporter of record, with Guardian as agent. <b>Counsel:</b> whether Guardian itself is a "provider" when it stores T1+ excerpts.</li>
+<li>NCMEC ESP registration for CyberTipline API access. Requires the customer relationship to be real; do this with the first platform customer, not before.</li>
+<li>Parent app: terms establishing device ownership and parental authority; state-by-state notice for all-party-consent states. <b>Counsel:</b> vicarious consent for a vendor rather than the parent.</li>
+<li>No decoy, no expose, no direct-to-police features. Write it into the product principles so a customer can't buy it.</li>
+<li>Reviewer wellness. ICAC funds Innocent Justice Foundation for a reason. Rotation limits, no-image policy (Guardian never shows imagery), counseling stipend in the reviewer contract.</li>
+<li>Investigator surface only under a signed agreement naming a custodian and scope, with audit export on demand.</li>
+</ol>
+
+<h2 id="eval">10. Evaluation</h2>
+<p>Numbers to hit before calling any tier real.</p>
+<div class="tablewrap"><table>
+<tr><th>Test</th><th>Data</th><th>Pass</th></tr>
+<tr><td>Stage classifier, segment-level</td><td>PANC (3,179 grooming / 29,331 non) + PJZC + 2,000 hand-labeled modern samples you build from public case filings and platform-donated data</td><td class="num">F1 ≥ 0.85, and ≥ 0.80 on the modern set alone</td></tr>
+<tr><td>Early warning latency</td><td>Vogt 2021 protocol</td><td class="num">Median ≤ 15 messages to first T1 on positives</td></tr>
+<tr><td>Base-rate simulation</td><td>Inject positives at 0.01% into a benign stream (Discord public server dumps, ToS-cleared)</td><td class="num">T2 PPV ≥ 40%, ≤ 2 reviewer-minutes per 1,000 users/day</td></tr>
+<tr><td>Teen-romance control</td><td>Same-band romantic chat corpus</td><td class="num">T2 rate ≤ 0.1% of pairs</td></tr>
+<tr><td>Evasion red team</td><td>Rewrite 500 positives with emoji codes, leet, indirection, non-English</td><td class="num">Recall drop ≤ 15 points</td></tr>
+<tr><td>Sextortion script match</td><td>Public threat-message corpus (Thorn/NCMEC excerpts, court filings)</td><td class="num">Recall ≥ 0.9 at ≤ 1 FP per 100k messages</td></tr>
+<tr><td>Audit chain</td><td>Tamper a stored evidence row</td><td class="num">Verification fails and names the row</td></tr>
+</table></div>
+
+<h2 id="build">11. Build order</h2>
+<p>Sequenced so each step is sellable on its own and de-risks the next.</p>
+<ol>
+<li><b>Kernel v0 + Discord bot (weeks 1–6).</b> Normalizer, migration/PII classifier (Roblox weights), economic-bait entities, sextortion MinHash, fan-out graph, rule-based fusion, mod-channel alerts, evidence bundle export. No NCMEC API yet. Install on three friendly servers. This proves the signal catalog on real traffic and starts the labeled set.</li>
+<li><b>Stage classifier + review queue (weeks 6–12).</b> Fine-tune on PANC/PJZC + bot-collected labels. Ship the Next.js reviewer. Fusion becomes learned.</li>
+<li><b>Platform SDK + reporting (weeks 12–20).</b> Event schema SDKs, webhooks, retention jobs, audit chain, NCMEC ESP registration with first customer, CyberTipline client. This is the revenue product.</li>
+<li><b>Investigator triage (after one partner signs).</b> Tip dedupe/clustering first; it's the cheapest thing that solves Stanford's complaint. Sex-ad monitor second.</li>
+<li><b>Parent app (last).</b> Only once the on-device encoder is small enough and counsel has cleared the consent posture. It reuses everything above.</li>
+</ol>
+
+<h2 id="risks">12. Open risks</h2>
+<ul>
+<li><b>Labeled data.</b> Every public dataset is decoy-based. The first real labels come from the Discord bot and reviewer decisions. Until then production precision is a guess.</li>
+<li><b>Platform hostility.</b> Roblox treats third-party safety actors as adversaries. The SDK sells to platforms that want help; it can't observe the ones that don't.</li>
+<li><b>Thorn/Hive overlap.</b> Safer Predict already does the text classifier for big platforms. Guardian's edge is the trajectory/skew scoring, the reviewer workflow, the reporting pipeline, and a price small platforms can pay. If Hive undercuts on price, the differentiator is the workflow, not the model.</li>
+<li><b>Reviewer supply.</b> T3 requires humans. Your customers may not have any. Offer reviewer-as-a-service only with the wellness program in place.</li>
+<li><b>Regulatory drift.</b> KOSA advanced in Senate Commerce Aug 2026; STOP CSAM rode the Senate NDAA in July. Either could impose duties on small platforms overnight, which is good for demand and bad for compliance surface.</li>
+<li><b>Discord API limits.</b> Message-content intent requires verification above 100 servers. Plan for it around week 10.</li>
+</ul>
+
+<h2 id="sources">Sources</h2>
+<p class="src">From your list, plus the tech/legal sweep. Pages that returned 403 (state.gov, wng.org, DHS PSA, IMDb, APA) were reconstructed from mirrors or coverage; those are marked.</p>
+<ul class="src">
+<li><a href="https://en.wikipedia.org/wiki/Child_safety_on_Roblox">Child safety on Roblox (Wikipedia)</a></li>
+<li><a href="https://www.bloomberg.com/features/2024-roblox-pedophile-problem">Roblox's Pedophile Problem (Bloomberg, 2024)</a></li>
+<li><a href="https://www.abc.net.au/news/2025-08-30/roblox-banned-predator-hunter-schlep-gaming-kids-watching/105711644">Roblox banned predator hunter Schlep (ABC Australia)</a> · IMDb item via <a href="https://en.wikipedia.org/wiki/Roblox%E2%80%93Schlep_controversy">Wikipedia</a> and Tubefilter (403 direct)</li>
+<li><a href="https://www.apa.org/monitor/2022/01/jn">APA Monitor Jan 2022</a> (bot-blocked; not used for claims)</li>
+<li><a href="https://www.ice.gov/news/releases/route-locating-child-predators-often-through-identification-their-victims">ICE/HSI victim identification</a></li>
+<li><a href="https://rcmp.ca/en/gazette/hunting-online-predators">RCMP Gazette, Hunting online predators</a></li>
+<li><a href="https://childrescuecoalition.org/educations/investigator-shares-6-steps-predators-take-to-groom-kids-online/">Child Rescue Coalition, six grooming steps</a></li>
+<li><a href="https://ojjdp.ojp.gov/programs/internet-crimes-against-children-task-force-program">OJJDP ICAC Task Force Program</a></li>
+<li><a href="https://www.fbi.gov/investigate/violent-crime/vcac">FBI VCAC</a> · <a href="https://www.fbi.gov/how-we-can-help-you/parents-and-caregivers-protecting-your-kids">FBI Parents and Caregivers</a></li>
+<li><a href="https://www.dhs.gov/know2protect/take-action">DHS Know2Protect, Take Action</a> · PSA release via <a href="https://www.hstoday.us/subject-matter-areas/cybersecurity/dhs-know2protect-tim-tebow-foundation-release-new-psa-to-stop-online-child-exploitation/">HSToday</a> (403 direct)</li>
+<li><a href="https://discord.com/servers/predator-catching-catching-watching-and-exposing-1358800547322396702">Predator Catching Discord</a> · <a href="https://discord.com/invite/J95xTTx">PredCord invite</a></li>
+<li><a href="https://timtebowfoundation.org/ministries/anti-human-trafficking-1">TTF Anti-Human Trafficking</a> · <a href="https://timtebowfoundation.org/stories/anti-human-trafficking">TTF stories</a> · <a href="https://timtebowfoundation.org/disrupt">TTF Disrupt</a></li>
+<li><a href="https://www.foxnews.com/politics/mike-waltz-tim-tebow-launch-effort-combat-online-child-exploitation-happening-their-backyard">Waltz/Tebow UN effort (Fox)</a> · Renewed Hope Act via <a href="https://timtebowfoundation.org/stories/tim-tebow-applauds-passage-legislation-rescue-tens-thousands-sexually-exploited-children">TTF</a> and <a href="https://www.foxnews.com/sports/tim-tebow-testifies-before-senate-committee-bipartisan-bill-combat-child-exploitation">Fox</a> (wng.org 403)</li>
+<li>State Dept 20 Ways (403) via <a href="https://hiprc.org/blog/help-fight-human-trafficking/">HIPRC reprint</a></li>
+<li><a href="https://ourrescue.org/">Our Rescue</a> · <a href="https://www.unicefusa.org/what-unicef-does/childrens-protection/end-child-trafficking">UNICEF USA</a> · <a href="https://www.safehouseproject.org/blog/how-can-i-protect-my-child-from-trafficking/">Safe House Project</a> · <a href="https://polarisproject.org/training/">Polaris training</a> · <a href="https://acf.gov/otip/about/ways-endtrafficking">ACF OTIP</a> · <a href="https://feepay.txapps.texas.gov/hhsc/stop-human-trafficking-donation-service/">Texas HHSC donation portal</a></li>
+<li><a href="https://www.missingkids.org/gethelpnow/cybertipline/cybertiplinedata">NCMEC CyberTipline 2025 data</a> · <a href="https://cyberlaw.stanford.edu/publications/the-strengths-and-weaknesses-of-the-online-child-safety-ecosystem">Stanford, online child safety ecosystem (2024)</a></li>
+<li><a href="https://about.roblox.com/newsroom/2025/08/open-sourcing-roblox-sentinel-preemptive-risk-detection">Roblox Sentinel</a> · <a href="https://github.com/Roblox/Sentinel">GitHub</a> · <a href="https://about.roblox.com/newsroom/2026/08/roblox-open-source-safety-models-roost">Roblox/ROOST Aug 2026 models</a></li>
+<li><a href="https://safer.io/solutions/">Thorn Safer</a> · <a href="https://thehive.ai/blog/hive-adds-thorns-grooming-detection-to-cse-text-classifier-api">Hive CSE text classifier</a> · <a href="https://www.microsoft.com/en-us/photodna/faq">PhotoDNA FAQ</a> · <a href="https://protectingchildren.google/tools-for-partners/">Google Content Safety API</a> · <a href="https://technologycoalition.org/programs/lantern/">Tech Coalition Lantern</a></li>
+<li><a href="https://www.thorn.org/research/library/financial-sextortion/">Thorn/NCMEC financial sextortion trends</a></li>
+<li><a href="https://aclanthology.org/2021.acl-long.386.pdf">Vogt et al. 2021, early grooming detection (PANC)</a> · <a href="https://github.com/danielafe7-usp/BF-PSR-Framework">PJZ/PJZC</a> · <a href="https://arxiv.org/abs/2503.06627">SCoRL (NAACL 2025)</a> · <a href="https://arxiv.org/abs/2502.12576">coded-language failure modes</a> · <a href="https://www.frontiersin.org/journals/pediatrics/articles/10.3389/fped.2025.1591828/full">LLaMA-3.2-1B on PAN12 (2025)</a></li>
+<li><a href="https://uscode.house.gov/view.xhtml?req=granuleid%3AUSC-prelim-title18-section2258A&num=0&edition=prelim">18 USC 2258A</a> · <a href="https://uscode.house.gov/view.xhtml?req=granuleid%3AUSC-prelim-title18-section2252&num=0&edition=prelim">18 USC 2252</a> · <a href="https://www.eff.org/deeplinks/2021/09/us-v-wilson-ninth-circuit-reaffirms-fourth-amendment-protection-electronic">US v. Wilson (EFF)</a> · <a href="https://www.casemine.com/commentary/us/establishing-vicarious-consent-in-parental-wiretapping:-pollock-v-pollock/view">Pollock v. Pollock</a> · <a href="https://www.hunton.com/privacy-and-cybersecurity-law-blog/coppa-rule-amendment-compliance-deadline-approaches">COPPA amended rule</a> · <a href="https://www.ftc.gov/news-events/news/press-releases/2026/05/ftc-begins-enforcing-take-it-down-act">Take It Down Act enforcement</a> · <a href="https://www.commerce.senate.gov/press/rep/release/commerce-committee-advances-kids-online-safety-legislation/">KOSA (Aug 2026)</a> · <a href="https://www.hawley.senate.gov/hawley-negotiates-inclusion-of-stop-csam-act-in-senate-ndaa/">STOP CSAM in NDAA</a></li>
+<li><a href="https://thewieczoreklawfirm.com/blog/prosecutors-warn-against-citizen-vigilante-predator-hunters/">Prosecutors on vigilante hunters</a> · <a href="https://oklahomawatch.org/2025/08/01/predator-hunters-tactics-draw-fans-but-concern-police-and-advocates/">Oklahoma Watch on predator hunters</a></li>
+</ul>
+</main>
+</div>

@@ -1,0 +1,26 @@
+{
+  "name": "@guardian/scorer",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./worker": { "types": "./dist/worker.d.ts", "default": "./dist/worker.js" }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/worker.ts",
+    "start": "node dist/worker.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@guardian/schema": "workspace:*",
+    "@guardian/audit": "workspace:*",
+    "ioredis": "^5.4.0"
+  },
+  "devDependencies": { "tsx": "^4.19.0" }
+}

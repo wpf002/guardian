@@ -1,0 +1,82 @@
+{
+  "version": "sextortion-v1",
+  "notes": "Threat-message templates for the MinHash script index (DESIGN.md 5). Composed from the patterns documented in the Thorn/NCMEC financial sextortion research and public court filings: the crews paste the same script, 38 percent of threats reuse 'ruin your life' verbatim, and payment is demanded within minutes of a reciprocal image. These are offender threat texts only. No victim content, no imagery, nothing that identifies a person.",
+  "scripts": [
+    {
+      "id": "sx-001",
+      "label": "expose to contacts, countdown, payment",
+      "text": "i have all your friends and family list. if you dont send me the money i will send your pictures to everyone you know. you have 1 hour to decide. dont try me i will ruin your life"
+    },
+    {
+      "id": "sx-002",
+      "label": "expose to contacts, no countdown",
+      "text": "i already screenshot everything and i have your followers. send me 200 right now on cashapp or i post it on your page and send it to your mom"
+    },
+    {
+      "id": "sx-003",
+      "label": "school and parents threat",
+      "text": "i will send this to your school and your parents. everyone will see what you did. you have 24 hours to pay me or your life is over"
+    },
+    {
+      "id": "sx-004",
+      "label": "ruin your life core template",
+      "text": "do you want your life ruined. i will ruin your life if you dont answer me right now. i am not playing with you. send the money"
+    },
+    {
+      "id": "sx-005",
+      "label": "gift card demand",
+      "text": "go get a 100 dollar gift card and send me the code on the back. take a picture of the code. if you dont i will post everything and tag your friends"
+    },
+    {
+      "id": "sx-006",
+      "label": "crypto demand",
+      "text": "send 300 usd in bitcoin to this wallet or everything goes public tonight. i have your contacts saved already. last chance"
+    },
+    {
+      "id": "sx-007",
+      "label": "reciprocal image then immediate demand",
+      "text": "thanks for the pic. now i own you. send 50 on cash app in the next 10 minutes or i send this to every person in your follower list"
+    },
+    {
+      "id": "sx-008",
+      "label": "fake pity escalation",
+      "text": "i dont want to do this to you but i need the money. just pay me and i delete everything. if you block me i will find your family and send it to them"
+    },
+    {
+      "id": "sx-009",
+      "label": "repeat extortion after payment",
+      "text": "i know i said that was the last time but i need one more. send another 100 or the pictures go out. you already paid once so dont act new",
+      "text_note": "second-round demand, documented as the common pattern after a first payment"
+    },
+    {
+      "id": "sx-010",
+      "label": "screen recording claim",
+      "text": "i recorded the whole video call. i have your face and your body. pay me 250 or i upload it and send the link to your school group chat"
+    },
+    {
+      "id": "sx-011",
+      "label": "deadline with countdown timer",
+      "text": "you have 30 minutes left. after that i start sending. dont ignore me. i will ruin your life and you cannot stop it"
+    },
+    {
+      "id": "sx-012",
+      "label": "catfish reveal",
+      "text": "did you really think i was a girl. i am not. i have everything you sent and i have your instagram followers. pay me now or everyone sees it"
+    },
+    {
+      "id": "sx-013",
+      "label": "threat to post publicly",
+      "text": "i will post it everywhere. twitter, your school page, your church. everyone will see. the only way to stop it is to pay me right now"
+    },
+    {
+      "id": "sx-014",
+      "label": "keep it quiet plus payment",
+      "text": "nobody has to know about this. just send the money and delete this chat and we are done. if you tell anyone i post all of it"
+    },
+    {
+      "id": "sx-015",
+      "label": "escalating aggression",
+      "text": "answer me now. i am done being nice. you have five minutes then i start sending to the list. do you want your life ruined over 100 dollars"
+    }
+  ]
+}

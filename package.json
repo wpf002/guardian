@@ -1,0 +1,29 @@
+{
+  "name": "guardian",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:all": "turbo run test && pnpm ml:test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:migrate": "pnpm --filter @guardian/schema exec prisma migrate dev",
+    "db:generate": "pnpm --filter @guardian/schema exec prisma generate",
+    "db:studio": "pnpm --filter @guardian/schema exec prisma studio",
+    "eval": "pnpm --filter @guardian/eval run all",
+    "eval:json": "pnpm --filter @guardian/eval run json",
+    "ml:dev": "cd services/ml && uv run uvicorn main:app --reload",
+    "ml:test": "cd services/ml && uv run pytest -q",
+    "parity": "node scripts/parity.mjs"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "@types/node": "^20.16.0",
+    "eslint": "^9.10.0",
+    "prettier": "^3.3.0"
+  }
+}

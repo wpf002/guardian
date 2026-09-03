@@ -1,0 +1,33 @@
+{
+  "name": "@guardian/discord-bot",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/bot.ts",
+    "start": "node dist/bot.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@guardian/schema": "workspace:*",
+    "@guardian/audit": "workspace:*",
+    "@guardian/scorer": "workspace:*",
+    "@guardian/sdk-ts": "workspace:*",
+    "discord.js": "^14.16.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
