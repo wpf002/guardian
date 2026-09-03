@@ -30,12 +30,20 @@ export interface RetentionDelegate {
   deleteExpiredBundles(now: Date): Promise<number>;
 }
 
+export type SweepStep = "text" | "events" | "pairs" | "actors" | "bundles";
+
 export interface SweepResult {
   textCleared: number;
   eventsDeleted: number;
   pairsDeleted: number;
   actorsDeleted: number;
   bundlesDeleted: number;
+  /**
+   * Steps that threw. The step still counts as run, its count is 0, and the
+   * other steps proceed: one bad row must not stop the rest of the sweep.
+   * The detail is the error's class and code only, never its message.
+   */
+  errors: Array<{ step: SweepStep; error: string }>;
   ranAt: Date;
 }
 
@@ -47,12 +55,25 @@ export async function runRetentionSweep(
   now = new Date(),
 ): Promise<SweepResult> {
   const textCutoff = new Date(now.getTime() - TEXT_WINDOW_MS);
+  const errors: SweepResult["errors"] = [];
 
-  const textCleared = await delegate.clearExpiredText(textCutoff);
-  const eventsDeleted = await delegate.deleteExpiredEvents(now);
-  const pairsDeleted = await delegate.deleteExpiredPairs(now);
-  const actorsDeleted = await delegate.deleteExpiredActors(now);
-  const bundlesDeleted = await delegate.deleteExpiredBundles(now);
+  // Each step runs on its own. A foreign key refusing one delete (a pair with
+  // a review, a bundle with a report) is recorded and the next step runs, so
+  // expired actors and bundles are not left in place because of it (rule 7).
+  const step = async (name: SweepStep, run: () => Promise<number>): Promise<number> => {
+    try {
+      return await run();
+    } catch (err) {
+      errors.push({ step: name, error: describeError(err) });
+      return 0;
+    }
+  };
+
+  const textCleared = await step("text", () => delegate.clearExpiredText(textCutoff));
+  const eventsDeleted = await step("events", () => delegate.deleteExpiredEvents(now));
+  const pairsDeleted = await step("pairs", () => delegate.deleteExpiredPairs(now));
+  const actorsDeleted = await step("actors", () => delegate.deleteExpiredActors(now));
+  const bundlesDeleted = await step("bundles", () => delegate.deleteExpiredBundles(now));
 
   const result: SweepResult = {
     textCleared,
@@ -60,11 +81,14 @@ export async function runRetentionSweep(
     pairsDeleted,
     actorsDeleted,
     bundlesDeleted,
+    errors,
     ranAt: now,
   };
 
-  // The sweep is logged even when it deleted nothing, so a gap in the log is a
-  // sign the job stopped running rather than a quiet period.
+  // The sweep is logged even when it deleted nothing or when a step failed,
+  // so a gap in the log is a sign the job stopped running rather than a quiet
+  // period, and a failing step is visible in the chain rather than only in a
+  // process log.
   await audit.append({
     kind: "retention.deleted",
     customerId: "system",
@@ -72,6 +96,15 @@ export async function runRetentionSweep(
   });
 
   return result;
+}
+
+/** Class name plus a driver code when there is one. Messages can quote rows; these cannot. */
+function describeError(err: unknown): string {
+  if (typeof err !== "object" || err === null) return typeof err;
+  const name = (err as { name?: unknown }).name;
+  const code = (err as { code?: unknown }).code;
+  const base = typeof name === "string" && name.length > 0 ? name : "Error";
+  return typeof code === "string" ? `${base} ${code}` : base;
 }
 
 /**
@@ -97,8 +130,17 @@ export function prismaRetentionDelegate(prisma: PrismaLike): RetentionDelegate {
       return result.count;
     },
     async deleteExpiredPairs(now) {
+      // A pair with a review row is a reviewer's record and the foreign key
+      // is Restrict, so it stays whatever its expiry says. Excluding it here
+      // keeps one reviewed pair from aborting the delete of every other
+      // expired pair in the same statement.
       const result = await prisma.pair.deleteMany({
-        where: { expiresAt: { lt: now }, retention: { not: "LEGAL_HOLD" }, resolvedAt: null },
+        where: {
+          expiresAt: { lt: now },
+          retention: { not: "LEGAL_HOLD" },
+          resolvedAt: null,
+          reviews: { none: {} },
+        },
       });
       return result.count;
     },
@@ -109,8 +151,12 @@ export function prismaRetentionDelegate(prisma: PrismaLike): RetentionDelegate {
       return result.count;
     },
     async deleteExpiredBundles(now) {
+      // A bundle with a CyberTipline report is under the one year preservation
+      // duty whatever its own expiry says, and the foreign key would refuse
+      // the delete anyway. Report creation should also move the bundle to
+      // CASE_1Y; that lands with the reporting client in phase 3.
       const result = await prisma.evidenceBundle.deleteMany({
-        where: { expiresAt: { lt: now }, retention: { not: "LEGAL_HOLD" } },
+        where: { expiresAt: { lt: now }, retention: { not: "LEGAL_HOLD" }, report: null },
       });
       return result.count;
     },
@@ -140,9 +186,18 @@ export function scheduleRetentionSweep(
   intervalMs = 60 * 60 * 1000,
 ): () => void {
   const timer = setInterval(() => {
-    runRetentionSweep(delegate, audit).catch((err) => {
-      console.error("retention sweep failed:", err);
-    });
+    runRetentionSweep(delegate, audit)
+      .then((result) => {
+        if (result.errors.length > 0) {
+          console.warn(
+            `retention sweep finished with failed steps: ${result.errors.map((e) => `${e.step} (${e.error})`).join(", ")}`,
+          );
+        }
+      })
+      .catch((err) => {
+        // Only the chain append can throw now. The class name is enough.
+        console.error("retention sweep could not record itself:", describeError(err));
+      });
   }, intervalMs);
   timer.unref?.();
   return () => clearInterval(timer);

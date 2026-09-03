@@ -10,7 +10,7 @@ import {
 import { emptyActorState, observeActor, scoreActor } from "./actor.js";
 import { detectMessage, ScriptIndex, stageFromDetections, type Detection } from "./detectors/index.js";
 import { fuse, FUSION_VERSION, type FusionThresholds } from "./fusion.js";
-import { applyMessage, emptyPairState, scorePair, type PairMessage } from "./pair.js";
+import { applyMessage, emptyPairState, hasSeenMessage, scorePair, type PairMessage } from "./pair.js";
 import type { KernelStore } from "./store.js";
 
 /**
@@ -36,6 +36,13 @@ export interface ScoredEvent {
   stage: string;
   /** Text kept for the bundle, or null when retention says drop it. */
   excerpts: string[];
+  /**
+   * True when this externalId had already been folded into the pair. The
+   * score is recomputed from the stored state and nothing was mutated, so a
+   * retried batch or a redelivered stream entry persists and dispatches the
+   * same result rather than a doubled one.
+   */
+  replay: boolean;
 }
 
 export class Kernel {
@@ -90,7 +97,19 @@ export class Kernel {
 
     const isQuestion = /\?/.test(text) || /^(are|do|does|did|who|what|when|where|why|how|can|is)\b/i.test(text.trim());
 
-    const actorState = await this.updateActor(event, detections.length > 0);
+    // Idempotency on (customer, externalId). Ingest publishes before it
+    // appends to the chain and the worker delivers at least once, so the
+    // same message can arrive twice. A message the pair has already seen is
+    // scored from the stored state and writes nothing: not the pair, not the
+    // reverse pair, not the actor's counters.
+    const stored = event.targetUid
+      ? await this.store.getPair(event.customerId, event.actorUid, event.targetUid)
+      : null;
+    const replay = stored !== null && hasSeenMessage(stored, event.externalId);
+
+    const actorState = replay
+      ? ((await this.store.getActor(event.customerId, event.actorUid)) ?? emptyActorState(event.actorBand))
+      : await this.updateActor(event, detections.length > 0);
 
     if (!event.targetUid) return null;
 
@@ -98,9 +117,8 @@ export class Kernel {
     // on (sender, receiver) and the inbound half of (receiver, sender). Without
     // the second write the asymmetry term never sees the child's replies and
     // the payment-after-media join never sees the inbound media.
-    await this.applyReverse(event);
+    if (!replay) await this.applyReverse(event);
 
-    const stored = await this.store.getPair(event.customerId, event.actorUid, event.targetUid);
     const previous = stored ?? emptyPairState(event.actorBand, event.targetBand);
 
     // Bands can be filled in later by the customer; always take the latest known value.
@@ -117,8 +135,8 @@ export class Kernel {
       channel: event.channel,
     };
 
-    const nextPair = applyMessage(previous, message);
-    await this.store.putPair(event.customerId, event.actorUid, event.targetUid, nextPair);
+    const nextPair = replay ? previous : applyMessage(previous, message);
+    if (!replay) await this.store.putPair(event.customerId, event.actorUid, event.targetUid, nextPair);
 
     const pairScore = scorePair(nextPair);
     const bannedHints = await this.store.bannedHints(event.customerId);
@@ -166,6 +184,7 @@ export class Kernel {
       detections,
       stage: stageFromDetections(detections),
       excerpts: detections.map((d) => d.excerpt).filter(Boolean),
+      replay,
     };
   }
 

@@ -94,7 +94,6 @@ model Customer {
   events  Event[]
   pairs   Pair[]
   bundles EvidenceBundle[]
-  audit   AuditEntry[]
   violations CustomerViolation[]
 
   @@map("customers")
@@ -123,9 +122,6 @@ model Actor {
   actionedAt DateTime?
   retention  RetentionClass @default(WATCH_30D)
   expiresAt  DateTime?
-
-  pairsAsActor  Pair[] @relation("PairActor")
-  pairsAsTarget Pair[] @relation("PairTarget")
 
   @@unique([customerId, hashedUid])
   @@index([customerId, expiresAt])
@@ -169,14 +165,17 @@ model Event {
   @@map("events")
 }
 
+/// Pairs carry their own retention class, so nothing above them may cascade a
+/// delete into this table. There is deliberately no foreign key to actors: an
+/// actor row expires on its own 30 day clock and a pair under CASE_1Y or a legal
+/// hold must outlive it. The customer relation is Restrict for the same reason.
 model Pair {
   id         String   @id @default(cuid())
   customerId String
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  /// Salted hashes. Matched to actors by (customerId, hashedUid) in code.
   actorUid   String
   targetUid  String
-  actor      Actor?   @relation("PairActor", fields: [customerId, actorUid], references: [customerId, hashedUid], onDelete: Cascade)
-  target     Actor?   @relation("PairTarget", fields: [customerId, targetUid], references: [customerId, hashedUid], onDelete: Cascade)
   /// First time each stage was reached, in event time. Order is the signal.
   firstStageAt Json
   /// Gated signal hits kept for the evidence bundle. Capped.
@@ -215,7 +214,8 @@ model Pair {
 model Review {
   id         String   @id @default(cuid())
   pairId     String
-  pair       Pair     @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  /// Restrict: a reviewer's decision is never removed by a pair expiring.
+  pair       Pair     @relation(fields: [pairId], references: [id], onDelete: Restrict)
   reviewerId String
   decision   ReviewDecision
   /// Free text from the reviewer. Feeds the learned fusion model in phase 2.
@@ -239,7 +239,7 @@ model EvidenceBundle {
   id         String   @id @default(cuid())
   bundleId   String   @unique
   customerId String
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
   pairId     String?
   pair       Pair?    @relation(fields: [pairId], references: [id], onDelete: SetNull)
   actorUid   String
@@ -267,7 +267,9 @@ model EvidenceBundle {
 model CyberTiplineReport {
   id         String   @id @default(cuid())
   bundleId   String   @unique
-  bundle     EvidenceBundle @relation(fields: [bundleId], references: [bundleId], onDelete: Cascade)
+  /// Restrict: the bundle is under a one year preservation duty once a report
+  /// exists (18 USC 2258A). The retention sweep skips bundles with a report.
+  bundle     EvidenceBundle @relation(fields: [bundleId], references: [bundleId], onDelete: Restrict)
   customerId String
   /// The customer is the 2258A provider and the reporter of record.
   reporterCustomerId String
@@ -285,15 +287,20 @@ model CyberTiplineReport {
 }
 
 /// Hash-chained append-only log. Every score, reviewer action and export.
+///
+/// seq is assigned by the application under an advisory lock (packages/audit),
+/// not by a sequence. customerId is a plain column: the sweep writes as
+/// "system", a pre-auth refusal as "unknown", and a foreign key with ON UPDATE
+/// CASCADE would rewrite a column the hash covers. The unique constraints on
+/// prevHash and hash make a fork of the chain a database error.
 model AuditEntry {
-  seq        Int      @id @default(autoincrement())
+  seq        Int      @id
   ts         DateTime @default(now())
   kind       String
   customerId String
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
   payload    Json
-  prevHash   String
-  hash       String
+  prevHash   String   @unique
+  hash       String   @unique
 
   @@index([customerId, seq])
   @@index([kind, ts])

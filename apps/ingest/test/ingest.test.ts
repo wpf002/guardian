@@ -2,19 +2,19 @@ import { AuditLog, MemoryAuditStore } from "@guardian/audit";
 import { signPayload } from "@guardian/schema";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryCustomerStore } from "../src/customers.js";
-import { MemoryEventQueue } from "../src/queue.js";
+import { MemoryEventQueue, RedisEventQueue } from "../src/queue.js";
 import { prismaRetentionDelegate, runRetentionSweep } from "../src/retention-job.js";
-import { buildServer } from "../src/server.js";
+import { buildServer, SourceRateLimiter, type ServerDeps } from "../src/server.js";
 
 const API_KEY = "gk_test_key";
 
-function setup() {
+function setup(overrides: Partial<ServerDeps> = {}) {
   const customers = new MemoryCustomerStore();
   const customer = customers.create("cus_1", "Test Guild", API_KEY);
   const queue = new MemoryEventQueue();
   const store = new MemoryAuditStore();
   const audit = new AuditLog(store, "test-secret");
-  const app = buildServer({ customers, queue, audit });
+  const app = buildServer({ customers, queue, audit, ...overrides });
   return { app, customers, customer, queue, audit, store };
 }
 
@@ -85,6 +85,86 @@ describe("auth", () => {
     });
     expect(res.statusCode).toBe(401);
     expect(res.json().error).toContain("bad_signature");
+  });
+});
+
+// G-01. The chain is append-only and shared by every customer, so nothing an
+// unauthenticated caller does may append to it.
+describe("refusals before authentication", () => {
+  let ctx: ReturnType<typeof setup>;
+  beforeEach(() => {
+    ctx = setup();
+  });
+
+  it("does not write to the audit chain for a binary post with no key", async () => {
+    for (let i = 0; i < 25; i += 1) {
+      const res = await ctx.app.inject({
+        method: "POST",
+        url: "/v1/events",
+        headers: { "content-type": "image/png" },
+        payload: Buffer.from("not really a png"),
+      });
+      expect(res.statusCode).toBe(401);
+    }
+    expect((await ctx.audit.head()).seq).toBe(0);
+    expect(ctx.app.counters.preAuthRefusals.missing_key).toBe(25);
+  });
+
+  it("does not write to the audit chain for a binary post with an unknown key", async () => {
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: "/v1/events",
+      headers: { "content-type": "video/mp4", "x-guardian-key": "nope" },
+      payload: Buffer.from("bytes"),
+    });
+    expect(res.statusCode).toBe(401);
+    expect((await ctx.audit.head()).seq).toBe(0);
+    expect(ctx.app.counters.preAuthRefusals.unknown_key).toBe(1);
+  });
+
+  it("still records a binary post from an authenticated customer", async () => {
+    const res = await post(ctx.app, validEvent, { "content-type": "image/png" });
+    expect(res.statusCode).toBe(422);
+    const entries = await ctx.store.read();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.kind).toBe("customer.violation");
+    expect(entries[0]!.customerId).toBe("cus_1");
+  });
+
+  it("reports pre-auth refusals through the hook with a fixed reason only", async () => {
+    const seen: string[] = [];
+    const hooked = setup({ onPreAuthRefusal: (reason) => seen.push(reason) });
+    await hooked.app.inject({ method: "POST", url: "/v1/events", headers: { "content-type": "image/png" }, payload: "x" });
+    await post(hooked.app, validEvent, { "x-guardian-key": "nope" });
+    expect(seen).toEqual(["missing_key", "unknown_key"]);
+  });
+
+  it("rate limits a source address before any key lookup or chain write", async () => {
+    const limited = setup({ rateLimit: { max: 3, windowMs: 60_000 } });
+    const codes: number[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      const res = await limited.app.inject({
+        method: "POST",
+        url: "/v1/events",
+        headers: { "content-type": "image/png" },
+        payload: "x",
+      });
+      codes.push(res.statusCode);
+    }
+    expect(codes).toEqual([401, 401, 401, 429, 429]);
+    expect((await limited.audit.head()).seq).toBe(0);
+    expect(limited.app.counters.preAuthRefusals.rate_limited).toBe(2);
+  });
+
+  it("limits per source and resets with the window", () => {
+    let clock = 0;
+    const limiter = new SourceRateLimiter({ max: 2, windowMs: 1000 }, () => clock);
+    expect(limiter.allow("a")).toBe(true);
+    expect(limiter.allow("a")).toBe(true);
+    expect(limiter.allow("a")).toBe(false);
+    expect(limiter.allow("b")).toBe(true);
+    clock = 1000;
+    expect(limiter.allow("a")).toBe(true);
   });
 });
 
@@ -258,6 +338,70 @@ describe("batches and validation", () => {
     const result = await ctx.audit.verify();
     expect(result.ok).toBe(true);
   });
+
+  // G-07. The events are on the stream before the ingest entry is appended. A
+  // 500 here would make the customer replay a batch the scorer already has.
+  it("answers 202 with audited false when the chain append fails after publish", async () => {
+    const failing = setup();
+    failing.audit.append = async () => {
+      throw new Error("advisory lock wait timed out");
+    };
+    const res = await post(failing.app, { events: [validEvent, { ...validEvent, externalId: "msg-2" }] });
+    expect(res.statusCode).toBe(202);
+    expect(res.json()).toEqual({ accepted: 2, rejected: [], audited: false });
+    expect(failing.queue.eventsFor("cus_1")).toHaveLength(2);
+    expect(failing.app.counters.auditAppendFailures).toBe(1);
+  });
+});
+
+// G-06. Per-customer partitions isolate consumer latency, not Redis memory.
+describe("queue backpressure", () => {
+  it("answers 429 and publishes nothing when the customer's partition is full", async () => {
+    const ctx = setup();
+    ctx.queue.full = true;
+    const res = await post(ctx.app, { events: [validEvent] });
+    expect(res.statusCode).toBe(429);
+    expect(res.headers["retry-after"]).toBeDefined();
+    expect(ctx.queue.published).toHaveLength(0);
+    expect(ctx.app.counters.queueFull).toBe(1);
+  });
+
+  it("trims the stream on every append and reports full at the backpressure mark", async () => {
+    const calls: Array<Array<string | number>> = [];
+    let length = 0;
+    const redis = {
+      async xadd(key: string, ...args: Array<string | number>) {
+        calls.push([key, ...args]);
+        return "1-0";
+      },
+      async xlen() {
+        return length;
+      },
+    };
+    const queue = new RedisEventQueue(redis, { maxLen: 100 });
+    await queue.publish("cus_1", {
+      externalId: "m1",
+      customerId: "cus_1",
+      actorUid: "a",
+      targetUid: "b",
+      channel: "c",
+      ts: new Date("2026-09-02T12:00:00Z"),
+      text: null,
+      media: null,
+      actorBand: "UNKNOWN",
+      targetBand: "UNKNOWN",
+      actorRole: "unknown",
+      actorAccountAgeHours: null,
+      deviceHints: null,
+      provenance: { surface: "discord", sourceId: "g", receivedAt: new Date() },
+      retention: "EPHEMERAL_24H",
+      expiresAt: new Date("2026-09-03T12:00:00Z"),
+    });
+    expect(calls[0]!.slice(0, 5)).toEqual(["guardian:events:cus_1", "MAXLEN", "~", "100", "*"]);
+    expect(await queue.isFull("cus_1")).toBe(false);
+    length = 90;
+    expect(await queue.isFull("cus_1")).toBe(true);
+  });
 });
 
 describe("health", () => {
@@ -320,6 +464,61 @@ describe("retention sweep", () => {
     await runRetentionSweep(noop, audit);
     const entries = await store.read();
     expect(entries.some((e) => e.kind === "retention.deleted")).toBe(true);
+  });
+
+  // G-08. reviews.pairId is Restrict, so one expired reviewed pair used to
+  // abort the whole statement and, with it, every later step of the sweep.
+  it("runs the remaining steps and records the failure when one step throws", async () => {
+    const { audit, store } = setup();
+    const calls: string[] = [];
+    const delegate = {
+      clearExpiredText: async () => 3,
+      deleteExpiredEvents: async () => 4,
+      async deleteExpiredPairs() {
+        const err = new Error("Foreign key constraint violated: reviews_pairId_fkey") as Error & { code: string };
+        err.code = "P2003";
+        throw err;
+      },
+      async deleteExpiredActors() {
+        calls.push("actors");
+        return 2;
+      },
+      async deleteExpiredBundles() {
+        calls.push("bundles");
+        return 1;
+      },
+    };
+    const result = await runRetentionSweep(delegate, audit, new Date("2026-09-02T12:00:00Z"));
+    expect(calls).toEqual(["actors", "bundles"]);
+    expect(result.actorsDeleted).toBe(2);
+    expect(result.bundlesDeleted).toBe(1);
+    expect(result.pairsDeleted).toBe(0);
+    expect(result.errors).toEqual([{ step: "pairs", error: "Error P2003" }]);
+
+    const entries = await store.read();
+    const swept = entries.find((e) => e.kind === "retention.deleted");
+    expect(swept).toBeDefined();
+    expect(swept!.payload.errors).toEqual([{ step: "pairs", error: "Error P2003" }]);
+    expect(JSON.stringify(swept!.payload)).not.toContain("reviews_pairId_fkey");
+  });
+
+  it("skips pairs that carry a review", async () => {
+    const seen: Array<Record<string, unknown>> = [];
+    const capture = {
+      deleteMany: async (args: { where: Record<string, unknown> }) => {
+        seen.push(args.where);
+        return { count: 0 };
+      },
+    };
+    const delegate = prismaRetentionDelegate({
+      event: { ...capture, updateMany: async () => ({ count: 0 }) },
+      pair: capture,
+      actor: capture,
+      evidenceBundle: capture,
+    });
+    await delegate.deleteExpiredPairs(new Date());
+    expect(seen[0]!.reviews).toEqual({ none: {} });
+    expect(seen[0]!.resolvedAt).toBeNull();
   });
 
   it("never deletes a legal hold", () => {

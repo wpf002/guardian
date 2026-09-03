@@ -81,6 +81,13 @@ export interface PairState {
   knownCsamMatch: boolean;
   firstSeenAt: string | null;
   lastSeenAt: string | null;
+  /**
+   * External ids of the most recent messages folded in, newest last. A
+   * message whose id is here is a replay (a customer retry, a redelivered
+   * stream entry) and leaves the state alone, so counts, signals and stage
+   * times are never doubled.
+   */
+  recentExternalIds: string[];
 }
 
 export function emptyPairState(actorBand: AgeBand, targetBand: AgeBand): PairState {
@@ -96,10 +103,18 @@ export function emptyPairState(actorBand: AgeBand, targetBand: AgeBand): PairSta
     knownCsamMatch: false,
     firstSeenAt: null,
     lastSeenAt: null,
+    recentExternalIds: [],
   };
 }
 
 const MAX_STORED_SIGNALS = 200;
+/** Replay window in messages. A retry arrives within seconds, not hundreds of messages later. */
+export const MAX_RECENT_EXTERNAL_IDS = 200;
+
+/** True when this message was already folded into the state. */
+export function hasSeenMessage(state: PairState, externalId: string): boolean {
+  return state.recentExternalIds.includes(externalId);
+}
 
 export interface PairScoreComponents {
   progression: number;
@@ -126,10 +141,13 @@ export interface PairScoreResult {
  * one the score used.
  */
 export function applyMessage(state: PairState, msg: PairMessage): PairState {
+  if (hasSeenMessage(state, msg.externalId)) return state;
+
   const next: PairState = {
     ...state,
     firstStageAt: { ...state.firstStageAt },
     signals: [...state.signals],
+    recentExternalIds: [...state.recentExternalIds, msg.externalId].slice(-MAX_RECENT_EXTERNAL_IDS),
   };
 
   const ts = msg.ts.toISOString();

@@ -15,6 +15,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/bot.ts",
     "start": "node dist/bot.js",
+    "register": "tsx src/register.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src"

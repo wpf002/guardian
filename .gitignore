@@ -11,3 +11,4 @@ __pycache__
 services/ml/models/
 services/ml/data/
 coverage
+*.tsbuildinfo

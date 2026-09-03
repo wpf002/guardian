@@ -53,7 +53,18 @@ export interface AuditStore {
   head(): Promise<{ seq: number; hash: string }>;
   append(entry: AuditEntry): Promise<void>;
   read(fromSeq?: number, limit?: number): Promise<AuditEntry[]>;
+  /**
+   * Optional. Runs fn against a head and append that are serialized with every
+   * other appender, including appenders in other processes. An append reads
+   * the head and writes head plus one, so without this two writers can claim
+   * the same seq. A store that only one caller ever appends to may leave it
+   * out.
+   */
+  withAppendLock?<T>(fn: (target: AppendTarget) => Promise<T>): Promise<T>;
 }
+
+/** The two store methods an append needs. */
+export type AppendTarget = Pick<AuditStore, "head" | "append">;
 
 export interface AppendInput {
   kind: AuditKind;
@@ -73,18 +84,21 @@ export class AuditLog {
   }
 
   async append(input: AppendInput): Promise<AuditEntry> {
-    const { seq, hash } = await this.store.head();
-    const draft: Omit<AuditEntry, "hash"> = {
-      seq: seq + 1,
-      ts: (input.ts ?? new Date()).toISOString(),
-      kind: input.kind,
-      customerId: input.customerId,
-      payload: input.payload,
-      prevHash: hash,
+    const write = async (target: AppendTarget): Promise<AuditEntry> => {
+      const { seq, hash } = await target.head();
+      const draft: Omit<AuditEntry, "hash"> = {
+        seq: seq + 1,
+        ts: (input.ts ?? new Date()).toISOString(),
+        kind: input.kind,
+        customerId: input.customerId,
+        payload: input.payload,
+        prevHash: hash,
+      };
+      const entry: AuditEntry = { ...draft, hash: entryDigest(draft, this.secret) };
+      await target.append(entry);
+      return entry;
     };
-    const entry: AuditEntry = { ...draft, hash: entryDigest(draft, this.secret) };
-    await this.store.append(entry);
-    return entry;
+    return this.store.withAppendLock ? this.store.withAppendLock(write) : write(this.store);
   }
 
   async head(): Promise<{ seq: number; hash: string }> {
