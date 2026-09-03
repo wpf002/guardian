@@ -1,0 +1,213 @@
+/*
+ * Foundation. Tokens come from theme.css (generated). Nothing here references
+ * a raw colour or a spacing value off the 4px scale.
+ *
+ * The person using this app reads text timelines about children for hours.
+ * Everything below is in service of that: a 16px body, a 68ch measure, one
+ * accent, borders instead of shadows, and no motion that makes them wait.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-ui);
+  font-size: 100%;
+  line-height: var(--leading-normal);
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--text-md);
+  min-height: 100dvh;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+}
+
+h1 { font-size: var(--text-2xl); }
+h2 { font-size: var(--text-xl); }
+h3 { font-size: var(--text-lg); }
+h4 { font-size: var(--text-md); }
+
+p,
+ul,
+ol {
+  margin: 0;
+}
+
+p {
+  max-width: var(--measure);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+code,
+kbd,
+pre,
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.9375em;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Focus rings are styled, never removed. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Screen-reader only. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Layout primitives. Components compose these; they do not restyle them. */
+.stack > * + * {
+  margin-block-start: var(--stack-gap, var(--space-4));
+}
+
+.stack-tight > * + * {
+  margin-block-start: var(--space-2);
+}
+
+.stack-loose > * + * {
+  margin-block-start: var(--space-6);
+}
+
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cluster-gap, var(--space-3));
+  align-items: center;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 280px), 1fr));
+  gap: var(--space-4);
+}
+
+.container {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding-inline: var(--space-4);
+  }
+}
+
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+}
+
+.surface-raised {
+  background: var(--surface-raised);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised);
+}
+
+.text-muted { color: var(--text-muted); }
+.text-subtle { color: var(--text-subtle); }
+.text-sm { font-size: var(--text-sm); }
+.text-xs { font-size: var(--text-xs); }
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--divider);
+  margin-block: var(--space-6);
+}
+
+/* Motion: transform and opacity only, and nothing when the user asked for none. */
+.fade-in {
+  animation: fade-in var(--motion-base) var(--motion-in);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
