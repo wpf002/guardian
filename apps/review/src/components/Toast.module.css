@@ -1,0 +1,37 @@
+/*
+ * A persistent inline bar, not a floating toast that expires while somebody is
+ * reading. Anything with a countdown prints the seconds in text.
+ */
+.toast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: var(--text-sm);
+}
+
+.info { border-color: var(--divider); }
+.success { border-color: var(--success); }
+.warning { border-color: var(--warning); }
+.danger { border-color: var(--danger); }
+
+.message {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: var(--measure);
+}
+
+.seconds {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}

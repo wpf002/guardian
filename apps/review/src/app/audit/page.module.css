@@ -1,0 +1,97 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 1200px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The page title is the one place this app uses the bold weight. */
+.title {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+}
+
+.lede {
+  max-width: var(--measure);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.scope {
+  max-width: var(--measure);
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.headHash {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.headHashValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.headHashLabel {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.filters > :first-child {
+  flex: 0 1 280px;
+}
+
+.clear {
+  font-size: var(--text-sm);
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.pagerLinks {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.pageLink {
+  font-size: var(--text-sm);
+}
+
+.pageEnd {
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
+}
+
+.pageCount {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,357 @@
+/*
+ * The decision panel. Docked to the foot of the case, separated by a 1px rule
+ * and a shift to the sunken surface, so a reviewer's hands are never in the
+ * same visual region as the text they are reading.
+ */
+
+.panel {
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+  padding: var(--space-4);
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+}
+
+.lead {
+  max-width: var(--measure);
+  margin-block-start: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.verbs {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+  margin-block-start: var(--space-4);
+}
+
+@media (min-width: 720px) {
+  .verbs {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1180px) {
+  .verbs {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.verb {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-height: 48px;
+  padding: var(--space-3);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  text-align: start;
+  transition:
+    border-color var(--motion-fast) var(--motion-in),
+    opacity var(--motion-fast) var(--motion-in);
+}
+
+.verb:hover:not(:disabled) {
+  border-color: var(--border);
+}
+
+.verb:active:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+.verb:disabled {
+  opacity: 0.55;
+}
+
+.verb[data-open="true"] {
+  border-color: var(--accent);
+}
+
+.verbWord {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.hint {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+}
+
+.consequence {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-snug);
+}
+
+.blocked {
+  margin-block-start: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+}
+
+/* ------------------------------------------------------------ reason list -- */
+
+.reasons {
+  margin-block-start: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.reasonHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-block-end: var(--space-3);
+}
+
+.reasonTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.filter {
+  width: 100%;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 320px;
+  margin-block-start: var(--space-3);
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.option[aria-selected="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.optionLabel {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.optionDefinition {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+}
+
+.emptyFilter {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.reasonActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+}
+
+/* ----------------------------------------------------------------- notes -- */
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.minutes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+  margin-block-start: var(--space-4);
+}
+
+.minutesField {
+  width: 96px;
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: var(--measure);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.check input {
+  margin-block-start: var(--space-1);
+}
+
+.escapes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block-start: var(--space-5);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--divider);
+}
+
+.linkEscape {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition: border-color var(--motion-fast) var(--motion-in);
+}
+
+.linkEscape:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.linkEscape:active {
+  background: var(--surface-sunken);
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.resultSummary {
+  max-width: var(--measure);
+  font-size: var(--text-sm);
+}
+
+.failure {
+  max-width: var(--measure);
+  padding: var(--space-3);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  background: var(--danger-soft);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+/* ------------------------------------------------------ consequence copy -- */
+
+.prohibitions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: var(--measure);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.why {
+  margin-block-start: var(--space-2);
+}
+
+.whyBody {
+  max-width: var(--measure);
+  margin-block-start: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* ---------------------------------------------------------- propose form -- */
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dialogLead {
+  max-width: var(--measure);
+  font-size: var(--text-sm);
+}
+
+.consequences {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: var(--measure);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.fieldset {
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin: 0;
+}
+
+.legend {
+  padding-inline: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.radioRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-block: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.completeness {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.completenessLabel {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-transform: lowercase;
+}

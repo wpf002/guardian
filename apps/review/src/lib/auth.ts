@@ -1,0 +1,244 @@
+/**
+ * Pre-SSO auth. A signed cookie over a reviewer roster held in an environment
+ * variable (DESIGN-UI 14).
+ *
+ * This is a deliberate placeholder with a stated replacement, not an
+ * architecture. What replaces it is SSO against the customer's own identity
+ * provider plus a real Reviewer table, so a decision references a row rather
+ * than a string from an env var. Until then Review.reviewerId holds the id from
+ * this JSON, which is stable enough to audit and not stable enough to ship to a
+ * customer. Say so in the operator agreement.
+ *
+ * Everything above verifySessionCookie is pure so it can be tested without a
+ * request. Anything that touches next/headers is imported lazily for the same
+ * reason.
+ */
+
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { isMockMode } from "./db";
+
+export const SESSION_COOKIE = "guardian_session";
+
+/** Twelve hours, and end of shift, whichever comes first. */
+export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+
+export const ROLES = ["reviewer", "operator", "owner"] as const;
+export type Role = (typeof ROLES)[number];
+
+export interface Session {
+  reviewerId: string;
+  displayName: string;
+  role: Role;
+  customerId: string;
+  issuedAt: number;
+}
+
+/** One row of the REVIEWERS env JSON. The token is the shared secret for that seat. */
+export interface ReviewerRecord {
+  id: string;
+  name: string;
+  role: Role;
+  customerId: string;
+  token: string;
+}
+
+/** The seat mock mode signs in automatically, so the app runs with no env at all. */
+export const MOCK_REVIEWER: ReviewerRecord = {
+  id: "rev_mock",
+  name: "A. Rivera",
+  role: "owner",
+  customerId: "cus_northwood",
+  token: "mock",
+};
+
+function sessionSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (secret && secret.length >= 16) return secret;
+  if (isMockMode()) return "guardian-mock-session-secret-not-for-real-use";
+  throw new Error("SESSION_SECRET must be set to at least 16 characters");
+}
+
+function isRole(value: unknown): value is Role {
+  return typeof value === "string" && (ROLES as readonly string[]).includes(value);
+}
+
+/** Parses REVIEWERS. A malformed entry is dropped rather than crashing sign-in for everyone. */
+export function loadReviewers(raw = process.env.REVIEWERS): ReviewerRecord[] {
+  if (!raw) return isMockMode() ? [MOCK_REVIEWER] : [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const out: ReviewerRecord[] = [];
+  for (const item of parsed) {
+    if (typeof item !== "object" || item === null) continue;
+    const row = item as Record<string, unknown>;
+    if (
+      typeof row.id === "string" &&
+      typeof row.name === "string" &&
+      isRole(row.role) &&
+      typeof row.customerId === "string" &&
+      typeof row.token === "string" &&
+      row.token.length > 0
+    ) {
+      out.push({
+        id: row.id,
+        name: row.name,
+        role: row.role,
+        customerId: row.customerId,
+        token: row.token,
+      });
+    }
+  }
+  return out;
+}
+
+function base64url(input: string): string {
+  return Buffer.from(input, "utf8").toString("base64url");
+}
+
+function fromBase64url(input: string): string {
+  return Buffer.from(input, "base64url").toString("utf8");
+}
+
+export function signSession(session: Session, secret = sessionSecret()): string {
+  const body = base64url(
+    JSON.stringify({
+      reviewerId: session.reviewerId,
+      displayName: session.displayName,
+      role: session.role,
+      customerId: session.customerId,
+      issuedAt: session.issuedAt,
+    }),
+  );
+  const mac = createHmac("sha256", secret).update(body).digest("base64url");
+  return `${body}.${mac}`;
+}
+
+/** Returns null on any failure. A caller never learns which half went wrong. */
+export function verifySessionCookie(
+  value: string | undefined,
+  opts: { now?: number; secret?: string } = {},
+): Session | null {
+  if (!value) return null;
+  const secret = opts.secret ?? sessionSecret();
+  const dot = value.lastIndexOf(".");
+  if (dot <= 0) return null;
+  const body = value.slice(0, dot);
+  const mac = value.slice(dot + 1);
+  const expected = createHmac("sha256", secret).update(body).digest("base64url");
+  const given = Buffer.from(mac);
+  const want = Buffer.from(expected);
+  if (given.length !== want.length || !timingSafeEqual(given, want)) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fromBase64url(body));
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const row = parsed as Record<string, unknown>;
+  if (
+    typeof row.reviewerId !== "string" ||
+    typeof row.displayName !== "string" ||
+    !isRole(row.role) ||
+    typeof row.customerId !== "string" ||
+    typeof row.issuedAt !== "number"
+  ) {
+    return null;
+  }
+  const now = opts.now ?? Date.now();
+  if (now - row.issuedAt > SESSION_TTL_MS) return null;
+  if (row.issuedAt - now > 60_000) return null;
+  return {
+    reviewerId: row.reviewerId,
+    displayName: row.displayName,
+    role: row.role,
+    customerId: row.customerId,
+    issuedAt: row.issuedAt,
+  };
+}
+
+/** Exchanges a seat token for a session. Returns null when no seat matches. */
+export function sessionForToken(token: string, now = Date.now()): Session | null {
+  const trimmed = token.trim();
+  if (!trimmed) return null;
+  const match = loadReviewers().find((r) => r.token === trimmed);
+  if (!match) return null;
+  return {
+    reviewerId: match.id,
+    displayName: match.name,
+    role: match.role,
+    customerId: match.customerId,
+    issuedAt: now,
+  };
+}
+
+export function mockSession(now = Date.now()): Session {
+  return {
+    reviewerId: MOCK_REVIEWER.id,
+    displayName: MOCK_REVIEWER.name,
+    role: MOCK_REVIEWER.role,
+    customerId: MOCK_REVIEWER.customerId,
+    issuedAt: now,
+  };
+}
+
+/** Role rank. An operator can do anything a reviewer can, and an owner anything an operator can. */
+const RANK: Record<Role, number> = { reviewer: 0, operator: 1, owner: 2 };
+
+export function roleAllows(role: Role, minimum: Role): boolean {
+  return RANK[role] >= RANK[minimum];
+}
+
+/**
+ * Reads the cookie. Mock mode signs in the default seat so the app runs with no
+ * environment at all.
+ */
+export async function getSession(): Promise<Session | null> {
+  if (isMockMode()) return mockSession();
+  const { cookies } = await import("next/headers");
+  const jar = await cookies();
+  return verifySessionCookie(jar.get(SESSION_COOKIE)?.value);
+}
+
+/** Every server component and route handler gets the session from here. */
+export async function requireSession(): Promise<Session> {
+  const session = await getSession();
+  if (session) return session;
+  const { redirect } = await import("next/navigation");
+  // redirect throws. Returning it keeps the never type visible to the caller.
+  return redirect("/login");
+}
+
+/**
+ * Role gate. A reviewer who reaches an operator route gets the not-found state
+ * rather than a 403, because a 403 confirms the route means something here.
+ */
+export async function requireRole(minimum: Role): Promise<Session> {
+  const session = await requireSession();
+  if (roleAllows(session.role, minimum)) return session;
+  const { notFound } = await import("next/navigation");
+  return notFound();
+}
+
+/** Cookie options. HttpOnly, Secure outside development, SameSite Lax. */
+export function sessionCookieOptions(): {
+  httpOnly: true;
+  sameSite: "lax";
+  secure: boolean;
+  path: string;
+  maxAge: number;
+} {
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: Math.floor(SESSION_TTL_MS / 1000),
+  };
+}

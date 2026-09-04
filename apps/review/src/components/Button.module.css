@@ -1,0 +1,114 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) var(--motion-out),
+    border-color var(--motion-fast) var(--motion-out),
+    opacity var(--motion-fast) var(--motion-out);
+}
+
+/* One accent, and it lives here: the primary action and the active nav item. */
+.primary {
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
+  color: var(--button-primary-fg);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--button-primary-hover);
+  border-color: var(--button-primary-hover);
+}
+
+.primary:active:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.secondary {
+  background: var(--surface);
+  border-color: var(--divider);
+  color: var(--text);
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--border);
+}
+
+.secondary:active:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+/* Red is reserved for the destructive, irreversible act, so it means something. */
+.danger {
+  background: var(--button-danger-bg);
+  border-color: var(--button-danger-border);
+  color: var(--button-danger-fg);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+.danger:active:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+
+.ghost:active:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+.full {
+  width: 100%;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* No spinner. A word, so a reviewer reads what is happening. */
+.spinner {
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+}
+
+/* Disabled always prints its reason in text, never a bare greyed button. */
+.reason {
+  display: block;
+  margin-block-start: var(--space-1);
+  max-width: var(--measure);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+}
+
+.wrap {
+  display: inline-block;
+}
+
+.wrapFull {
+  display: block;
+  width: 100%;
+}

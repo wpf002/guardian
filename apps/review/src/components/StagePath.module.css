@@ -1,0 +1,56 @@
+/*
+ * The six-stage ladder. Which stages were reached, and in what order, which is
+ * the whole signal: the order carries it, not the presence.
+ */
+.path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 76px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.reached {
+  border-color: var(--border);
+  background: var(--surface-sunken);
+}
+
+.name {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+.order {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.elapsed {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.window {
+  margin-block-start: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.empty {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}

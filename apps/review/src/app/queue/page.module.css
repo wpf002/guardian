@@ -1,0 +1,50 @@
+/*
+ * The queue page. Content width is constrained so the three-line card keeps a
+ * readable measure at 2560px, and nothing scrolls sideways at 320px.
+ */
+.page {
+  inline-size: 100%;
+  max-inline-size: 1120px;
+  margin-inline: auto;
+  padding: var(--space-5) var(--space-5) var(--space-7);
+}
+
+.list {
+  margin-block-start: var(--space-4);
+}
+
+/* One action on the empty state, styled as the chips are rather than as the
+   primary action: the accent belongs to opening a case. */
+.action {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  color: var(--text);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-full);
+  transition: border-color var(--motion-fast) var(--motion-in);
+}
+
+.action:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.action:active {
+  background: var(--surface-sunken);
+}
+
+.loadingTitle {
+  margin-block-end: var(--space-4);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--space-4) var(--space-4) var(--space-6);
+  }
+}

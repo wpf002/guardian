@@ -1,0 +1,15 @@
+.seq {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.when {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}

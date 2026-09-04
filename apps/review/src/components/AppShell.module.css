@@ -1,0 +1,186 @@
+.shell {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  min-height: 100dvh;
+}
+
+.rail {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+  border-inline-end: 1px solid var(--divider);
+  background: var(--surface);
+}
+
+.navList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-decoration: none;
+  transition: color var(--motion-fast) var(--motion-out);
+}
+
+.navItem:hover {
+  border-color: var(--divider);
+  color: var(--text);
+}
+
+.navItem:active {
+  background: var(--surface-sunken);
+}
+
+/* The accent appears twice in this app: the primary action and here. */
+.current {
+  color: var(--accent);
+  border-color: var(--divider);
+  background: var(--accent-soft);
+}
+
+.navLabel {
+  line-height: var(--leading-tight);
+  text-align: center;
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-medium);
+}
+
+/* Oversight destinations carry a state dot and never a count, so navigation
+   cannot become an alert feed. */
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--text-subtle);
+}
+
+.railFoot {
+  margin-block-start: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-1);
+}
+
+.content {
+  min-width: 0;
+  padding: var(--space-5);
+}
+
+.topline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-5);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.who {
+  font-variant-numeric: tabular-nums;
+}
+
+.themeButton {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.themeButton:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.skip {
+  position: absolute;
+  inset-inline-start: -9999px;
+}
+
+.skip:focus {
+  position: static;
+  display: inline-block;
+  margin: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+
+  .rail {
+    order: 2;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border-inline-end: 0;
+    border-block-start: 1px solid var(--divider);
+    position: sticky;
+    bottom: 0;
+  }
+
+  .navList {
+    flex: 1;
+    min-width: 0;
+    flex-direction: row;
+    justify-content: space-between;
+    gap: var(--space-1);
+  }
+
+  /* Each item takes an equal share and truncates rather than pushing the row
+     past the viewport. At 320px six labels do not fit at their natural width. */
+  .navList > li {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .navItem {
+    width: 100%;
+    min-width: 0;
+    padding-inline: var(--space-1);
+  }
+
+  .navLabel {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .railFoot {
+    margin-block-start: 0;
+    flex-direction: row;
+  }
+
+  .content {
+    order: 1;
+    padding: var(--space-4);
+  }
+}

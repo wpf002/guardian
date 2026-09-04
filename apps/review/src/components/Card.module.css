@@ -1,0 +1,41 @@
+/* One of the two elevation levels in this app: a 1px divider on a surface. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.padded {
+  padding: var(--space-5);
+}
+
+.tight {
+  padding: var(--space-3);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-3);
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+}
+
+.aside {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.footer {
+  margin-block-start: var(--space-4);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--divider);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}

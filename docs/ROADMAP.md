@@ -101,11 +101,11 @@ Goal: fine-tune on PANC and PJZC plus bot-collected labels, ship the Next.js rev
 | Milestone | Status | Note |
 |---|---|---|
 | Guardian product theme: tokens, light and dark, 38 contrast pairs validated by script | done | `46c03a6`, `scripts/theme/build-theme.mjs` |
-| Reviewer queue UI: case list, case detail, evidence timeline, decision panel | in progress | design brief in RESEARCH.md section 6 |
-| Operator dashboard: queue health, reviewer minutes per 1,000 users, tier rates, retention, audit status | planned | |
-| Guild setup UI for Discord owners | planned | mirrors the slash commands |
-| Review decisions write `Review` rows and audit entries; T3 only from here | planned | |
-| Text-native reviewer wellness controls | planned | UW 2025 clinical study found probable PTSD at 26% and recommends capping exposure at 2 to 4h/day. Blur and grayscale do nothing for a transcript queue. |
+| Reviewer queue UI: case list, case detail, evidence timeline, decision panel | done | `/queue` and `/cases/[id]`. Confirm and propose-T3 stay disabled until an excerpt has actually been rendered to the reviewer, which is what sets the human-viewed flag. |
+| Operator dashboard: queue health, tier rates, retention, audit status | done | `/dashboard`. Handling time is deliberately not shown per person and not compared between people. |
+| Guild setup UI for Discord owners | done | `/guilds` and `/guilds/[guildId]`, mirroring the slash commands |
+| Review decisions write `Review` rows and audit entries; T3 only from here | done | One code path, `src/lib/decisions.ts`. T3 needs a proposal plus a second reviewer. |
+| Text-native reviewer wellness controls | done | Session budget with break prompts, threat language collapsed behind an explicit reveal, a defer that logs no reason and does not count as a skip. |
 | Report status and outcome trail back to the reporter | planned | Australia's eSafety undertaking (Aug 2026) makes outcome notification binding for Roblox. Tickets vanishing into a black box was the core Schlep grievance. |
 | Evidence record shaped as a superset of CyberTipline API fields | planned | Makes export a projection rather than a rewrite |
 | Stage classifier fine-tune and evaluation | planned | SCoRL's best published turn-level precision is 0.475 at a 0.58% positive rate. That ratio, not a claim the classifier fails, is the honest argument for the trajectory gate. |

@@ -1,0 +1,49 @@
+.timer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: var(--text-sm);
+}
+
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* No red on this. It is a budget, not an alarm. */
+.meter {
+  height: 6px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--text-subtle);
+  transition: transform var(--motion-base) var(--motion-out);
+  transform-origin: left center;
+}
+
+.elevated .fill { background: var(--text-muted); }
+.spent .fill { background: var(--text); }
+
+.prompt {
+  max-width: var(--measure);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}

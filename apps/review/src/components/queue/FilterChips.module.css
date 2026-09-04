@@ -1,0 +1,83 @@
+/*
+ * Chips scroll in their own container. One accent, and it is the active chip,
+ * which is the same accent the active nav item uses and nothing else.
+ */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.chips {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-block-end: var(--space-1);
+  scrollbar-width: thin;
+}
+
+.chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  color: var(--text);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-full);
+  transition:
+    border-color var(--motion-fast) var(--motion-in),
+    background-color var(--motion-fast) var(--motion-in);
+}
+
+.chip:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.chip:active {
+  background: var(--surface-sunken);
+}
+
+.chip[data-active="true"] {
+  color: var(--accent-fg);
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+.chip[data-active="true"]:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--accent-fg);
+}
+
+.count {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.chip[data-active="true"] .count {
+  color: var(--accent-fg);
+}
+
+.refine {
+  font-size: var(--text-sm);
+}
+
+.summary {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.refineBody {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}

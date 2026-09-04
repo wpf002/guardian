@@ -1,0 +1,226 @@
+/*
+ * Page-specific layout for /settings. Tokens only, spacing from the 4px scale,
+ * 1px borders instead of shadows.
+ */
+
+.page {
+  padding-block: var(--space-6) var(--space-8);
+}
+
+.lede {
+  margin-block-start: var(--space-2);
+  color: var(--text-muted);
+}
+
+.sections {
+  margin-block-start: var(--space-6);
+  display: grid;
+  gap: var(--space-5);
+}
+
+/* Definition rows: a label, a value, and a plain sentence under it. */
+.rows {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 14rem) 1fr;
+  gap: var(--space-2) var(--space-4);
+  align-items: baseline;
+  padding-block-end: var(--space-3);
+  border-block-end: 1px solid var(--divider);
+}
+
+.row:last-child {
+  padding-block-end: 0;
+  border-block-end: 0;
+}
+
+.rowLabel {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.rowValue {
+  font-size: var(--text-sm);
+}
+
+.rowNote {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  max-width: var(--measure);
+}
+
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Forms */
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.check {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.check input {
+  margin-block-start: 3px;
+  inline-size: 16px;
+  block-size: 16px;
+  accent-color: var(--accent);
+}
+
+.checkLabel {
+  font-size: var(--text-sm);
+  max-width: var(--measure);
+}
+
+/* One inline banner shape for saved, refused and failed. */
+.banner {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  max-width: var(--measure);
+}
+
+.bannerOk {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--text);
+}
+
+.bannerBad {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--text);
+}
+
+.bannerQuote {
+  display: block;
+  margin-block-start: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* The phrases a customer has added, per field. */
+.phraseGroups {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.phraseGroup {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.phraseHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.phraseCount {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+}
+
+.phraseList {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.phraseItem {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.phraseText {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+/* The signed sample body. */
+.sample {
+  margin-block-start: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  font-size: var(--text-xs);
+  overflow-x: auto;
+  max-block-size: 320px;
+  overflow-y: auto;
+}
+
+.version {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+/* A fieldset used only for grouping radios. It carries no chrome of its own. */
+.fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* A heading inside a card, one step below the card title. */
+.subheading {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+/* A note that sits on its own line rather than in a definition row. */
+.blockNote {
+  display: block;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  max-width: var(--measure);
+}
+
+.introNote {
+  margin-block-end: var(--space-4);
+}

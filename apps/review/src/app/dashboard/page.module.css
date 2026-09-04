@@ -1,0 +1,129 @@
+.page {
+  padding-block: var(--space-6) var(--space-8);
+}
+
+.header {
+  max-width: var(--measure);
+  margin-block-end: var(--space-6);
+}
+
+.title {
+  font-weight: var(--weight-bold);
+}
+
+.lede {
+  margin-block-start: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.stamp {
+  margin-block-start: var(--space-2);
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+/* Two columns above 1100px, one below. Nothing here is a dense grid of tiles:
+   this page is read once a week, not watched. */
+.rows {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.pair {
+  display: grid;
+  gap: var(--space-5);
+}
+
+@media (min-width: 1100px) {
+  .pair {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.stats {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.note {
+  margin-block-start: var(--space-4);
+  max-width: var(--measure);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+}
+
+.facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+  align-items: baseline;
+  padding-block-end: var(--space-2);
+  border-block-end: 1px solid var(--divider);
+}
+
+.fact dt {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.fact dd {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.factsSpaced {
+  margin-block-start: var(--space-4);
+}
+
+.versionList {
+  list-style: none;
+  padding: 0;
+  margin-block-start: var(--space-3);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.versionRow {
+  padding-block-end: var(--space-3);
+  border-block-end: 1px solid var(--divider);
+  font-size: var(--text-sm);
+}
+
+.versionRow:last-child {
+  border-block-end: 0;
+  padding-block-end: 0;
+}
+
+.versionTriple {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.versionMeta {
+  display: block;
+  margin-block-start: var(--space-1);
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+.footer {
+  margin-block-start: var(--space-6);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--divider);
+  max-width: var(--measure);
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+}

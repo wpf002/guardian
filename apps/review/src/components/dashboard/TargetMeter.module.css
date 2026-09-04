@@ -1,0 +1,35 @@
+.meter {
+  display: block;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  margin-block-start: var(--space-2);
+}
+
+.track {
+  fill: var(--surface-sunken);
+}
+
+.fill {
+  fill: var(--text-subtle);
+}
+
+.tick {
+  fill: var(--border);
+}
+
+.status {
+  margin-block-start: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.note {
+  margin-block-start: var(--space-1);
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
