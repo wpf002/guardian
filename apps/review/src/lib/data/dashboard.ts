@@ -14,7 +14,7 @@
 
 import { getPrisma, isMockMode } from "../db";
 import { getMockData } from "../mock/fixtures";
-import type { Session } from "../auth";
+import type { Session } from "../session";
 import type { DashboardSummary, Tier } from "./types";
 
 /** Below this many decisions a rate is not reported. */

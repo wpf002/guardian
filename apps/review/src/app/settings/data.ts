@@ -30,7 +30,7 @@ import {
 import type { Session } from "@/lib/auth";
 import { getPrisma, isMockMode } from "@/lib/db";
 import { getLexiconExtension } from "@/lib/data/settings";
-import { checkWebhookTarget } from "./webhook-target";
+import { checkWebhookTarget } from "@guardian/schema/webhook-target";
 import type {
   LexiconFieldView,
   LexiconView,

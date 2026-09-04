@@ -22,6 +22,8 @@
 import {
   escalateRetention,
   expiresAt,
+  findAccusations,
+  looksLikeMediaBytes,
   retentionForTier,
   type RetentionClass,
   type ReviewDecision,
@@ -39,7 +41,7 @@ import {
 import { getPrisma, isMockMode } from "./db";
 import { getMockData } from "./mock/fixtures";
 import { appendAudit, appendAuditInTransaction } from "./data/audit";
-import type { Session } from "./auth";
+import type { Session } from "./session";
 import type { ReviewRecord } from "./data/types";
 
 /* -------------------------------------------------------------------------- */
@@ -245,7 +247,50 @@ function validate(input: RecordDecisionInput): Reason {
   if (input.minutesSpent !== undefined && input.minutesSpent < 0) {
     throw new DecisionRefused("bad_minutes", "Minutes cannot be negative.");
   }
+  assertNotesAreFilable(input.notes);
   return reason;
+}
+
+/**
+ * Two checks on the reviewer's own words, at the moment they are written.
+ *
+ * Reviewer notes are the one free-text channel into a CyberTipline filing that
+ * never crosses the ingest edge: the recommendation note is copied verbatim into
+ * the report narrative and into the submitted document. Both checks exist at the
+ * report builder too, but refusing there means an already-recorded T3 cannot be
+ * filed until somebody edits a note the console has no edit path for. So the
+ * load-bearing check is this one, at write time, where the reviewer is still
+ * looking at the field.
+ *
+ * Rule 1: a data URI or a long base64 run in a note is Guardian storing and
+ * later transmitting bytes.
+ * Rule 5: Guardian never labels a person, and a note saying one does becomes
+ * Guardian's own speech the moment it is filed under the provider's name.
+ */
+function assertNotesAreFilable(notes: DecisionNotes | undefined): void {
+  if (!notes) return;
+  const fields: Array<[string, string | undefined]> = [
+    ["the timeline note", notes.timeline],
+    ["the outside-context note", notes.outsideContext],
+    ["the recommendation note", notes.recommendation],
+  ];
+  for (const [label, value] of fields) {
+    if (!value) continue;
+    if (looksLikeMediaBytes(value)) {
+      throw new DecisionRefused(
+        "media_bytes_in_note",
+        `${label} carries what looks like image or video data. Guardian records a sha256 and the operator's own scanner verdict and never the bytes, and this note travels into a CyberTipline report. Describe the file instead.`,
+      );
+    }
+    const findings = findAccusations(value);
+    const first = findings[0];
+    if (first) {
+      throw new DecisionRefused(
+        "accusatory_note",
+        `${label} says "${first.match}", which ${first.why}. This note is copied into the report Guardian files under the provider's name, and Guardian never labels a person. Instead: ${first.instead}.`,
+      );
+    }
+  }
 }
 
 /**

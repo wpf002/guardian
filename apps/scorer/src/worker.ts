@@ -6,7 +6,8 @@ import { Redis } from "ioredis";
 import { Kernel, type ScoredEvent } from "./kernel.js";
 import { persistScoredEvent } from "./persist.js";
 import { PrismaKernelStore } from "./prisma-store.js";
-import { dispatch, toWebhookPayload, type WebhookTarget } from "./webhook.js";
+import { PrismaDeliveryStore } from "@guardian/ingest/delivery";
+import { dispatch, toWebhookPayload, useDeliveryQueue, type WebhookTarget } from "./webhook.js";
 
 /**
  * Scorer worker. Reads a per-customer Redis Stream partition, scores each
@@ -581,6 +582,20 @@ async function main(): Promise<void> {
   for (const c of customers) {
     if (c.webhookUrl) targets.set(c.id, { url: c.webhookUrl, secret: c.webhookSecret });
   }
+
+  /**
+   * Tiers are handed to a durable delivery row rather than a single fetch, and
+   * apps/ingest's delivery-worker drains it with the retry schedule and the
+   * dead-letter view. Only the enqueue port crosses the process boundary here:
+   * PrismaDeliveryStore satisfies DeliveryEnqueuer structurally, so the scorer
+   * takes no dependency on the ingest server, only on that one module.
+   *
+   * Registered here rather than threaded through runWorker because dispatch is
+   * called from scoreAndDispatch with a fixed signature. With no queue
+   * registered, dispatch falls back to the inline POST, which is what the unit
+   * tests and the eval harness run on.
+   */
+  useDeliveryQueue(new PrismaDeliveryStore(db));
 
   let stopping = false;
   const shutdown = (signal: string): void => {

@@ -1,11 +1,12 @@
 /**
  * What a webhook URL is allowed to point at.
  *
- * The test-delivery button makes Guardian's own container issue a request to an
- * address a customer operator chose. Without a check that is a server-side
- * request forgery primitive pointed at Guardian's private network: an operator
- * could sweep internal hosts and ports from the settings page and read the
- * result back off the button.
+ * Guardian's own container issues a request to an address a customer operator
+ * chose, twice over: once from the settings page's test-delivery button and once
+ * per attempt from the durable delivery worker. Without a check that is a
+ * server-side request forgery primitive pointed at Guardian's private network:
+ * an operator could sweep internal hosts and ports and read the result back off
+ * the button or off the dead-letter view.
  *
  * Three things are checked, and all three are needed:
  *
@@ -19,6 +20,10 @@
  * The request itself is sent with redirect: "manual", because a 302 to http://
  * or to a metadata address would otherwise carry the customer's signature
  * headers somewhere the https check never looked.
+ *
+ * This module lives in packages/schema rather than beside either caller because
+ * both need it and check 3 is worth nothing if only one of them runs it. It is
+ * a subpath export, not part of the barrel, because it reaches for node:dns.
  */
 
 export interface TargetRefusal {

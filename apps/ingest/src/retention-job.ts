@@ -28,9 +28,15 @@ export interface RetentionDelegate {
   deleteExpiredPairs(now: Date): Promise<number>;
   deleteExpiredActors(now: Date): Promise<number>;
   deleteExpiredBundles(now: Date): Promise<number>;
+  /**
+   * Webhook delivery rows past expiry. A delivery carrying a reviewer-confirmed
+   * T3 was stamped CASE_1Y at enqueue, so the expiry it is compared against is
+   * already the preservation date; nothing here shortens it.
+   */
+  deleteExpiredDeliveries(now: Date): Promise<number>;
 }
 
-export type SweepStep = "text" | "events" | "pairs" | "actors" | "bundles";
+export type SweepStep = "text" | "events" | "pairs" | "actors" | "bundles" | "deliveries";
 
 export interface SweepResult {
   textCleared: number;
@@ -38,6 +44,7 @@ export interface SweepResult {
   pairsDeleted: number;
   actorsDeleted: number;
   bundlesDeleted: number;
+  deliveriesDeleted: number;
   /**
    * Steps that threw. The step still counts as run, its count is 0, and the
    * other steps proceed: one bad row must not stop the rest of the sweep.
@@ -74,6 +81,9 @@ export async function runRetentionSweep(
   const pairsDeleted = await step("pairs", () => delegate.deleteExpiredPairs(now));
   const actorsDeleted = await step("actors", () => delegate.deleteExpiredActors(now));
   const bundlesDeleted = await step("bundles", () => delegate.deleteExpiredBundles(now));
+  const deliveriesDeleted = await step("deliveries", () =>
+    delegate.deleteExpiredDeliveries(now),
+  );
 
   const result: SweepResult = {
     textCleared,
@@ -81,6 +91,7 @@ export async function runRetentionSweep(
     pairsDeleted,
     actorsDeleted,
     bundlesDeleted,
+    deliveriesDeleted,
     errors,
     ranAt: now,
   };
@@ -163,6 +174,15 @@ export function prismaRetentionDelegate(prisma: PrismaLike): RetentionDelegate {
       });
       return result.count;
     },
+    async deleteExpiredDeliveries(now) {
+      // The dead-letter view is a month of failures, and a year where the
+      // delivery carried a reviewer-confirmed T3. Both are already on the row
+      // as expiresAt, stamped when the delivery was queued.
+      const result = await prisma.webhookDelivery.deleteMany({
+        where: { expiresAt: { lt: now }, retention: { not: "LEGAL_HOLD" } },
+      });
+      return result.count;
+    },
   };
 }
 
@@ -180,6 +200,7 @@ export interface PrismaLike {
   pair: Deletable;
   actor: Deletable;
   evidenceBundle: Deletable;
+  webhookDelivery: Deletable;
 }
 
 /** Run the sweep on an interval. Returns a stop function. */

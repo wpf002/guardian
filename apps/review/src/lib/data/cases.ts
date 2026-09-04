@@ -11,7 +11,7 @@ import { getPrisma, isMockMode } from "../db";
 import { appendAudit, appendAuditInTransaction } from "./audit";
 import { getMockData, bandWord } from "../mock/fixtures";
 import { compose } from "../compose";
-import type { Session } from "../auth";
+import type { Session } from "../session";
 import type {
   BandReading,
   CaseDetail,

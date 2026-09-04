@@ -9,9 +9,10 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@guardian/schema": "workspace:*",
     "@guardian/audit": "workspace:*",
     "@guardian/ingest": "workspace:*",
+    "@guardian/report": "workspace:*",
+    "@guardian/schema": "workspace:*",
     "@guardian/scorer": "workspace:*",
     "ioredis": "^5.4.0"
   }

@@ -1,0 +1,27 @@
+{
+  "name": "@guardian/report",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./schema": { "types": "./dist/schema.d.ts", "default": "./dist/schema.js" },
+    "./builder": { "types": "./dist/builder.d.ts", "default": "./dist/builder.js" },
+    "./completeness": { "types": "./dist/completeness.d.ts", "default": "./dist/completeness.js" },
+    "./client": { "types": "./dist/client.d.ts", "default": "./dist/client.js" },
+    "./preservation": { "types": "./dist/preservation.d.ts", "default": "./dist/preservation.js" }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@guardian/schema": "workspace:*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": { "tsx": "^4.19.0" }
+}

@@ -215,41 +215,49 @@ describe("fusion gates", () => {
 });
 
 describe("evidence bundle", () => {
-  const bundle = buildEvidenceBundle({
+  const rows = [
+    {
+      ts: new Date("2026-09-02T12:05:00Z"),
+      channel: "general",
+      direction: "actor_to_target" as const,
+      text: "x".repeat(900),
+      mediaSha256: null,
+      knownCsamVerdict: null,
+      stage: "probe" as const,
+      signals: ["supervision_probe" as const],
+      surface: "discord" as const,
+      channelVisibility: "public" as const,
+      actorAge: { band: "A18_20" as const, confidence: 0.4, provenance: "server_role" as const },
+      targetAge: { band: "A13_15" as const, confidence: 0.7, provenance: "server_role" as const },
+    },
+    {
+      ts: new Date("2026-09-02T12:00:00Z"),
+      channel: "general",
+      direction: "target_to_actor" as const,
+      text: null,
+      mediaSha256: "d".repeat(64),
+      knownCsamVerdict: "no_match" as const,
+      stage: null,
+      signals: [],
+    },
+  ];
+
+  const base = {
     customerId: "cus_1",
     actorUid: "a",
     targetUid: "b",
-    tier: "T2",
-    timeline: [
-      {
-        ts: new Date("2026-09-02T12:05:00Z"),
-        channel: "general",
-        direction: "actor_to_target",
-        text: "x".repeat(900),
-        mediaSha256: null,
-        knownCsamVerdict: null,
-        stage: "probe",
-        signals: ["supervision_probe"],
-      },
-      {
-        ts: new Date("2026-09-02T12:00:00Z"),
-        channel: "general",
-        direction: "target_to_actor",
-        text: null,
-        mediaSha256: "d".repeat(64),
-        knownCsamVerdict: "no_match",
-        stage: null,
-        signals: [],
-      },
-    ],
+    tier: "T2" as const,
+    timeline: rows,
     signals: [],
     versions: { modelVersion: "rules-v1", lexiconVersion: "v1", fusionVersion: "rules-v1" },
     provenance: [
-      { surface: "discord", sourceId: "guild-1" },
-      { surface: "discord", sourceId: "guild-1" },
+      { surface: "discord" as const, sourceId: "guild-1" },
+      { surface: "discord" as const, sourceId: "guild-1" },
     ],
     auditHead: "a".repeat(64),
-  });
+  };
+
+  const bundle = buildEvidenceBundle(base);
 
   it("orders the timeline by time", () => {
     expect(bundle.timeline[0]!.direction).toBe("target_to_actor");
@@ -269,6 +277,14 @@ describe("evidence bundle", () => {
     expect(bundle.auditHead).toHaveLength(64);
   });
 
+  it("keeps the version triple through the reporting shape", () => {
+    expect(bundle.versions).toEqual({
+      modelVersion: "rules-v1",
+      lexiconVersion: "v1",
+      fusionVersion: "rules-v1",
+    });
+  });
+
   it("sets a one year retention only once a reviewer confirms", () => {
     expect(bundle.retention).toBe("WATCH_30D");
   });
@@ -277,5 +293,237 @@ describe("evidence bundle", () => {
     const text = summarizeBundle(bundle, ["Supervision probing followed by a migration ask."]);
     expect(text).toContain("Tier T2");
     expect(text).toContain("not a determination about any person");
+  });
+
+  /* ---------------------------------------------------------------------- */
+  /* Reporting superset (RESEARCH.md gap A6)                                 */
+  /* ---------------------------------------------------------------------- */
+
+  describe("jurisdiction and legal basis", () => {
+    it("copies both from the customer at generation time", () => {
+      const out = buildEvidenceBundle({
+        ...base,
+        jurisdiction: { country: "US", subdivision: "TX" },
+        legalBasis: "provider_2258a",
+      });
+      expect(out.jurisdiction).toEqual({ country: "US", subdivision: "TX" });
+      expect(out.legalBasis).toBe("provider_2258a");
+      expect(out.completeness.missing).not.toContain("reporter_jurisdiction");
+    });
+
+    it("reports the gap rather than guessing when the customer states neither", () => {
+      expect(bundle.jurisdiction).toBeNull();
+      expect(bundle.completeness.missing).toContain("reporter_jurisdiction");
+      expect(bundle.completeness.missing).toContain("legal_basis");
+    });
+  });
+
+  describe("timezone", () => {
+    const zoned = buildEvidenceBundle({ ...base, timezone: "America/New_York" });
+
+    it("renders every timestamp in the customer's zone with an explicit offset", () => {
+      expect(zoned.timezone).toBe("America/New_York");
+      expect(zoned.timezoneSource).toBe("customer");
+      expect(zoned.timeline[0]!.tsLocal).toBe("2026-09-02T08:00:00-04:00");
+      expect(zoned.timeline[0]!.tsOffsetMinutes).toBe(-240);
+      expect(zoned.generatedAtLocal).toMatch(/[+-]\d{2}:\d{2}$/);
+    });
+
+    it("uses the offset in force at each instant, not one offset for the bundle", () => {
+      const winter = buildEvidenceBundle({
+        ...base,
+        timezone: "America/New_York",
+        timeline: [{ ...rows[1]!, ts: new Date("2026-01-15T12:00:00Z") }, rows[0]!],
+      });
+      expect(winter.timeline[0]!.tsOffsetMinutes).toBe(-300);
+      expect(winter.timeline[1]!.tsOffsetMinutes).toBe(-240);
+    });
+
+    it("falls back to UTC and says so rather than claiming a zone nobody set", () => {
+      expect(bundle.timezone).toBe("UTC");
+      expect(bundle.timezoneSource).toBe("default_utc");
+      expect(bundle.completeness.missing).toContain("incident_timezone");
+      expect(buildEvidenceBundle({ ...base, timezone: "Mars/Olympus" }).timezoneSource).toBe(
+        "default_utc",
+      );
+    });
+  });
+
+  describe("reporter of record", () => {
+    it("names the customer as the reporter and defaults to the customer filing", () => {
+      expect(bundle.reporter.customerId).toBe("cus_1");
+      expect(bundle.reporter.filingMode).toBe("customer_direct");
+      expect(bundle.completeness.missing).toContain("reporter_identity");
+    });
+
+    it("records Guardian filing as the customer's agent when the customer has an ESP id", () => {
+      const out = buildEvidenceBundle({
+        ...base,
+        reporter: {
+          providerName: "Example Games",
+          espId: "esp_123",
+          filingMode: "guardian_as_agent",
+          contactOnFile: true,
+        },
+      });
+      expect(out.reporter.filingMode).toBe("guardian_as_agent");
+      expect(out.reporter.customerId).toBe("cus_1");
+      expect(out.completeness.missing).not.toContain("reporter_identity");
+      expect(out.completeness.missing).not.toContain("reporter_contact");
+    });
+  });
+
+  describe("reviewer context", () => {
+    const reviewer = {
+      reviewerId: "rev_hash_1",
+      reviewId: "rvw_1",
+      decision: "report" as const,
+      modelTier: "T2" as const,
+      resultTier: "T3" as const,
+      decidedAt: new Date("2026-09-02T14:00:00Z"),
+      reasonCode: "escalation_pattern",
+      notes: { timeline: "Two migration asks after a supervision question." },
+      viewedExcerptCount: 2,
+      concurringReviewerId: "rev_hash_2",
+    };
+
+    it("is null on a bundle the kernel generated, and the gap is named", () => {
+      expect(bundle.reviewer).toBeNull();
+      expect(bundle.completeness.missing).toContain("human_review_confirmation");
+      expect(bundle.completeness.missing).toContain("reviewer_narrative");
+    });
+
+    it("carries who decided, when in local time, what they wrote and how much they read", () => {
+      const out = buildEvidenceBundle({ ...base, timezone: "America/New_York", reviewer });
+      expect(out.reviewer!.reviewerId).toBe("rev_hash_1");
+      expect(out.reviewer!.modelTier).toBe("T2");
+      expect(out.reviewer!.resultTier).toBe("T3");
+      expect(out.reviewer!.viewedExcerptCount).toBe(2);
+      expect(out.reviewer!.notes!.timeline).toContain("migration asks");
+      expect(out.reviewer!.decidedAtLocal).toBe("2026-09-02T10:00:00-04:00");
+      expect(out.completeness.missing).not.toContain("human_review_confirmation");
+      expect(out.completeness.missing).not.toContain("reviewer_narrative");
+    });
+
+    it("still names the gap when a reviewer decided something short of T3", () => {
+      const out = buildEvidenceBundle({
+        ...base,
+        reviewer: { ...reviewer, decision: "confirm", resultTier: "T2" },
+      });
+      expect(out.completeness.missing).toContain("human_review_confirmation");
+    });
+
+    it("cannot claim a person read an excerpt with no reviewer decision behind it", () => {
+      const claimed = buildEvidenceBundle({
+        ...base,
+        timeline: [{ ...rows[0]!, viewedByHuman: true }],
+      });
+      expect(claimed.timeline[0]!.viewedByHuman).toBe(false);
+
+      const reviewed = buildEvidenceBundle({
+        ...base,
+        reviewer,
+        timeline: [{ ...rows[0]!, viewedByHuman: true }],
+      });
+      expect(reviewed.timeline[0]!.viewedByHuman).toBe(true);
+    });
+  });
+
+  describe("per-excerpt provenance", () => {
+    it("carries the surface, the channel visibility and the bands with their provenance", () => {
+      const row = bundle.timeline[1]!;
+      expect(row.surface).toBe("discord");
+      expect(row.channelVisibility).toBe("public");
+      expect(row.targetAge).toEqual({
+        band: "A13_15",
+        confidence: 0.7,
+        provenance: "server_role",
+      });
+      expect(row.viewedByHuman).toBe(false);
+    });
+
+    it("defaults an unstated band provenance to unknown rather than to a claim", () => {
+      const out = buildEvidenceBundle({
+        ...base,
+        timeline: [{ ...rows[0]!, targetAge: { band: "A13_15" } }],
+      });
+      expect(out.timeline[0]!.targetAge).toEqual({
+        band: "A13_15",
+        confidence: null,
+        provenance: "unknown",
+      });
+      const band = out.completeness.fields.find((f) => f.field === "child_age_band")!;
+      expect(band.status).toBe("filled");
+      expect(band.note).toContain("age assurance");
+    });
+
+    it("records null where the surface stated no band at all", () => {
+      expect(bundle.timeline[0]!.targetAge).toBeNull();
+    });
+  });
+
+  describe("completeness", () => {
+    it("covers every report field exactly once", () => {
+      const seen = bundle.completeness.fields.map((f) => f.field);
+      expect(new Set(seen).size).toBe(seen.length);
+      expect(seen).toContain("audit_chain_anchor");
+      expect(seen).toContain("model_versions");
+    });
+
+    it("marks the anchor and the version triple filled", () => {
+      const filled = bundle.completeness.fields
+        .filter((f) => f.status === "filled")
+        .map((f) => f.field);
+      expect(filled).toContain("audit_chain_anchor");
+      expect(filled).toContain("model_versions");
+      expect(filled).toContain("chat_excerpts");
+    });
+
+    it("separates a case with no media from one missing a field", () => {
+      const textOnly = buildEvidenceBundle({ ...base, timeline: [rows[0]!] });
+      const media = textOnly.completeness.fields.find((f) => f.field === "media_hash")!;
+      expect(media.status).toBe("not_applicable");
+      expect(textOnly.completeness.missing).not.toContain("media_hash");
+    });
+
+    it("marks the scanner verdict filled from the operator's own answer", () => {
+      const verdict = bundle.completeness.fields.find((f) => f.field === "media_scanner_verdict")!;
+      expect(verdict.status).toBe("filled");
+      const notRun = buildEvidenceBundle({
+        ...base,
+        timeline: [{ ...rows[1]!, knownCsamVerdict: "not_run" }],
+      });
+      expect(notRun.completeness.missing).toContain("media_scanner_verdict");
+    });
+
+    it("notes that the account identifiers are per-customer hashes", () => {
+      const actor = bundle.completeness.fields.find(
+        (f) => f.field === "reported_account_identifier",
+      )!;
+      expect(actor.status).toBe("filled");
+      expect(actor.note).toContain("Salted-hashed per customer");
+    });
+
+    it("states the IP capture gap rather than leaving the filer to find it", () => {
+      const ip = bundle.completeness.fields.find(
+        (f) => f.field === "reported_account_ip_capture",
+      )!;
+      expect(ip.status).toBe("empty");
+      expect(ip.note).toContain("no IP addresses");
+    });
+
+    it("is complete only when nothing the report needs is empty", () => {
+      expect(bundle.completeness.complete).toBe(false);
+      expect(bundle.completeness.missing.length).toBeGreaterThan(0);
+      expect(bundle.completeness.missing).toEqual(
+        bundle.completeness.fields.filter((f) => f.status === "empty").map((f) => f.field),
+      );
+    });
+
+    it("names the unfilled fields in the summary so the gap is seen before filing", () => {
+      const text = summarizeBundle(bundle, []);
+      expect(text).toContain("Report fields still unfilled");
+      expect(text).toContain("reporter_jurisdiction");
+    });
   });
 });

@@ -8,7 +8,7 @@
 
 import { getPrisma, isMockMode } from "../db";
 import { getMockData } from "../mock/fixtures";
-import { loadReviewers, type Session } from "../auth";
+import { loadReviewers, type Session } from "../session";
 import type { CustomerSettings } from "./types";
 
 export interface SeatView {

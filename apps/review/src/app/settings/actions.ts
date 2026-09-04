@@ -16,7 +16,7 @@ import {
   setSessionLimits,
   setWebhookUrl,
 } from "./data";
-import { checkWebhookTarget } from "./webhook-target";
+import { checkWebhookTarget } from "@guardian/schema/webhook-target";
 import type {
   LexiconState,
   SessionLimits,

@@ -21,6 +21,14 @@
     "./language": {
       "types": "./dist/language.d.ts",
       "default": "./dist/language.js"
+    },
+    "./media-text": {
+      "types": "./dist/media-text.d.ts",
+      "default": "./dist/media-text.js"
+    },
+    "./webhook-target": {
+      "types": "./dist/webhook-target.d.ts",
+      "default": "./dist/webhook-target.js"
     }
   },
   "files": [

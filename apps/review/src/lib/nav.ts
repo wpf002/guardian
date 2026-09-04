@@ -5,7 +5,7 @@
  */
 
 import type { NavItem } from "@/components/AppShell";
-import type { Role } from "./auth";
+import type { Role } from "./session";
 
 export interface NavCounts {
   queue?: number;

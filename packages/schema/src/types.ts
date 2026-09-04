@@ -84,9 +84,19 @@ export function isCriticalSignal(kind: SignalKind): boolean {
   return CRITICAL_SIGNALS.includes(kind);
 }
 
+/**
+ * Which Guardian surface an event arrived on. Named here rather than inline so
+ * the evidence timeline can record it per excerpt: a report reader asking
+ * where one line came from should not have to infer it from the bundle-level
+ * provenance list, which holds the union of every source in the window.
+ */
+export const SURFACES = ["discord", "platform_sdk", "parent_app", "investigator"] as const;
+export type Surface = (typeof SURFACES)[number];
+export const surfaceSchema = z.enum(SURFACES);
+
 /** Where an event came from. Provenance travels with the evidence bundle. */
 export const provenanceSchema = z.object({
-  surface: z.enum(["discord", "platform_sdk", "parent_app", "investigator"]),
+  surface: surfaceSchema,
   /** Opaque to Guardian. The customer's own server/guild/app identifier. */
   sourceId: z.string().min(1).max(128),
   /** Set by the ingest edge, not the customer. */
@@ -344,6 +354,32 @@ export const REVIEW_DECISIONS = ["dismiss", "watch", "confirm", "report"] as con
 export type ReviewDecision = (typeof REVIEW_DECISIONS)[number];
 export const reviewDecisionSchema = z.enum(REVIEW_DECISIONS);
 
+/* -------------------------------------------------------------------------- */
+/* Evidence bundle                                                            */
+/*                                                                            */
+/* The bundle is a superset of what a CyberTipline report needs, so export is  */
+/* a projection rather than a rewrite (RESEARCH.md gap A6, ROADMAP phase 3).   */
+/* Every field added for that reason names its consumer. The consumer is       */
+/* packages/report unless the comment says otherwise.                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * An age band as it was claimed at event time, with how the claim was made and
+ * how sure the source was. Bands, never birthdates (rule 9).
+ *
+ * Consumer: packages/report. The report asks for the child's age, and a band
+ * read off a Discord role is a weaker claim than one from a government ID.
+ * Carrying provenance beside the band is what lets the report state which of
+ * the two it had instead of presenting both as the same fact.
+ */
+export const bandClaimSchema = z.object({
+  band: ageBandSchema,
+  /** Absent means the source published no calibrated number, not a low one. */
+  confidence: ageBandConfidenceSchema.nullish(),
+  provenance: ageBandProvenanceSchema.default("unknown"),
+});
+export type BandClaim = z.infer<typeof bandClaimSchema>;
+
 /** One row of the evidence timeline. Text only. No media bytes, ever. */
 export const evidenceTimelineRowSchema = z.object({
   ts: z.coerce.date(),
@@ -363,8 +399,167 @@ export const evidenceTimelineRowSchema = z.object({
   viewedByHuman: z.boolean().default(false),
   /** Which channel this row came from, for the private messaging rule. */
   channelVisibility: channelVisibilitySchema.nullish(),
+  /**
+   * This instant in the bundle's timezone, ISO 8601 with the offset that was
+   * in force at `ts` (2026-09-02T08:05:00-04:00). Consumer: packages/report.
+   * The incident fields are asked in local time, and an offset computed when
+   * the report is filed gets the wrong answer for anything on the other side
+   * of a daylight-saving boundary. `ts` stays the UTC instant, so ordering and
+   * arithmetic are untouched.
+   */
+  tsLocal: z.string().nullish(),
+  /** Minutes east of UTC at `ts`. Consumer: packages/report and any reader rebuilding the timeline. */
+  tsOffsetMinutes: z.number().int().nullish(),
+  /**
+   * Which surface this excerpt arrived on. Consumer: packages/report. The
+   * bundle-level provenance list is the union of every source in the window,
+   * so it cannot answer the per-line question.
+   */
+  surface: surfaceSchema.nullish(),
+  /**
+   * Bands as claimed at event time for the two accounts on this pair.
+   * Consumer: packages/report, which needs the child's age and the age gap.
+   * Null where the surface stated no band, which is different from a band of
+   * unknown provenance.
+   */
+  actorAge: bandClaimSchema.nullish(),
+  targetAge: bandClaimSchema.nullish(),
 });
 export type EvidenceTimelineRow = z.infer<typeof evidenceTimelineRowSchema>;
+
+/**
+ * Who files, and under whose name. The customer is the electronic service
+ * provider and the reporter of record under 18 USC 2258A; Guardian is their
+ * agent and files as their agent, never on its own account (DESIGN.md 9.2).
+ *
+ * Consumer: packages/report, which puts this in the reporting-provider section
+ * and needs to know whether it is submitting through the customer's ESP
+ * credentials or drafting a bundle the customer submits themselves.
+ */
+export const REPORT_FILING_MODES = ["guardian_as_agent", "customer_direct"] as const;
+export type ReportFilingMode = (typeof REPORT_FILING_MODES)[number];
+export const reportFilingModeSchema = z.enum(REPORT_FILING_MODES);
+
+export const reporterOfRecordSchema = z.object({
+  /** The reporter of record. Always the customer, never Guardian. */
+  customerId: z.string(),
+  /** The provider's name as registered with NCMEC. Null until registration. */
+  providerName: z.string().max(200).nullish(),
+  /** The customer's NCMEC ESP identifier, once they have one. */
+  espId: z.string().max(128).nullish(),
+  /**
+   * Defaults to the customer filing directly, because that is the only mode
+   * that works with no ESP registration behind it. Agent filing is set only
+   * where the customer has one and has asked Guardian to use it.
+   */
+  filingMode: reportFilingModeSchema.default("customer_direct"),
+  /**
+   * Whether the customer has a named point of contact on file for reports.
+   * Guardian holds the flag, not the contact details.
+   */
+  contactOnFile: z.boolean().default(false),
+});
+export type ReporterOfRecord = z.infer<typeof reporterOfRecordSchema>;
+
+/**
+ * The reviewer decision this bundle rests on. Present only once a person has
+ * decided; a bundle the kernel generated carries null, which is the honest
+ * answer and the one that keeps rule 6 checkable from the bundle alone.
+ *
+ * Consumer: packages/report, which may build a report only from a
+ * reviewer-confirmed T3, and apps/review, which shows the same context back.
+ */
+export const reviewerContextSchema = z.object({
+  /** Salted-hashed reviewer id, on the same scheme as every other uid. */
+  reviewerId: z.string(),
+  reviewId: z.string().nullish(),
+  decision: reviewDecisionSchema,
+  /** The tier the model had reached when the reviewer opened the case. */
+  modelTier: tierSchema,
+  /** The tier the decision produced. Only a human ever puts T3 here. */
+  resultTier: tierSchema,
+  decidedAt: z.coerce.date(),
+  /** Local time of the decision, with the offset in force. See `tsLocal`. */
+  decidedAtLocal: z.string().nullish(),
+  decidedAtOffsetMinutes: z.number().int().nullish(),
+  reasonCode: z.string().max(120).nullish(),
+  /** What the reviewer wrote, verbatim. The recommendation reaches the report. */
+  notes: z
+    .object({
+      timeline: z.string().nullish(),
+      outsideContext: z.string().nullish(),
+      recommendation: z.string().nullish(),
+    })
+    .nullish(),
+  /**
+   * How many excerpts this reviewer marked as read. A count of what a person
+   * actually opened, which is the private-search question, and never a pace
+   * measure for the reviewer.
+   */
+  viewedExcerptCount: z.number().int().min(0).nullish(),
+  /** The second reviewer on a concurrence. T3 exists only where there is one. */
+  concurringReviewerId: z.string().nullish(),
+});
+export type ReviewerContext = z.infer<typeof reviewerContextSchema>;
+
+/**
+ * The fields a CyberTipline report needs, in the vocabulary the bundle can
+ * answer. Over a tenth of industry reports in 2025 lacked enough data to
+ * determine jurisdiction, and NCMEC now names the companies that file them, so
+ * the gap is computed when the bundle is generated and shown to the reviewer
+ * before filing rather than discovered after.
+ *
+ * Consumer: packages/report and the reviewer console.
+ */
+export const REPORT_FIELDS = [
+  "reporter_identity",
+  "reporter_contact",
+  "reporter_jurisdiction",
+  "legal_basis",
+  "incident_timezone",
+  "incident_time_range",
+  "reported_account_identifier",
+  "reported_account_ip_capture",
+  "child_account_identifier",
+  "child_age_band",
+  "chat_excerpts",
+  "media_hash",
+  "media_scanner_verdict",
+  "human_review_confirmation",
+  "reviewer_narrative",
+  "audit_chain_anchor",
+  "model_versions",
+] as const;
+export type ReportField = (typeof REPORT_FIELDS)[number];
+export const reportFieldSchema = z.enum(REPORT_FIELDS);
+
+/**
+ * filled: the bundle can answer it.
+ * empty: the report needs it and the bundle cannot answer it.
+ * not_applicable: this bundle has nothing the field applies to, such as a
+ *   media hash on a conversation with no media event. Kept distinct from empty
+ *   so a text-only case does not read as an incomplete one.
+ */
+export const REPORT_FIELD_STATUSES = ["filled", "empty", "not_applicable"] as const;
+export type ReportFieldStatus = (typeof REPORT_FIELD_STATUSES)[number];
+export const reportFieldStatusSchema = z.enum(REPORT_FIELD_STATUSES);
+
+export const reportFieldCompletenessSchema = z.object({
+  field: reportFieldSchema,
+  status: reportFieldStatusSchema,
+  /** What is missing, or what the filer still has to supply. Never about a person. */
+  note: z.string().max(280).nullish(),
+});
+export type ReportFieldCompleteness = z.infer<typeof reportFieldCompletenessSchema>;
+
+export const reportCompletenessSchema = z.object({
+  fields: z.array(reportFieldCompletenessSchema),
+  /** The subset with status empty, so a caller does not have to filter. */
+  missing: z.array(reportFieldSchema),
+  /** True when nothing the report needs is empty. */
+  complete: z.boolean(),
+});
+export type ReportCompleteness = z.infer<typeof reportCompletenessSchema>;
 
 export const evidenceBundleSchema = z.object({
   bundleId: z.string(),
@@ -384,7 +579,39 @@ export const evidenceBundleSchema = z.object({
    */
   jurisdiction: jurisdictionSchema.nullish(),
   legalBasis: legalBasisSchema.nullish(),
+  /**
+   * Who files and under whose name. Consumer: packages/report.
+   */
+  reporter: reporterOfRecordSchema,
+  /**
+   * The IANA zone every `tsLocal` in this bundle was rendered in. Consumer:
+   * packages/report, which asks for local time, and any reader rebuilding the
+   * timeline. Named on the bundle so one zone governs the whole document.
+   */
+  timezone: z.string().min(1).default("UTC"),
+  /**
+   * Whether the zone above came from the customer or is Guardian's fallback.
+   * A bundle rendered in UTC because nobody said otherwise is not the same
+   * claim as one rendered in the customer's own zone, and the completeness
+   * block reports the difference rather than hiding it.
+   */
+  timezoneSource: z.enum(["customer", "default_utc"]).default("default_utc"),
   generatedAt: z.coerce.date(),
+  /** `generatedAt` in `timezone`, ISO 8601 with the offset in force. */
+  generatedAtLocal: z.string().nullish(),
+  generatedAtOffsetMinutes: z.number().int().nullish(),
+  /**
+   * The reviewer decision behind this bundle, or null where the kernel
+   * generated it and nobody has decided yet. Consumer: packages/report, which
+   * may build a report only from a reviewer-confirmed T3 (rule 6).
+   */
+  reviewer: reviewerContextSchema.nullish(),
+  /**
+   * Which report-required fields this bundle can fill and which it cannot,
+   * computed at generation time. Consumer: packages/report and the reviewer
+   * console, so the gap is visible before filing rather than after.
+   */
+  completeness: reportCompletenessSchema,
   retention: retentionClassSchema,
   /** Hash chain head at generation time, so the bundle is anchored to the log. */
   auditHead: z.string(),

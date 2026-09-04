@@ -6,7 +6,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
-    "test:all": "turbo run test && pnpm ml:test",
+    "test:all": "turbo run test && pnpm ml:test && pnpm sdk-py:test",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "db:migrate": "pnpm --filter @guardian/schema exec prisma migrate dev",
@@ -16,6 +16,7 @@
     "eval:json": "pnpm --filter @guardian/eval run json",
     "ml:dev": "cd services/ml && uv run uvicorn main:app --reload",
     "ml:test": "cd services/ml && uv run pytest -q",
+    "sdk-py:test": "cd packages/sdk-py && uv run pytest -q",
     "parity": "node scripts/parity.mjs"
   },
   "devDependencies": {

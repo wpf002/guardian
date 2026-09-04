@@ -137,6 +137,9 @@ importers:
       '@guardian/audit':
         specifier: workspace:*
         version: link:../../packages/audit
+      '@guardian/ingest':
+        specifier: workspace:*
+        version: link:../ingest
       '@guardian/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -153,6 +156,19 @@ importers:
       '@guardian/schema':
         specifier: workspace:*
         version: link:../schema
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.13
+
+  packages/report:
+    dependencies:
+      '@guardian/schema':
+        specifier: workspace:*
+        version: link:../schema
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       tsx:
         specifier: ^4.19.0
@@ -208,6 +224,9 @@ importers:
       '@guardian/ingest':
         specifier: workspace:*
         version: link:../../apps/ingest
+      '@guardian/report':
+        specifier: workspace:*
+        version: link:../../packages/report
       '@guardian/schema':
         specifier: workspace:*
         version: link:../../packages/schema

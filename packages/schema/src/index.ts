@@ -5,5 +5,7 @@ export * from "./lexicon.js";
 export * from "./normalize.js";
 export * from "./ids.js";
 export * from "./retention.js";
+export * from "./delivery.js";
 export * from "./corpus.js";
 export * from "./language.js";
+export * from "./media-text.js";

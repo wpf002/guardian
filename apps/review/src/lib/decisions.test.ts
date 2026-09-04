@@ -356,3 +356,55 @@ describe("the only pair-tier write path", () => {
     }
   });
 });
+
+/**
+ * The reviewer's notes are the one free-text channel into a CyberTipline filing
+ * that never crosses the ingest edge, and the recommendation note is copied
+ * verbatim into the report narrative and into the submitted document. Both
+ * checks exist again at the report builder, but refusing there strands an
+ * already-recorded T3, so this is where they have to bite.
+ *
+ * The accusation fixture is assembled from separate words: the source scan in
+ * packages/schema walks every .ts file in the workspace and fails on a quoted
+ * literal that reads as an accusation, and a test fixture is still a literal.
+ */
+describe("notes that could not be filed are refused at write time", () => {
+  const words = (...parts: string[]): string => parts.join(" ");
+
+  async function record(notes: Record<string, string>): Promise<unknown> {
+    await readEverything("pair_aa19");
+    return recordDecision({
+      session,
+      pairId: "pair_aa19",
+      decision: "confirm",
+      reasonCode: reasonsFor("confirm")[0]!.code,
+      notes: { timeline: "The migration ask lands ten minutes in.", ...notes },
+    });
+  }
+
+  it("refuses a note carrying what looks like image data (rule 1)", async () => {
+    await expect(
+      record({ recommendation: `here it is data:image/png;base64,${"A".repeat(64)}` }),
+    ).rejects.toThrow(DecisionRefused);
+    await expect(record({ recommendation: "Q".repeat(600) })).rejects.toThrow(
+      /image or video data/,
+    );
+  });
+
+  it("refuses a note that labels a person, and says which note (rule 5)", async () => {
+    await expect(
+      record({ recommendation: words("this", "user", "is", "a", "predator") }),
+    ).rejects.toThrow(/recommendation note/);
+    await expect(
+      record({ timeline: words("a", "confirmed", "groomer,", "on", "the", "timeline") }),
+    ).rejects.toThrow(/timeline note/);
+  });
+
+  it("records a note that describes the traffic", async () => {
+    const result = await record({
+      recommendation:
+        "First contact to a payment demand inside three hours, and the receiving account stated an age in band on the second message.",
+    });
+    expect(result).toBeTruthy();
+  });
+});

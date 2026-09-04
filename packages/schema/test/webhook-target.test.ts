@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkLiteralHost, isPrivateAddress } from "./webhook-target";
+import { checkLiteralHost, isPrivateAddress } from "../src/webhook-target.js";
 
 /**
  * The test-delivery button makes Guardian's own container issue a request to an

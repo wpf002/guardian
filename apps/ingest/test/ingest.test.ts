@@ -517,6 +517,10 @@ describe("retention sweep", () => {
         calls.push("bundles");
         return 0;
       },
+      async deleteExpiredDeliveries() {
+        calls.push("deliveries");
+        return 3;
+      },
     };
 
     const now = new Date("2026-09-02T12:00:00Z");
@@ -524,6 +528,7 @@ describe("retention sweep", () => {
 
     expect(result.textCleared).toBe(12);
     expect(result.eventsDeleted).toBe(5);
+    expect(result.deliveriesDeleted).toBe(3);
     expect(calls[0]).toBe("text:2026-09-01T12:00:00.000Z");
 
     const entries = await store.read();
@@ -540,6 +545,7 @@ describe("retention sweep", () => {
       deleteExpiredPairs: async () => 0,
       deleteExpiredActors: async () => 0,
       deleteExpiredBundles: async () => 0,
+      deleteExpiredDeliveries: async () => 0,
     };
     await runRetentionSweep(noop, audit);
     const entries = await store.read();
@@ -567,11 +573,16 @@ describe("retention sweep", () => {
         calls.push("bundles");
         return 1;
       },
+      async deleteExpiredDeliveries() {
+        calls.push("deliveries");
+        return 4;
+      },
     };
     const result = await runRetentionSweep(delegate, audit, new Date("2026-09-02T12:00:00Z"));
-    expect(calls).toEqual(["actors", "bundles"]);
+    expect(calls).toEqual(["actors", "bundles", "deliveries"]);
     expect(result.actorsDeleted).toBe(2);
     expect(result.bundlesDeleted).toBe(1);
+    expect(result.deliveriesDeleted).toBe(4);
     expect(result.pairsDeleted).toBe(0);
     expect(result.errors).toEqual([{ step: "pairs", error: "Error P2003" }]);
 
@@ -637,6 +648,7 @@ describe("retention sweep", () => {
       pair: capture,
       actor: capture,
       evidenceBundle: capture,
+      webhookDelivery: capture,
     });
 
     return Promise.all([
@@ -644,8 +656,9 @@ describe("retention sweep", () => {
       delegate.deleteExpiredPairs(new Date()),
       delegate.deleteExpiredActors(new Date()),
       delegate.deleteExpiredBundles(new Date()),
+      delegate.deleteExpiredDeliveries(new Date()),
     ]).then(() => {
-      expect(seen).toHaveLength(4);
+      expect(seen).toHaveLength(5);
       for (const where of seen) {
         expect(where.retention).toEqual({ not: "LEGAL_HOLD" });
       }

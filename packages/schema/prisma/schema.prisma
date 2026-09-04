@@ -405,6 +405,73 @@ model CyberTiplineReport {
   @@map("cybertipline_reports")
 }
 
+/// Where an outbound webhook attempt stands.
+enum DeliveryStatus {
+  pending
+  delivering
+  delivered
+  failed
+  dead
+}
+
+/// One outbound webhook to a customer, with its own retry schedule.
+///
+/// A single fetch that fails loses a tier the customer needed, so the delivery
+/// is a row rather than a call. A worker claims due rows with FOR UPDATE SKIP
+/// LOCKED, attempts them, and either marks them delivered or writes the next
+/// attempt time back. `dead` is what the reviewer console's dead-letter view
+/// lists.
+///
+/// The payload column holds the WebhookPayload and nothing else: the tier, the
+/// two salted-hash uids, the rationale strings and the version triple. There is
+/// no column for message text and enqueue validates against a strict schema, so
+/// a row that outlives the 24 hour text window cannot carry chat content
+/// (CLAUDE.md rule 1, DESIGN.md 7).
+///
+/// customerId is a plain column rather than a relation, matching AuditEntry.
+/// Deliveries are written by the scorer and drained by a separate worker, and a
+/// foreign key would make an enqueue fail on a race with customer deletion,
+/// which is the one moment losing a tier is least acceptable. The retention
+/// sweep is what removes them.
+///
+/// The signing secret is deliberately absent. It is read from the customer row
+/// at send time, so a leaked table dump is not a set of live signing keys.
+model WebhookDelivery {
+  id         String   @id @default(cuid())
+  customerId String
+  /// Webhook event kind, e.g. "tier.assigned".
+  kind       String
+  /// Target url as configured on the customer when the delivery was queued.
+  url        String
+  payload    Json
+  /// Copied out of the payload so the dead-letter view lists without opening it.
+  actorUid   String
+  targetUid  String?
+  tier       Tier
+  status     DeliveryStatus @default(pending)
+  attempt    Int      @default(0)
+  lastStatusCode Int?
+  /// Error class and any driver code. Never the message, which can quote a body.
+  lastError  String?
+  nextAttemptAt DateTime @default(now())
+  deliveredAt   DateTime?
+  /// Held by a worker while an attempt is in flight. A claim older than the
+  /// claim timeout is reclaimed, which is how a crashed worker releases a row.
+  claimedAt  DateTime?
+  claimedBy  String?
+  retention  RetentionClass @default(WATCH_30D)
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  /// The claim query: due rows, oldest schedule first.
+  @@index([status, nextAttemptAt])
+  /// The dead-letter view, per customer.
+  @@index([customerId, status, createdAt])
+  @@index([expiresAt])
+  @@map("webhook_deliveries")
+}
+
 /// Hash-chained append-only log. Every score, reviewer action and export.
 ///
 /// seq is assigned by the application under an advisory lock (packages/audit),

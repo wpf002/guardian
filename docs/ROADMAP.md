@@ -91,7 +91,7 @@ Everything the four owners deliberately left out, plus what integration turned u
 | F-7 | End-to-end-encryption flag on the customer, and a `LexiconCandidate` table | packages/schema | Deliberately out of R3. A table that does not exist yet is still retrofittable, unlike a column on live rows. The `FeedbackSource` enum exists so whoever builds it uses the same vocabulary. |
 | F-8 | Order-adherence eval on PANC and PJZ before ordered progression is marketed | scripts/eval | R5. Four papers in RESEARCH section 7.4 find stage order overlaps, compresses and reorders. The 2x transition bonus is an untested constant until this runs. |
 | F-9 | `velocityWindow` and the fan-IN summary are still not persisted on the pair row | apps/scorer, packages/schema | The S4 posture now has a column, because a wrong action turned on it. These two are reviewer context rather than a routing decision, and both are recomputable from the pair state, so they wait for the reviewer queue to say what shape it wants them in. |
-| F-10 | Only `apps/scorer` typechecks its own test files | every workspace | `tsconfig.test.json` plus a second `tsc` in the typecheck script. Every other package still has `"include": ["src"]`, so a test asserting a property that does not exist compiles and passes, which is how `bundle.humanViewedAt` survived. Same two-line fix per package. |
+| F-10 | Only `apps/scorer` and `packages/report` typecheck their own test files | every workspace | `tsconfig.test.json` plus a second `tsc` in the typecheck script. Every other package still has `"include": ["src"]`, so a test asserting a property that does not exist compiles and passes, which is how `bundle.humanViewedAt` survived. Same two-line fix per package. |
 | F-11 | No hard-negative class in `scripts/eval` exercises the coercion detector | scripts/eval | The unit controls in `apps/scorer/test/signals.test.ts` cover fandom talk, support, disclosure and negation, but `generators.ts` produces no conversation that reaches `findCoercionDirective`, so the required suite passes without touching it. A fandom class and a self-harm-support class belong there before the base-rate simulation is called calibrated. |
 
 ## Phase 2: stage classifier and review queue
@@ -107,8 +107,8 @@ Goal: fine-tune on PANC and PJZC plus bot-collected labels, ship the Next.js rev
 | Review decisions write `Review` rows and audit entries; T3 only from here | done | One code path, `src/lib/decisions.ts`. T3 needs a proposal plus a second reviewer. |
 | Text-native reviewer wellness controls | done | Session budget with break prompts, threat language collapsed behind an explicit reveal, a defer that logs no reason and does not count as a skip. |
 | Adversarial review of the reviewer console, 35 findings fixed | done | Three lenses over the built app: design and accessibility, security, correctness. Summarised in the five rows below the table. |
-| Report status and outcome trail back to the reporter | planned | Australia's eSafety undertaking (Aug 2026) makes outcome notification binding for Roblox. Tickets vanishing into a black box was the core Schlep grievance. |
-| Evidence record shaped as a superset of CyberTipline API fields | planned | Makes export a projection rather than a rewrite |
+| Report status and outcome trail back to the reporter | moved | Now a phase 3 row. It is the reporting half of the product and it needs the CyberTipline client underneath it. |
+| Evidence record shaped as a superset of CyberTipline API fields | done | Delivered early, in phase 3, because `packages/report` needed it. `buildReport` is a projection rather than a rewrite. |
 | Stage classifier fine-tune and evaluation | planned | SCoRL's best published turn-level precision is 0.475 at a 0.58% positive rate. That ratio, not a claim the classifier fails, is the honest argument for the trajectory gate. |
 | Learned fusion over reviewer outcomes | planned | needs labels from the bot |
 
@@ -129,15 +129,39 @@ Every finding below was reproduced and then refuted before it was fixed, and eac
 
 Goal: the revenue product. Event schema SDKs, webhooks, retention jobs, NCMEC ESP registration with the first customer, CyberTipline client.
 
+Full status: [PHASE3.md](PHASE3.md).
+
 | Milestone | Status | Note |
 |---|---|---|
-| Python SDK matching `packages/sdk-ts` | planned | |
-| Webhook delivery with retries and a dead-letter view | planned | |
-| CyberTipline ESP API client, report from evidence bundle, one-year preservation timer | planned | needs a registered customer; the `cybertipline_reports` table exists |
-| Report quality as the product | planned | NCMEC 2025: 21.3M reports, over 10% of industry reports lacked enough data to determine jurisdiction, worse than 2024, and NCMEC now names offending companies. A complete, deduped bundle with human-viewed provenance is a claim nobody else makes. |
-| Independent audit export for regulators | planned | eSafety's Aug 2026 undertaking created a procurement category that did not exist before. The hash chain is the artifact that answers it. |
+| Python SDK matching `packages/sdk-ts` | done | `packages/sdk-py`. 57 pytest cases mirroring the TS suite, with the HMAC construction pinned from both sides by a literal hex so neither can drift alone. The media walk's cycle guard holds live references rather than `id()` values, which is what makes the two SDKs refuse the same payload. |
+| Webhook delivery with retries and a dead-letter view | done | A durable row rather than one discarded fetch. Equal jitter, 8 attempts then dead, `FOR UPDATE SKIP LOCKED` drain worker, and a strict payload schema that refuses chat content at any depth. The scorer's `dispatch` now enqueues. Hardened after the adversarial review: redirects refused, the target rechecked immediately before every request, `Retry-After` floored at the schedule, settling fenced to the claim holder, and a claim error or an unreadable row no longer exits the process. |
+| Evidence record shaped as a superset of CyberTipline API fields | done | Moved up from phase 2. Reporter of record, reviewer context, per-instant local time and offset, per-excerpt bands, and a 17-field completeness pre-flight, so `buildReport` is a projection rather than a re-entry. |
+| CyberTipline ESP API client, report from evidence bundle, one-year preservation timer | done | `packages/report`. Five builder refusals after the adversarial review: anything but a reviewer-confirmed T3, a media row without a hash, a bundle and a customer that name different customers, byte-shaped free text anywhere in the envelope, and an accusation in a reviewer note. The client reaches production only on the exact literal `production`, and refuses a report belonging to a customer other than the one whose credentials it holds. Still needs a registered customer before a real submission, and the hash-only file record is unconfirmed (PHASE3.md). |
+| Report quality as the product | done | The completeness scorer carries `jurisdictionDeterminable` as its own boolean, because it is the one number NCMEC publishes, and treats a salted-hash identifier as blocking rather than present. It also blocks a filing whose incident type is the fallback rather than something a signal or a reviewer chose, and the provider's jurisdiction and the legal basis now reach the submitted document instead of stopping at the envelope. |
+| Independent audit export for regulators | done | `packages/audit/src/export.ts`. Self-contained artifact with the recomputation recipe, verified offline from the artifact plus the key, scoped per customer with rule 8 refusals and other customers' rows visibly withheld. An artifact where no row could be recomputed fails rather than passing, because the key is never used on that path. The dashboard export button is still open. |
+| Webhook deliveries under the retention sweep | done | A `deliveries` step in `apps/ingest/src/retention-job.ts`. Rule 7 covers the new table. |
+| Phase 3 end to end against live infrastructure | done | `scripts/integration/e2e.test.ts`. T2 to a second reviewer's concurrence to T3 through `apps/review/src/lib/decisions.ts`, then bundle, report, completeness, a bytes assertion, delivery backoff and an offline-verified audit export. |
+| Report status and outcome trail back to the reporter | planned | Moved down from phase 2. Australia's eSafety undertaking (Aug 2026) makes outcome notification binding for Roblox. Tickets vanishing into a black box was the core Schlep grievance. |
 | Processor agreement and retention program | planned | counsel |
 | UK Online Safety Act children's risk assessment | planned | Both an exposure and an unclaimed sales wedge. Role-derived Discord bands do not satisfy highly-effective age assurance. |
+
+### Follow-ups opened by the phase 3 work
+
+| # | Item | Owner surface | Why it is not done |
+|---|---|---|---|
+| P-1 | Confirm with NCMEC at ESP registration whether a hash-only `fileDetails` record is accepted | product | The API has no documented hash-only file route; the documented one is `/upload` with bytes. Guardian holds none (rule 1), so if the answer is no, the operator uploads from their own systems and Guardian's report names files by hash. That is a product decision. |
+| P-2 | Customer columns for timezone, registered provider name, ESP id and named contact | packages/schema | `buildEvidenceBundle` takes all four as inputs and no row holds them, so every production bundle honestly reports them empty. The e2e supplies them to prove the path works. |
+| P-3 | Per-customer encrypted NCMEC credential store | apps/report | The credentials belong to the customer, never to Guardian. `packages/report` reads two environment variables, which is one customer per deployment. |
+| P-4 | Idempotency key on a webhook delivery | apps/ingest, packages/schema | A redelivered stream entry enqueues a second row and the customer gets the tier twice. Shape is a unique `(customerId, kind, externalId)`. Deliberately out of the delivery change. |
+| P-5 | Report creation ratchets the bundle to `CASE_1Y` with `expiresAt = preserveUntil` in one transaction | packages/report, apps/review | PHASE1 F4. The predicate exists in `preservation.ts` and nothing calls it from a submit path, because nothing submits yet. |
+| P-6 | Decide whether the console shows the bundle-side or the report-side completeness, or both | apps/review | Two scorers at two granularities, complementary rather than duplicative. |
+| P-7 | Dead-letter view and audit export button in the operator dashboard | apps/review | `listDeadLetters` and `exportChain` are both exported and neither has a surface. Producing an export needs no chain key, so the button can live in a process that has none. |
+| P-8 | Live-database test for `PrismaDeliveryStore.claimDue` | apps/ingest | The row-lock behaviour is tested against the memory twin only. The migration has now run. |
+| P-9 | Reconcile `channelVisibility` in `evidenceTimelineRowSchema` | packages/schema | The comment about the private messaging rule sits above `actorAge`, so the field reads as dropped mid-edit while `apps/scorer/src/bundle.ts` still writes it. Nothing breaks either way. |
+| P-10 | Add `.venv` and `.pytest_cache` to `skipDirs` in the accusation-guard source scan | packages/schema | `packages/sdk-py/.venv` now joins `services/ml/.venv` in the walk. Both are clean; the test is just slower. |
+| P-11 | Surface the incident-type choice in the reviewer console | apps/review | `BuildReportOptions.incidentType` takes a reviewer's selection and the completeness scorer blocks a defaulted type, but no console control sets it yet. Five of the eight types are reachable only that way. |
+| P-12 | Pin the checked address into the connection | apps/ingest | The target is now rechecked immediately before every request, which closes the ordinary rebinding case. A name that changes between the check and the connect is still open; closing it means an agent `lookup` that connects to the address that was checked. |
+| P-13 | Show a dropped delivery result to the operator | apps/review, apps/ingest | `AttemptOutcome.settled` is false when a stale worker's result was dropped, which means the customer got the tier twice. Nothing counts or displays it, and how often it happens is the signal that the batch and claim clocks are mismatched. |
 
 ## Phase 4: investigator triage
 

@@ -9,6 +9,8 @@
  * never reach a logger.
  */
 
+import { MEDIA_BASE64_RUN, MEDIA_DATA_URI, MEDIA_DATA_URI_EMBEDDED } from "@guardian/schema";
+
 export interface MediaViolation {
   reason:
     | "binary_content_type"
@@ -50,10 +52,15 @@ const BINARY_CONTENT_TYPES = [
   "application/octet-stream",
 ];
 
-const DATA_URI = /^data:(image|video|application\/octet-stream)/i;
+/**
+ * The two byte-shaped patterns live in @guardian/schema so the edge and every
+ * other surface that takes free text (the report builder, the reviewer console)
+ * scan for the same thing. The media-URL pattern stays here: it is about a
+ * customer asking Guardian to fetch a file, which only happens at the edge.
+ */
+const DATA_URI = MEDIA_DATA_URI;
+const BASE64_BLOB = MEDIA_BASE64_RUN;
 const MEDIA_URL = /https?:\/\/\S+\.(jpe?g|png|gif|webp|bmp|heic|mp4|mov|webm|avi|mkv)(\?|#|$)/i;
-/** A long run of base64 characters is a payload, whatever field it is hiding in. */
-const BASE64_BLOB = /[A-Za-z0-9+/]{512,}={0,2}/;
 
 export function checkContentType(contentType: string | undefined): MediaViolation | null {
   if (!contentType) return null;
@@ -93,7 +100,7 @@ export function scanForMedia(body: unknown, maxDepth = 8): MediaViolation[] {
     if (depth > maxDepth || out.length >= 20) return;
 
     if (typeof node === "string") {
-      if (DATA_URI.test(node.trim())) {
+      if (DATA_URI.test(node.trim()) || MEDIA_DATA_URI_EMBEDDED.test(node)) {
         out.push({
           reason: "data_uri",
           at: path,
