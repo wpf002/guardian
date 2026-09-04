@@ -158,7 +158,10 @@ describe("the add-phrases action", () => {
     );
 
     expect(state.error).toBeNull();
-    expect(state.message).toContain("v2+cus_northwood");
+    // The base version is not pinned here. What matters is that the merged
+    // string names the customer's extension, so a score row says which lexicon
+    // produced it including the per-customer part.
+    expect(state.message).toMatch(/lexicon v\d+\+cus_northwood/);
 
     const view = await getLexiconView(session);
     const field = view.fields.find((row) => row.field === "migration_ask");
@@ -167,7 +170,7 @@ describe("the add-phrases action", () => {
     const after = await listAuditEntries(session, { kind: "lexicon.updated" });
     expect(after.length).toBe(before.length + 1);
     expect(after[0]!.payload.field).toBe("migration_ask");
-    expect(after[0]!.payload.mergedVersion).toBe("v2+cus_northwood");
+    expect(String(after[0]!.payload.mergedVersion)).toMatch(/^v\d+\+cus_northwood$/);
     expect(String(after[0]!.payload.changeOrigin)).toContain("not at the direction");
   });
 

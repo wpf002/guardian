@@ -27,6 +27,38 @@ export interface NormalizedText {
 
 const ZERO_WIDTH = /[​-‏‪-‮⁠-⁯﻿­]/;
 
+/**
+ * Variation selectors choose an emoji's text or emoji presentation and carry no
+ * meaning of their own. They matter here because the character pass walks one
+ * code point at a time, so a lexicon key written with one (U+2708 U+FE0F for
+ * the plane) could never match and the entry was silently dead.
+ */
+const VARIATION_SELECTOR = /[︎️]/;
+
+/** Strip the selectors so a key written either way resolves to the same entry. */
+function withoutVariationSelectors(value: string): string {
+  return value.replace(/[︎️]/g, "");
+}
+
+/**
+ * Emoji keys are indexed by their selector-free form once per lexicon, rather
+ * than per message. A key that reduces to an existing one does not overwrite it.
+ */
+const emojiIndexCache = new WeakMap<Record<string, string>, Record<string, string>>();
+
+function indexEmoji(emoji: Record<string, string>): Record<string, string> {
+  const cached = emojiIndexCache.get(emoji);
+  if (cached) return cached;
+  const index: Record<string, string> = {};
+  for (const [key, value] of Object.entries(emoji)) {
+    const bare = withoutVariationSelectors(key);
+    if (bare.length === 0) continue;
+    index[bare] ??= value;
+  }
+  emojiIndexCache.set(emoji, index);
+  return index;
+}
+
 /** Cyrillic and Greek lookalikes are the cheapest filter evasion there is. */
 const CONFUSABLES: Record<string, string> = {
   а: "a", в: "b", с: "c", е: "e", н: "h", к: "k", м: "m", о: "o", р: "p", ѕ: "s",
@@ -70,7 +102,7 @@ function characterPass(
     const ch = chars[i]!;
     const at = offsets[i]!;
 
-    if (ZERO_WIDTH.test(ch)) continue;
+    if (ZERO_WIDTH.test(ch) || VARIATION_SELECTOR.test(ch)) continue;
 
     const mapped = emoji[ch];
     if (mapped !== undefined) {
@@ -173,7 +205,7 @@ export function normalize(
 ): NormalizedText {
   const replacements: NormalizedText["replacements"] = [];
 
-  let buf = characterPass(text, lexicon.emoji, replacements);
+  let buf = characterPass(text, indexEmoji(lexicon.emoji), replacements);
   buf = collapseRuns(buf);
   buf = leetPass(buf, lexicon.leet, replacements);
   buf = collapseWhitespace(buf);

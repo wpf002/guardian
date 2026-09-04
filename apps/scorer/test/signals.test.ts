@@ -1,5 +1,6 @@
-import { findAccusations, loadLexicon, mergeLexicon, PHRASE_FIELDS } from "@guardian/schema";
+import { findAccusations, loadLexicon, mergeLexicon, normalize, PHRASE_FIELDS } from "@guardian/schema";
 import { describe, expect, it } from "vitest";
+import { findHandoffs, findPlatformMove } from "../src/detectors/entities.js";
 import {
   emptyActorState,
   observeInbound,
@@ -526,7 +527,10 @@ describe("S3 non-financial coercion", () => {
   });
 
   it("is present in the versioned lexicon rather than hardcoded", () => {
-    expect(LEX.version).toBe("v2");
+    // Not pinned to a version: the point is that the lists live in the lexicon
+    // rather than in code, and the lexicon is versioned so a score row stays
+    // reproducible against whichever one produced it.
+    expect(LEX.version).toMatch(/^v\d+$/);
     expect(LEX.coercion_mark_directive.length).toBeGreaterThan(10);
     expect(LEX.coercion_selfreport_exempt.length).toBeGreaterThan(10);
     expect(loadLexicon("v1").coercion_mark_directive).toEqual([]);
@@ -681,3 +685,56 @@ function pairStub(score: number, progression: boolean, critical: string[] = []) 
 
 /** Kept so the FanInSignal shape is exercised as a type, not only structurally. */
 export type _FanInSignalCheck = FanInSignal;
+
+/**
+ * Three defects the PII evasion benchmark surfaced and the model card named.
+ * Each was a silent recall or precision loss rather than a crash.
+ */
+describe("evasion benchmark defects", () => {
+  const lex = loadLexicon();
+
+  describe("handoff needs an actual handle", () => {
+    const talkingAboutTheApp = [
+      "snapchat was down yesterday",
+      "i got banned from discord again",
+      "telegram everyone is on it now",
+    ];
+    for (const text of talkingAboutTheApp) {
+      it(`does not read "${text}" as a handoff`, () => {
+        expect(findHandoffs(normalize(text, lex), lex)).toHaveLength(0);
+      });
+    }
+
+    const realHandoffs = [
+      "my snap is ryan_xx99",
+      "add me on snapchat @ryan_xx99",
+      "discord is jay#4412",
+      "snap ryan_xx99",
+      "insta coolkid2011",
+    ];
+    for (const text of realHandoffs) {
+      it(`still reads "${text}" as a handoff`, () => {
+        expect(findHandoffs(normalize(text, lex), lex).length).toBeGreaterThan(0);
+      });
+    }
+  });
+
+  describe("short platform names are matched, but only at a boundary", () => {
+    it("sees kik spaced out, which the length floor used to hide", () => {
+      expect(findPlatformMove(normalize("talk to me on k i k instead", lex), lex).length).toBeGreaterThan(0);
+    });
+
+    it("sees kik written plainly", () => {
+      expect(findPlatformMove(normalize("dm me on kik", lex), lex).length).toBeGreaterThan(0);
+    });
+
+    it("does not match inside an ordinary word", () => {
+      expect(findPlatformMove(normalize("kiki is my dogs name, talk to me later", lex), lex)).toHaveLength(0);
+      expect(findPlatformMove(normalize("add me, my kikker is broken", lex), lex)).toHaveLength(0);
+    });
+
+    it("does not match a platform name hiding inside a longer word", () => {
+      expect(findPlatformMove(normalize("im getting off now, talk later", lex), lex)).toHaveLength(0);
+    });
+  });
+});

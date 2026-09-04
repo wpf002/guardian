@@ -246,26 +246,43 @@ export const CASES: BenchmarkCase[] = [
  *   reversed_text 0.20    The one hit is the generic "add me on" phrase, not
  *                         the reversed platform name. The normalizer has no
  *                         reversal pass. Cheap to add, packages/schema owns it.
- *   phonetic 0.67         "kiiik" collapses to "kiik" and "whatss appp" does
+ *   phonetic 0.50         "kiiik" collapses to "kiik" and "whatss appp" does
  *                         not compact to "whatsapp". Run collapsing is capped
  *                         at two characters.
  *   coded_language 0.71   Two causes, both filed below in NOTES.
- *   letter_spacing 0.75   "k-i-k" compacts to a three character needle and the
- *                         platform-move check skips anything under four.
- *   hard_negative 0.20    Three false positives, all one bug. See NOTES.
+ *   letter_spacing 0.88   "k-i-k" is now reached. The one remaining miss needs
+ *                         a normalizer pass this kernel does not have.
+ *   hard_negative 0.00    No false positives. Was three before the handoff fix.
+ *
+ * Baselines revised 2026-09-04, second run, after findings 1 to 3 below were
+ * fixed. Two rows moved in opposite directions and the reason matters.
+ *
+ * letter_spacing rose from 0.75 to 0.88 and hard_negative fell from 0.20 to 0,
+ * both from the same two fixes: the platform-move check now accepts a three
+ * character needle but only at a word boundary, and a handoff now needs an
+ * actual handle rather than whatever word followed the platform name.
+ *
+ * phonetic fell from 0.67 to 0.50, and this is the honest part. The case that
+ * stopped passing was only ever passing because of finding 2: a platform name
+ * followed by any word counted as a handle. It was a true positive produced by
+ * a broken rule, and the same rule produced all three false positives. Trading
+ * it for zero false positives is the right trade at a 0.01% base rate, where
+ * DESIGN.md section 6.4 says a false alarm costs a reviewer minute and a miss
+ * costs one chance at a case that will come back. The row is recorded down
+ * rather than the rule loosened to keep the number.
  */
 export const BASELINE: Record<EvasionCategory, number> = {
   explicit: 1,
-  letter_spacing: 0.75,
+  letter_spacing: 0.875,
   homoglyph: 1,
   leet_substitution: 1,
-  phonetic: 0.66667,
+  phonetic: 0.5,
   coded_language: 0.71429,
   reversed_text: 0.2,
   split_across_turns: 1,
   pretextual: 1,
   puzzle: 0,
-  hard_negative: 0.2,
+  hard_negative: 0,
 };
 
 /**

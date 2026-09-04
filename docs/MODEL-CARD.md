@@ -1,6 +1,6 @@
 # Guardian detection kernel: model card
 
-Version: fusion `rules-v2`, lexicon `v2`, model `rules-v2`. Date: 4 September 2026.
+Version: fusion `rules-v2`, lexicon `v3`, model `rules-v2`. Date: 4 September 2026.
 
 ROOST's leadership named PhotoDNA, Thorn Safer and Google's Content Safety API as undocumented in April 2026. Only Roblox Voice v3 publishes an operating point. This document is the answer to that criticism for Guardian, and it costs nothing but honest numbers.
 
@@ -62,29 +62,31 @@ Run `pnpm eval` to reproduce. Seed 42. The suite is `scripts/eval/`.
 
 ### PII and off-platform migration evasion benchmark
 
-This is the only test that produces an uncomfortable number, which is why it is the most useful one here. 82 hand-written cases modelled on the categories in Roblox's published evasion benchmark.
+This is the only test that produces an uncomfortable number, which is why it is the most useful one here. 82 hand-written cases modelled on the categories in Roblox's published evasion benchmark. The previous column is the run before the three defects below were fixed.
 
-| Category | Recall |
-|---|---|
-| Explicit handoff | 100% |
-| Homoglyph substitution | 100% |
-| Leet substitution | 100% |
-| Split across turns | 100% |
-| Pretextual | 100% |
-| Letter spacing | 75% |
-| Coded language | 71% |
-| Phonetic | 67% |
-| Reversed text | 20% |
-| Puzzle or riddle encoding | 0% |
-| **Overall** | **77.6%** over 67 obfuscated handoffs |
+| Category | Recall | Previous |
+|---|---|---|
+| Explicit handoff | 100% | 100% |
+| Homoglyph substitution | 100% | 100% |
+| Leet substitution | 100% | 100% |
+| Split across turns | 100% | 100% |
+| Pretextual | 100% | 100% |
+| Letter spacing | 87.5% | 75% |
+| Coded language | 71% | 71% |
+| Phonetic | 50% | 67% |
+| Reversed text | 20% | 20% |
+| Puzzle or riddle encoding | 0% | 0% |
+| **Overall** | **77.6%** over 67 obfuscated handoffs | 79.1% |
 
-3 of 15 hard negatives were flagged, a 20% false-positive rate on that set.
+**0 of 15 hard negatives flagged, down from 3.**
 
-Three open defects the benchmark surfaced and that are not yet fixed:
+The three defects this benchmark surfaced on its first run are fixed, in lexicon `v3` and in the detectors. `v2` is kept so a score row that references it stays reproducible.
 
-- Emoji lexicon keys carrying U+FE0F are unreachable, so two entries are dead.
-- A platform name followed by any word reads as a handle in `findHandoffs`.
-- Compact needles under four characters are skipped in `findPlatformMove`, so "kik" is invisible when spaced out.
+- Emoji lexicon keys carrying U+FE0F were unreachable, so two entries were dead. The normalizer now strips presentation selectors and indexes the map by the selector-free key.
+- A platform name followed by any word read as a handle. `v3` requires an explicit separator, an at-sign, or a token actually shaped like a handle.
+- Short platform names were skipped in the compact form, so "kik" was invisible when spaced out. The floor is now three characters, with a word-boundary check against the original text doing the work the floor used to do.
+
+Overall recall fell 1.5 points in the process, and that is the honest part of this table. The phonetic case that stopped passing was only ever passing because of the second defect: a platform name followed by any word counted as a handle. It was a true positive produced by a broken rule, and the same rule produced all three false positives. At a 0.01% base rate a false alarm costs a reviewer minute and there are far more benign conversations than real ones, so the trade is worth taking. The row is recorded down rather than the rule loosened to keep the number.
 
 ## Limitations, and what these numbers are not
 

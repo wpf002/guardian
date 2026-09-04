@@ -26,6 +26,39 @@ function compactOf(phrase: string): string {
  * Short phrases are only checked in the normalized form, because a three
  * character compact needle matches far too much.
  */
+/** The same boundary test against the normalized form, where spaces survive. */
+function normalizedMatchIsBounded(n: NormalizedText, start: number, length: number): boolean {
+  const before = n.normalized.slice(0, start);
+  const after = n.normalized.slice(start + length);
+  return !/[a-z0-9]$/i.test(before) && !/^[a-z0-9]/i.test(after);
+}
+
+/**
+ * A compact match has no word boundaries of its own, because the compact form
+ * has had every space and punctuation mark removed. This maps the match back
+ * through the index map and checks that it began and ended at a boundary in the
+ * text the reader actually sees.
+ *
+ * It is what lets a short platform name be matched safely. "kik" is three
+ * characters, so a raw compact substring search finds it inside "kiki" and
+ * inside a hundred ordinary words; anchored to the original, "k i k" matches
+ * and "kiki" does not.
+ */
+function compactMatchIsBounded(n: NormalizedText, start: number, length: number): boolean {
+  const map = n.compactMap;
+  if (start < 0 || length <= 0 || start + length > map.length) return false;
+
+  const firstOrigin = map[start]!;
+  const lastOrigin = map[start + length - 1]!;
+
+  const before = n.original.slice(0, firstOrigin);
+  const after = n.original.slice(lastOrigin + 1);
+
+  const runsIntoWordBefore = /[a-z0-9]$/i.test(before);
+  const runsIntoWordAfter = /^[a-z0-9]/i.test(after);
+  return !runsIntoWordBefore && !runsIntoWordAfter;
+}
+
 export function findPhrases(n: NormalizedText, phrases: readonly string[]): Match[] {
   const out: Match[] = [];
   const seen = new Set<string>();
@@ -120,6 +153,12 @@ export function findAmounts(n: NormalizedText): Match[] {
 const MOVE_VERBS = [
   "add me",
   "add my",
+  // "add you on discord" is the same ask phrased from the other side. It used to
+  // be caught only as a side effect of the loose handle pattern, which read the
+  // next word as a handle.
+  "add you",
+  "message you",
+  "hit you",
   "talk",
   "chat",
   "message me",
@@ -141,9 +180,11 @@ export function findPlatformMove(n: NormalizedText, lex: Lexicon): Match[] {
   if (!hasVerb) return [];
 
   for (const platform of lex.platforms) {
+    // Bounded, so a short name like "kik" or "tg" cannot match inside "kiki" or
+    // "getting". The compact branch below applies the same rule.
     const needle = platform.toLowerCase();
-    const at = n.normalized.indexOf(needle);
-    if (at !== -1) {
+    for (let at = n.normalized.indexOf(needle); at !== -1; at = n.normalized.indexOf(needle, at + 1)) {
+      if (!normalizedMatchIsBounded(n, at, needle.length)) continue;
       return [
         {
           matched: `move to ${platform}`,
@@ -152,10 +193,13 @@ export function findPlatformMove(n: NormalizedText, lex: Lexicon): Match[] {
         },
       ];
     }
+    // Short names are allowed here, unlike the general phrase search, because a
+    // boundary check against the original text does the work the length floor
+    // used to do. Without this "kik" was invisible whenever it was spaced out.
     const compactNeedle = compactOf(platform);
-    if (compactNeedle.length < 4) continue;
-    const cat = n.compact.indexOf(compactNeedle);
-    if (cat !== -1) {
+    if (compactNeedle.length < 3) continue;
+    for (let cat = n.compact.indexOf(compactNeedle); cat !== -1; cat = n.compact.indexOf(compactNeedle, cat + 1)) {
+      if (!compactMatchIsBounded(n, cat, compactNeedle.length)) continue;
       return [
         {
           matched: `move to ${platform}`,

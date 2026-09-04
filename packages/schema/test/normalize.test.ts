@@ -58,3 +58,26 @@ describe("normalize", () => {
     expect(normalize("   \n\t ", lex).normalized).toBe("");
   });
 });
+
+describe("emoji keys carrying a variation selector", () => {
+  it("resolves a key written with U+FE0F, which used to be a dead entry", () => {
+    // The plane and the dove are both written with a selector in v1 and v2.
+    expect(normalize("dm me on ✈️", lex).normalized).toContain("telegram");
+    expect(normalize("find me on 🕊️", lex).normalized).toContain("telegram");
+  });
+
+  it("resolves the same key written without the selector", () => {
+    expect(normalize("dm me on ✈", lex).normalized).toContain("telegram");
+  });
+
+  it("keeps the selector out of the normalized text", () => {
+    expect(normalize("✈️", lex).normalized).not.toContain("️");
+  });
+
+  it("still quotes the original, selector and all", () => {
+    const text = "add me on ✈️ ok";
+    const n = normalize(text, lex);
+    const at = n.normalized.indexOf("telegram");
+    expect(excerptFromNormalized(n, at, "telegram".length, 6)).toContain("✈");
+  });
+});
