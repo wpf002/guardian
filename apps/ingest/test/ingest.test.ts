@@ -340,6 +340,33 @@ describe("pii minimization", () => {
     expect(ctx.queue.eventsFor("cus_1")).toHaveLength(0);
   });
 
+  it("carries age band provenance and channel visibility through to the stored event", async () => {
+    await post(ctx.app, {
+      ...validEvent,
+      externalId: "prov-1",
+      actorBandProvenance: "server_role",
+      actorBandConfidence: 0.82,
+      targetBandProvenance: "platform_default",
+      channelVisibility: "public",
+    });
+    const event = ctx.queue.eventsFor("cus_1").find((e) => e.externalId === "prov-1");
+    expect(event!.actorBandProvenance).toBe("server_role");
+    expect(event!.actorBandConfidence).toBe(0.82);
+    expect(event!.targetBandProvenance).toBe("platform_default");
+    expect(event!.channelVisibility).toBe("public");
+  });
+
+  it("leaves an unstated provenance absent rather than inventing one", async () => {
+    // A confidence nobody published must not read back as zero, and a
+    // visibility nobody stated must not read back as public: absent is what
+    // treatAsPrivateMessaging turns into the stricter rule.
+    await post(ctx.app, { ...validEvent, externalId: "prov-2" });
+    const event = ctx.queue.eventsFor("cus_1").find((e) => e.externalId === "prov-2");
+    expect(event!.actorBandConfidence).toBeNull();
+    expect(event!.actorBandProvenance).toBeNull();
+    expect(event!.channelVisibility).toBeNull();
+  });
+
   it("takes the customer id from the key and not from the body", async () => {
     await post(ctx.app, { ...validEvent, customerId: "cus_someone_else" });
     // customerId is not in the inbound schema, so the strict parse rejects it.

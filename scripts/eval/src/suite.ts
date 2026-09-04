@@ -14,6 +14,7 @@ import {
   type Conversation,
 } from "./generators.js";
 import { confusionAt, median, runConversations, tierRank } from "./harness.js";
+import { piiEvasionBenchmark } from "./pii-benchmark.js";
 
 /**
  * The DESIGN.md section 10 suite. The base-rate simulation and the teen-romance
@@ -49,18 +50,40 @@ export interface SuiteResult {
 export const QUICK = process.env.EVAL_QUICK === "1";
 const scale = (n: number): number => (QUICK ? Math.max(20, Math.round(n / 10)) : n);
 
-export async function runSuite(seed = 42): Promise<SuiteResult> {
-  const results: TestResult[] = [
-    await baseRateSimulation(seed),
-    await teenRomanceControl(seed),
-    await earlyWarningLatency(seed),
-    await evasionRedTeam(seed),
-    await sextortionScriptMatch(),
-    await auditChainTamper(),
-    await fanOutDetection(),
-    await falsePositiveTraps(seed),
-    await modelNeverEmitsT3(seed),
-  ];
+export interface SuiteOptions {
+  /**
+   * Case-insensitive substring. Runs only the tests whose name matches, so a
+   * single slow gate can be iterated on without the whole suite. A filter that
+   * excludes a required test cannot make `requiredPass` mean what it usually
+   * means, so the CLI says so.
+   */
+  only?: string | undefined;
+}
+
+/** Every test in the suite, by name, in the order they run. */
+const TESTS: Array<{ name: string; run: (seed: number) => Promise<TestResult> }> = [
+  { name: "base-rate simulation", run: baseRateSimulation },
+  { name: "teen-romance control", run: teenRomanceControl },
+  { name: "early warning latency", run: earlyWarningLatency },
+  { name: "evasion red team", run: evasionRedTeam },
+  { name: "PII evasion benchmark", run: () => piiEvasionBenchmark() },
+  { name: "sextortion script match", run: () => sextortionScriptMatch() },
+  { name: "audit chain tamper", run: () => auditChainTamper() },
+  { name: "actor fan-out", run: () => fanOutDetection() },
+  { name: "false-positive traps", run: falsePositiveTraps },
+  { name: "model never emits T3", run: modelNeverEmitsT3 },
+];
+
+export function testNames(): string[] {
+  return TESTS.map((t) => t.name);
+}
+
+export async function runSuite(seed = 42, options: SuiteOptions = {}): Promise<SuiteResult> {
+  const filter = options.only?.toLowerCase();
+  const selected = filter ? TESTS.filter((t) => t.name.toLowerCase().includes(filter)) : TESTS;
+
+  const results: TestResult[] = [];
+  for (const test of selected) results.push(await test.run(seed));
 
   return {
     results,

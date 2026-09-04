@@ -1,6 +1,6 @@
 import type { Tier, TierResult } from "@guardian/schema";
 import { describe, expect, it } from "vitest";
-import { emptyActorState, observeActor, type ActorState } from "../src/actor.js";
+import { emptyActorState, observeActor, observeInbound, type ActorState } from "../src/actor.js";
 import type { PairState } from "../src/pair.js";
 import {
   PrismaKernelStore,
@@ -188,12 +188,14 @@ function samplePair(): PairState {
         matched: "supervision_probe:parents_home",
         eventExternalId: "m1",
         ts: new Date("2026-09-03T11:00:00.000Z"),
+        viewedByHuman: false,
       },
       {
         kind: "off_platform_migration",
         stage: "migrate",
         weight: 1.3,
         ts: new Date("2026-09-03T11:30:00.000Z"),
+        viewedByHuman: false,
       },
     ],
     lastInboundMediaAt: "2026-09-03T11:45:00.000Z",
@@ -230,6 +232,14 @@ function sampleActor(): ActorState {
     flagged: false,
     hints: ["ip-2"],
   });
+  // The inbound half of the graph (ROADMAP S1). Included here because it is
+  // the half a persist and reload used to drop.
+  state = observeInbound(state, {
+    ts: new Date("2026-09-03T10:30:00.000Z"),
+    sourceUid: "s1",
+    sourceBand: "A21_PLUS",
+    flagged: true,
+  });
   return state;
 }
 
@@ -263,6 +273,7 @@ function tierResult(tier: Tier, producedBy: TierResult["producedBy"] = "model"):
     },
     versions: { modelVersion: "rules-v1", lexiconVersion: "v1", fusionVersion: "rules-v1" },
     producedBy,
+    soleAutomatedBasis: false,
     scoredAt: NOW,
   };
 }
@@ -442,6 +453,7 @@ describe("PrismaKernelStore actors", () => {
       minorContactsByDay: state.minorContactsByDay,
       recentOutboundTs: state.recentOutboundTs,
       outboundBurstMax1h: state.outboundBurstMax1h,
+      inbound: state.inbound,
     });
   });
 
@@ -502,6 +514,32 @@ describe("PrismaKernelStore recordTier", () => {
     expect(actor.skewScore).toBe(0.4);
     expect(actor.fanOut7d).toBe(12);
     expect(actor.minorFanOut7d).toBe(9);
+  });
+
+  // F5. The posture was computed by fusion and dropped at every consumer, so
+  // the reviewer queue had no way to see it: the bands it derives from are on
+  // the event, not on the pair.
+  it("persists the posture, so it outlives the request that computed it", async () => {
+    const { store, pairs } = makeStore();
+    await store.putPair(CUS, ACTOR, TARGET, samplePair());
+    await store.recordTier(CUS, ACTOR, TARGET, {
+      ...tierResult("T2"),
+      suggestedPosture: "support",
+    });
+    expect(pairs.row().suggestedPosture).toBe("support");
+
+    await store.recordTier(CUS, ACTOR, TARGET, {
+      ...tierResult("T2"),
+      suggestedPosture: "enforcement",
+    });
+    expect(pairs.row().suggestedPosture).toBe("enforcement");
+  });
+
+  it("leaves the posture null rather than guessing when fusion emitted none", async () => {
+    const { store, pairs } = makeStore();
+    await store.putPair(CUS, ACTOR, TARGET, samplePair());
+    await store.recordTier(CUS, ACTOR, TARGET, tierResult("T2"));
+    expect(pairs.row().suggestedPosture).toBeNull();
   });
 
   it("does not lower retention when a later score is T0", async () => {

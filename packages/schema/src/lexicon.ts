@@ -27,13 +27,35 @@ export const lexiconSchema = z.object({
   countdown_patterns: z.array(z.string()).default([]),
   meetup_logistics: z.array(z.string()).default([]),
   trafficking_recruitment: z.array(z.string()).default([]),
+  // Non-financial coercion (ROADMAP S3). Added in v2; v1 loads with empty lists.
+  coercion_selfharm_directive: z.array(z.string()).default([]),
+  coercion_mark_directive: z.array(z.string()).default([]),
+  /** Marker nouns. Not a directive alone; needs a qualifier or a demand beside it. */
+  coercion_mark_noun: z.array(z.string()).default([]),
+  /** What turns a marker noun into a demand: the other account's mark on it. */
+  coercion_mark_qualifier: z.array(z.string()).default([]),
+  coercion_compliance_demand: z.array(z.string()).default([]),
+  coercion_selfreport_exempt: z.array(z.string()).default([]),
+  coercion_support_exempt: z.array(z.string()).default([]),
+  coercion_inquiry_exempt: z.array(z.string()).default([]),
+  /**
+   * Words that, standing in front of a directive in the same clause, mean the
+   * clause reports, asks about or negates the instruction rather than issuing
+   * it. A suppression list, so it is not customer-extendable.
+   */
+  coercion_directive_blocker: z.array(z.string()).default([]),
   payment_handle_patterns: z.array(z.string()).default([]),
   handle_patterns: z.array(z.string()).default([]),
 });
 
 export type Lexicon = z.infer<typeof lexiconSchema>;
 
-/** The phrase lists a detector can scan. Excludes maps and regex sources. */
+/**
+ * The phrase lists a customer extension may add to. Excludes maps and regex
+ * sources, and excludes every suppression list: the merge only ever adds
+ * entries, and adding to an exemption or a blocker list blinds the detector
+ * for that customer, which is the one thing the merge contract forbids.
+ */
 export const PHRASE_FIELDS = [
   "platforms",
   "migration_ask",
@@ -48,6 +70,11 @@ export const PHRASE_FIELDS = [
   "threat_templates",
   "meetup_logistics",
   "trafficking_recruitment",
+  "coercion_selfharm_directive",
+  "coercion_mark_directive",
+  "coercion_mark_noun",
+  "coercion_mark_qualifier",
+  "coercion_compliance_demand",
 ] as const;
 export type PhraseField = (typeof PHRASE_FIELDS)[number];
 
@@ -57,11 +84,24 @@ export const LEXICON_DIR = join(here, "..", "lexicon");
 
 const cache = new Map<string, Lexicon>();
 
+/**
+ * Sorted oldest first. The comparison is numeric on the digits, not
+ * lexicographic, so v10 sorts after v9 rather than between v1 and v2. A score
+ * row that names an older version keeps resolving to that file forever; the
+ * files are append-only.
+ */
 export function availableLexiconVersions(): string[] {
   return readdirSync(LEXICON_DIR)
     .filter((f) => f.endsWith(".json"))
     .map((f) => f.replace(/\.json$/, ""))
-    .sort();
+    .sort(compareVersions);
+}
+
+function compareVersions(a: string, b: string): number {
+  const na = Number(a.replace(/^v/, ""));
+  const nb = Number(b.replace(/^v/, ""));
+  if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+  return a.localeCompare(b);
 }
 
 export function latestLexiconVersion(): string {

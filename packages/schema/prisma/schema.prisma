@@ -8,6 +8,13 @@
 //
 // There is no column anywhere for image or video bytes. Media appears only as a
 // sha256 and the operator's own scanner verdict (CLAUDE.md rule 1).
+//
+// A third set of columns is compliance evidence rather than metadata: where an
+// age band came from and how sure the source was, whether a person read a given
+// excerpt, the customer's jurisdiction and legal basis, whether a channel was
+// private, whether the actor score alone stood behind a tier, and who wrote a
+// piece of feedback. None of them can be added honestly after thresholds are
+// tuned against live traffic, so they exist before the first customer does.
 
 generator client {
   provider = "prisma-client-js"
@@ -27,6 +34,60 @@ enum AgeBand {
   A18_20
   A21_PLUS
   UNKNOWN
+}
+
+/// Where a band came from. A band read off a Discord role is not the same
+/// claim as one from an identity document, and the UK Online Safety Act's
+/// highly effective age assurance test turns on that difference. There is no
+/// column for the four statutory brackets: they are derived from the band by
+/// statutoryBracket() so the mapping lives in one place.
+enum AgeBandProvenance {
+  facial_estimate
+  government_id
+  os_bracket
+  server_role
+  platform_default
+  customer_declared
+  unknown
+}
+
+/// Whether the operator should be handed friction or a welfare route (ROADMAP
+/// S4). The account a tier describes is sometimes the one being coerced, and
+/// Patchin and Hinduja (n=5,568) found perpetrators are disproportionately
+/// former victims. Nullable: a row written before fusion emitted a posture has
+/// no honest value, and absent does not mean enforcement.
+enum SuggestedPosture {
+  enforcement
+  support
+}
+
+/// Under whose authority Guardian processes a customer's traffic. Nullable on
+/// the customer on purpose: an unset basis is visibly unset rather than a claim
+/// nobody made.
+enum LegalBasis {
+  provider_2258a
+  processor
+  parental_consent
+  operator_authority
+}
+
+/// Regulation (EU) 2026/1881, in force 31 July 2026 to 3 April 2028, treats
+/// private messaging differently from open channels. Null means the customer
+/// did not say, and the code reads that as private.
+enum ChannelVisibility {
+  public
+  private
+  group
+}
+
+/// Who wrote a piece of feedback that can reach the lexicon mining loop. The
+/// dismissal control on the mod-channel card is a write path open to anyone
+/// with moderator permissions in the guild, so the writer is recorded.
+enum FeedbackSource {
+  reviewer
+  moderator
+  automated
+  unknown
 }
 
 enum Tier {
@@ -88,6 +149,13 @@ model Customer {
   crossCustomerOptIn Boolean @default(false)
   /// Per-customer lexicon extension, merged over the base at load.
   lexiconExtension   Json?
+  /// ISO 3166-1 alpha-2, and the ISO 3166-2 subdivision suffix on its own
+  /// ("TX", not "US-TX") when a state rule applies. Over a tenth of industry
+  /// CyberTipline reports in 2025 lacked enough data to determine jurisdiction.
+  jurisdictionCountry     String?
+  jurisdictionSubdivision String?
+  /// Null until counsel or the operator agreement settles it.
+  legalBasis LegalBasis?
   createdAt DateTime @default(now())
 
   actors  Actor[]
@@ -106,6 +174,10 @@ model Actor {
   /// Salted hash of the customer's user id.
   hashedUid  String
   ageBand    AgeBand  @default(UNKNOWN)
+  /// 0 to 1. Null means the source published no calibrated number, which is
+  /// not the same as a low one, so nothing may read null as zero.
+  ageBandConfidence Float?
+  ageBandProvenance AgeBandProvenance @default(unknown)
   role       ActorRole @default(unknown)
   accountAgeHours Float?
   firstSeen  DateTime @default(now())
@@ -145,6 +217,17 @@ model Event {
   knownCsamVerdict String?
   actorBand  AgeBand  @default(UNKNOWN)
   targetBand AgeBand  @default(UNKNOWN)
+  /// The band as captured at event time, with how it was arrived at and how
+  /// sure the source was. Bands move: Roblox regrouped accounts into three
+  /// tiers in June 2026. The score that was assigned has to stay explainable
+  /// against the band that was known then.
+  actorBandConfidence  Float?
+  actorBandProvenance  AgeBandProvenance @default(unknown)
+  targetBandConfidence Float?
+  targetBandProvenance AgeBandProvenance @default(unknown)
+  /// Null means the customer did not say. Read as private by
+  /// treatAsPrivateMessaging, so the stricter rule applies by default.
+  channelVisibility ChannelVisibility?
   actorRole  ActorRole @default(unknown)
   features   Json?
   stageProbs Json?
@@ -186,6 +269,21 @@ model Pair {
   tier       Tier     @default(T0)
   /// Set when a critical signal forced the tier, so a reviewer sees why.
   criticalSignals String[] @default([])
+  /// True when the per-actor score alone stood behind the tier, with no
+  /// conversational fact on the pair. Article 5(1)(d) of Regulation (EU)
+  /// 2024/1689 prohibits assessing the likelihood of a person offending from
+  /// profiling alone, and its carve-out is support for human assessment
+  /// grounded in facts tied to the conversation. The row answers that, not a
+  /// later reading of the fusion code. Computed by isActorScoreSoleBasis().
+  soleAutomatedBasis Boolean @default(false)
+  /// Enforcement or support, as fusion emitted it. Read by the Discord bot,
+  /// which withholds the automatic timeout under support, and by the reviewer
+  /// queue. Stored rather than recomputed because the bands it derives from are
+  /// not on this row.
+  suggestedPosture SuggestedPosture?
+  /// Per-excerpt human-viewed flags live in the signals json, one per hit.
+  /// This is the pair-level anchor: when a person first read anything here.
+  humanViewedAt DateTime?
   messageCounts   Json?
   lastInboundMediaAt DateTime?
   windowStart DateTime?
@@ -227,6 +325,14 @@ model Review {
   /// Minutes the reviewer spent. Reviewer minutes per 1,000 users is a
   /// first-class metric (DESIGN.md 6.4).
   minutesSpent Float?
+  /// Who produced this decision. A dismissal from the mod-channel card and one
+  /// from the review console feed the lexicon loop with very different weight,
+  /// and the guild control is reachable by any moderator. Defaults to unknown
+  /// so an unattributed write is visible rather than credited to a reviewer.
+  feedbackSource FeedbackSource @default(unknown)
+  /// How many timeline excerpts this reviewer marked as read. The per-excerpt
+  /// flags live on the bundle timeline json; this is the count for the queue.
+  viewedExcerptCount Int?
   createdAt  DateTime @default(now())
 
   @@index([pairId, createdAt])
@@ -245,9 +351,22 @@ model EvidenceBundle {
   actorUid   String
   targetUid  String
   tier       Tier
+  /// Each timeline row and each signal hit carries its own viewedByHuman flag,
+  /// false until a reviewer action sets it. NCMEC report quality turns on
+  /// whether a person read the material, and so does the private-search
+  /// question, so the answer is per excerpt rather than per case.
   timeline   Json
   signals    Json
   provenance Json
+  /// When a person first read any excerpt in this bundle, and who. Null on a
+  /// bundle the model produced and nobody has opened.
+  humanViewedAt DateTime?
+  humanViewedByReviewerId String?
+  /// Copied from the customer at generation time so the export carries its own
+  /// jurisdiction and authority rather than depending on a later join.
+  jurisdictionCountry     String?
+  jurisdictionSubdivision String?
+  legalBasis LegalBasis?
   modelVersion   String
   lexiconVersion String
   fusionVersion  String
@@ -335,6 +454,10 @@ model GuildConfig {
   roleBands  Json     @default("{}")
   trustedRoleIds String[] @default([])
   defaultBand AgeBand @default(A13_15)
+  /// Bands read off guild roles are server_role by construction. This records
+  /// where the fallback band came from, which is the honest answer to an age
+  /// assurance question about a Discord deployment.
+  defaultBandProvenance AgeBandProvenance @default(platform_default)
   autoTimeoutOnT2 Boolean @default(false)
   autoTimeoutMinutes Int  @default(60)
   excludedChannelIds String[] @default([])

@@ -1,0 +1,82 @@
+{
+  "source": "https://huggingface.co/Roblox/roblox-pii-classifier-v2",
+  "read_on": "2026-09-04",
+  "read_from": [
+    "README.md (model card)",
+    "inference.py (the repo's own formatter)",
+    "config.json",
+    "tokenizer_config.json"
+  ],
+  "note": "Expected strings are written out by hand from the model card, not generated from Guardian's formatter. That is the point: if a refactor changes the encoding, these stop matching. \\u003c/s\\u003e appears escaped in this file only because JSON has no raw form for it; the string on the wire is the literal five characters.",
+  "tokenizer": {
+    "max_length": 512,
+    "padding": "max_length",
+    "truncation": true,
+    "truncation_side": "left"
+  },
+  "labels": [
+    "privacy_asking_for_pii",
+    "privacy_giving_pii",
+    "directing_users_off_platform"
+  ],
+  "thresholds": {
+    "privacy_asking_for_pii": 0.6,
+    "privacy_giving_pii": 0.55,
+    "directing_users_off_platform": 0.1
+  },
+  "cases": [
+    {
+      "name": "bare string is one turn from the target speaker",
+      "why": "inference.py --text treats a plain string as a single t turn and still prepends the instruction block",
+      "input": "add me on Discord, my username is skyfox_4821",
+      "expected": "Instruct: In the following chat messages from target speaker t and possibly other speakers s1, s2, etc., detect abuse by speaker t.\nQuery:\n\nt: add me on Discord, my username is skyfox_4821"
+    },
+    {
+      "name": "the model card's own conversation example",
+      "why": "alice is the only other speaker, so she is s1 in both of her turns",
+      "input": [
+        { "speaker": "alice", "text": "how can I contact you?" },
+        { "speaker": "t", "text": "add me on Discord, my username is skyfox_4821" },
+        { "speaker": "alice", "text": "okay, got it" }
+      ],
+      "expected": "Instruct: In the following chat messages from target speaker t and possibly other speakers s1, s2, etc., detect abuse by speaker t.\nQuery:\n\ns1: how can I contact you? </s> t: add me on Discord, my username is skyfox_4821 </s> s1: okay, got it"
+    },
+    {
+      "name": "other speakers are numbered by first appearance, not by name",
+      "why": "s1 and s2 are assigned in order of first appearance and stay stable for the rest of the window",
+      "input": [
+        { "speaker": "zoe", "text": "anyone else on tonight" },
+        { "speaker": "brandon", "text": "im here" },
+        { "speaker": "t", "text": "whats your @ on the app with the ghost" },
+        { "speaker": "zoe", "text": "why do you need it" }
+      ],
+      "expected": "Instruct: In the following chat messages from target speaker t and possibly other speakers s1, s2, etc., detect abuse by speaker t.\nQuery:\n\ns1: anyone else on tonight </s> s2: im here </s> t: whats your @ on the app with the ghost </s> s1: why do you need it"
+    },
+    {
+      "name": "the target speaker can open the window",
+      "why": "t is never renumbered and never becomes s1 even when it speaks first",
+      "input": [
+        { "speaker": "t", "text": "hey" },
+        { "speaker": "mia", "text": "hi" },
+        { "speaker": "t", "text": "add me on snap" }
+      ],
+      "expected": "Instruct: In the following chat messages from target speaker t and possibly other speakers s1, s2, etc., detect abuse by speaker t.\nQuery:\n\nt: hey </s> s1: hi </s> t: add me on snap"
+    },
+    {
+      "name": "text is passed through unchanged",
+      "why": "no lowercasing, no trimming, no normalization. The model saw chat noise in training and Guardian's own normalizer output must not be substituted for the raw turn.",
+      "input": [
+        { "speaker": "t", "text": "  D I S C O R D ?? \ud83d\udc7b  " }
+      ],
+      "expected": "Instruct: In the following chat messages from target speaker t and possibly other speakers s1, s2, etc., detect abuse by speaker t.\nQuery:\n\nt:   D I S C O R D ?? \ud83d\udc7b  "
+    },
+    {
+      "name": "a turn containing the separator is not re-escaped",
+      "why": "the formatter joins, it does not sanitize. Recording the behaviour so a future change is a decision rather than an accident.",
+      "input": [
+        { "speaker": "t", "text": "i typed </s> by accident" }
+      ],
+      "expected": "Instruct: In the following chat messages from target speaker t and possibly other speakers s1, s2, etc., detect abuse by speaker t.\nQuery:\n\nt: i typed </s> by accident"
+    }
+  ]
+}

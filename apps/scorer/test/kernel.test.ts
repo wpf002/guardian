@@ -7,6 +7,9 @@ import { runConversation, type Line } from "./helpers.js";
  * swapping usernames must not reach the review queue.
  */
 
+/** `Line.at` is in minutes, so a day of separation is this many of them. */
+const DAY_MINUTES = 24 * 60;
+
 const groomingLadder: Line[] = [
   { from: "actor", text: "hey nice build in that game", at: 0 },
   { from: "target", text: "thanks lol", at: 1 },
@@ -57,6 +60,19 @@ describe("relationship grooming trajectory", () => {
     expect(run.last?.result.rationale.join(" ")).toContain("probe to migrate");
   });
 
+  // The intimacy-seeking population from EOGP (Webster et al. 2012) walks the
+  // same ladder over weeks. The single 24h window of DESIGN.md 6.2 cannot see
+  // it, which is the recall the second window is there to buy.
+  it("still reaches the review queue when the same ladder is walked over two weeks", async () => {
+    const slowLadder = groomingLadder.map((line, i) => ({ ...line, at: i * 36 * 60 }));
+    const run = await runConversation(slowLadder, {
+      actorBand: "A21_PLUS",
+      targetBand: "A9_12",
+    });
+    expect(run.peakTier).toBe("T2");
+    expect(run.last?.result.rationale.join(" ")).toContain("14 day window");
+  });
+
   it("scores lower when the same words pass between two 14 year olds", async () => {
     const adult = await runConversation(groomingLadder, {
       actorBand: "A21_PLUS",
@@ -86,6 +102,27 @@ describe("controls", () => {
       targetBand: "A13_15",
     });
     expect(run.peakTier).toBe("T0");
+  });
+
+  // The 14 day window (ROADMAP S2) reaches conversations the single 24h window
+  // never saw, so it is also a new way to be wrong. The same teen romance,
+  // stretched over three weeks, must stay exactly where it was: not only out of
+  // the queue, but no higher than the same conversation compressed into an
+  // afternoon, so a drift into 30 day retention caused by the second window
+  // shows up here rather than passing quietly.
+  it("keeps teen romance out of the queue when it is spread across weeks", async () => {
+    const compressed = await runConversation(teenRomance, {
+      actorBand: "A13_15",
+      targetBand: "A13_15",
+    });
+    const overWeeks = teenRomance.map((line, i) => ({ ...line, at: i * 3 * DAY_MINUTES }));
+    const run = await runConversation(overWeeks, {
+      actorBand: "A13_15",
+      targetBand: "A13_15",
+    });
+    expect(run.peakTier).not.toBe("T2");
+    // Tier codes sort, so this reads as "no higher than".
+    expect(run.peakTier <= compressed.peakTier).toBe(true);
   });
 
   it("damps a customer designated moderator without silencing them", async () => {

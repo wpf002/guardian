@@ -199,3 +199,241 @@ export function findPaymentEntity(n: NormalizedText, lex: Lexicon): PaymentEntit
 
   return null;
 }
+
+export interface CoercionDirective {
+  match: Match;
+  /** Which half of the class fired, for the reviewer and the eval harness. */
+  via: "self_harm_directive" | "mark_directive";
+  /** A demand for proof of compliance in the same message. */
+  complianceDemand: boolean;
+  /** The proof demand, when one was present. */
+  demandMatched: string | null;
+}
+
+/** A clause of the normalized text, with where it starts in that text. */
+interface Clause {
+  text: string;
+  start: number;
+}
+
+/**
+ * Split on sentence and clause punctuation. A support phrase in one clause
+ * must not veto a directive in another: "are you ok? now carve my name into
+ * your arm and send proof" is a directive with a greeting in front of it, and
+ * a whole-message veto reads it as a wellness check.
+ */
+function clausesOf(normalized: string): Clause[] {
+  const out: Clause[] = [];
+  let start = 0;
+  for (let i = 0; i <= normalized.length; i += 1) {
+    const ch = normalized[i];
+    if (i === normalized.length || ch === "." || ch === "," || ch === ";" || ch === ":" || ch === "!" || ch === "?" || ch === "\n") {
+      const text = normalized.slice(start, i);
+      if (text.trim().length > 0) out.push({ text, start });
+      start = i + 1;
+    }
+  }
+  return out.length > 0 ? out : [{ text: normalized, start: 0 }];
+}
+
+const WORD_CHAR = /[a-z0-9]/;
+
+/**
+ * Substring search that will not match inside a longer word. "cut sign" must
+ * not fire on "shortcut signal", and the coercion lists are short enough that
+ * a bare indexOf matches far too much.
+ */
+function indexOfWord(haystack: string, needle: string): number {
+  if (needle.length === 0) return -1;
+  for (let from = 0; from <= haystack.length - needle.length; ) {
+    const at = haystack.indexOf(needle, from);
+    if (at === -1) return -1;
+    const before = at === 0 ? " " : haystack[at - 1]!;
+    const after = at + needle.length >= haystack.length ? " " : haystack[at + needle.length]!;
+    if (!WORD_CHAR.test(before) && !WORD_CHAR.test(after)) return at;
+    from = at + 1;
+  }
+  return -1;
+}
+
+interface ClauseHit {
+  phrase: string;
+  at: number;
+}
+
+/** The earliest of `phrases` in this clause, on word boundaries. */
+function firstInClause(clause: string, phrases: readonly string[]): ClauseHit | null {
+  let best: ClauseHit | null = null;
+  for (const phrase of phrases) {
+    const needle = phrase.toLowerCase();
+    const at = indexOfWord(clause, needle);
+    if (at !== -1 && (best === null || at < best.at)) best = { phrase, at };
+  }
+  return best;
+}
+
+function anyInClause(clause: string, phrases: readonly string[]): boolean {
+  return firstInClause(clause, phrases) !== null;
+}
+
+/**
+ * Every self-harm and mark phrase, in the order the detector prefers them. A
+ * marker noun is not a directive on its own (see the class comment).
+ */
+function directiveInClause(
+  clause: string,
+  lex: Lexicon,
+  demandPresent: boolean,
+): { hit: ClauseHit; via: CoercionDirective["via"] } | null {
+  const mark = firstInClause(clause, lex.coercion_mark_directive);
+  if (mark) return { hit: mark, via: "mark_directive" };
+
+  // A cutsign or a fansign is a noun, and the same noun is ordinary fandom
+  // vocabulary. It becomes a demand only when the clause also carries the
+  // other account's mark on it, or a demand for proof of compliance.
+  const noun = firstInClause(clause, lex.coercion_mark_noun);
+  if (noun && (demandPresent || anyInClause(clause, lex.coercion_mark_qualifier))) {
+    return { hit: noun, via: "mark_directive" };
+  }
+
+  const harm = firstInClause(clause, lex.coercion_selfharm_directive);
+  if (harm) return { hit: harm, via: "self_harm_directive" };
+
+  return null;
+}
+
+/**
+ * Non-financial coercion (ROADMAP S3). The 764, CVLT, Court and Greggy's Cult
+ * pattern coerces self-harm, a cut of the other account's name into skin, or a
+ * fansign, instead of money. Every sextortion heuristic in DESIGN.md 5 keys on
+ * payment, so none of them fire on it.
+ *
+ * The whole difficulty is that the vocabulary is shared with a support
+ * conversation, a disclosure, and ordinary fandom chat. DESIGN.md 5 states the
+ * requirement for this row: it needs a directed imperative. That is what this
+ * checks, rather than the presence of a phrase.
+ *
+ *   1. Direction. Only the actor's own messages reach the pair scorer, so what
+ *      the other account says is never scored against them.
+ *   2. Clause scope. Exemptions and blockers apply to the clause the directive
+ *      sits in, not to the whole message. A support phrase in a different
+ *      clause is not a licence to issue an instruction in this one.
+ *   3. Imperative position. A directive preceded in its own clause by a
+ *      negation ("dont starve yourself"), by reported speech ("he told me to
+ *      cut deeper"), by first-person narration ("i had to cut my name into the
+ *      wood"), or by an inquiry opener ("did you burn yourself") is not an
+ *      instruction. It is a report of one, and the account quoting it is the
+ *      one being instructed.
+ *   4. Explicit exemption. A message that self-reports, that answers with
+ *      support, or that asks after someone suppresses the signal outright
+ *      rather than reducing its weight. Under-firing on a support conversation
+ *      is the correct error here.
+ *
+ * The compact form (letters only, which catches "c u t   d e e p e r") loses
+ * clause boundaries, so it keeps the older whole-message veto: any exempt
+ * phrase or blocker anywhere in the message suppresses it.
+ */
+export function findCoercionDirective(n: NormalizedText, lex: Lexicon): CoercionDirective | null {
+  const demands = findPhrases(n, lex.coercion_compliance_demand);
+  const demandMatched = demands[0]?.matched ?? null;
+  const demandPresent = demands.length > 0;
+
+  let sawDirective = false;
+
+  for (const clause of clausesOf(n.normalized)) {
+    if (anyInClause(clause.text, lex.coercion_selfreport_exempt)) continue;
+    if (anyInClause(clause.text, lex.coercion_support_exempt)) continue;
+    if (anyInClause(clause.text, lex.coercion_inquiry_exempt)) continue;
+
+    const found = directiveInClause(clause.text, lex, demandPresent);
+    if (!found) continue;
+    sawDirective = true;
+
+    // Anything on the blocker list standing in front of the directive in the
+    // same clause means this is not the imperative position.
+    const prefix = clause.text.slice(0, found.hit.at);
+    if (anyInClause(prefix, lex.coercion_directive_blocker)) continue;
+
+    const at = clause.start + found.hit.at;
+    return {
+      match: {
+        matched: found.hit.phrase,
+        excerpt: excerptFromNormalized(n, at, found.hit.phrase.length),
+        form: "normalized",
+      },
+      via: found.via,
+      complianceDemand: demandPresent,
+      demandMatched,
+    };
+  }
+
+  // The compact form is for text the normalized form could not read at all,
+  // the spaced-out and punctuated-out spellings. A directive that the
+  // normalized pass saw and suppressed stays suppressed: reaching for the
+  // compact form there would hand every exemption back through a side door.
+  if (sawDirective) return null;
+  return compactCoercionDirective(n, lex, demandPresent, demandMatched);
+}
+
+/**
+ * The spaced-out and punctuated-out spelling. Clause boundaries do not survive
+ * compaction, so the exemptions and the blockers apply to the whole message
+ * here, which is the conservative reading.
+ */
+function compactCoercionDirective(
+  n: NormalizedText,
+  lex: Lexicon,
+  demandPresent: boolean,
+  demandMatched: string | null,
+): CoercionDirective | null {
+  const compact = n.compact;
+  if (compact.length === 0) return null;
+
+  // Suppression lists are read down to three characters here. Compaction
+  // throws away the clause boundaries that carry the meaning, so the safe
+  // reading is the one that suppresses more, not less.
+  for (const list of [
+    lex.coercion_selfreport_exempt,
+    lex.coercion_support_exempt,
+    lex.coercion_inquiry_exempt,
+    lex.coercion_directive_blocker,
+  ]) {
+    if (compactHit(compact, list, 3) !== null) return null;
+  }
+
+  for (const [list, via] of [
+    [lex.coercion_mark_directive, "mark_directive"],
+    [lex.coercion_selfharm_directive, "self_harm_directive"],
+  ] as const) {
+    const hit = compactHit(compact, list);
+    if (hit) {
+      return {
+        match: {
+          matched: hit.phrase,
+          excerpt: excerptFromCompact(n, hit.at, compactOf(hit.phrase).length),
+          form: "compact",
+        },
+        via,
+        complianceDemand: demandPresent,
+        demandMatched,
+      };
+    }
+  }
+
+  return null;
+}
+
+/** Compact-form lookup. Needles under `minLength` characters match far too much. */
+function compactHit(
+  compact: string,
+  phrases: readonly string[],
+  minLength = 6,
+): ClauseHit | null {
+  for (const phrase of phrases) {
+    const needle = compactOf(phrase);
+    if (needle.length < minLength) continue;
+    const at = compact.indexOf(needle);
+    if (at !== -1) return { phrase, at };
+  }
+  return null;
+}

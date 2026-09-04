@@ -40,14 +40,34 @@ export const DEFAULT_PAIR_WEIGHTS: PairWeights = {
 
 export interface PairConfig {
   weights?: Partial<PairWeights>;
-  /** Trailing window for the velocity term. */
+  /**
+   * "dual" computes the fast and the slow window and takes the stronger.
+   * "single" keeps the original DESIGN.md 6.2 behaviour on `velocityWindowMs`.
+   */
+  velocityMode?: "dual" | "single";
+  /** Trailing window for the single-window velocity term (DESIGN.md 6.2). */
   velocityWindowMs?: number;
+  /** Sprint window. The hyper-sexualised population escalates inside it. */
+  fastWindowMs?: number;
+  /** Campaign window. The intimacy-seeking population takes weeks. */
+  slowWindowMs?: number;
   /** How long after a media event a payment demand still counts as the join. */
   paymentJoinMs?: number;
 }
 
+/**
+ * Two velocity windows (ROADMAP S2). DESIGN.md 6.2 uses one 24h window, which
+ * misses one of the two populations by construction. The European Online
+ * Grooming Project (Webster et al. 2012, n=33) splits hyper-sexualised
+ * offenders who escalate in under 4h from intimacy-seeking offenders who take
+ * weeks, and Thorn 2025 found 30% of sextortion demands land within 24h of
+ * contact, which means 70% do not. The 24h window is kept and configurable so
+ * the old behaviour is still reproducible for a score row that recorded it.
+ */
 export const DEFAULT_PAIR_CONFIG = {
   velocityWindowMs: 24 * 60 * 60 * 1000,
+  fastWindowMs: 4 * 60 * 60 * 1000,
+  slowWindowMs: 14 * 24 * 60 * 60 * 1000,
   paymentJoinMs: 60 * 60 * 1000,
 } as const;
 
@@ -107,6 +127,10 @@ export function emptyPairState(actorBand: AgeBand, targetBand: AgeBand): PairSta
   };
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+/** Span floor for the 14 day window, in the shared stages-per-hour unit. */
+const SLOW_SPAN_FLOOR_HOURS = 24;
+
 const MAX_STORED_SIGNALS = 200;
 /** Replay window in messages. A retry arrives within seconds, not hundreds of messages later. */
 export const MAX_RECENT_EXTERNAL_IDS = 200;
@@ -124,6 +148,22 @@ export interface PairScoreComponents {
   economic: number;
 }
 
+/**
+ * Which of the two windows carried the velocity term, so a reviewer can see
+ * whether this was a sprint or a campaign rather than a bare number.
+ */
+export interface VelocityDetail {
+  fast: number;
+  slow: number;
+  /** The original single 24h window, always computed for comparability. */
+  standard: number;
+  /** The window the score used, or null when neither window scored. */
+  window: "fast" | "slow" | "standard" | null;
+  fastWindowMs: number;
+  slowWindowMs: number;
+  standardWindowMs: number;
+}
+
 export interface PairScoreResult {
   score: number;
   components: PairScoreComponents;
@@ -132,6 +172,13 @@ export interface PairScoreResult {
   signals: SignalHit[];
   /** True when the ladder was walked in order, which is the T2 gate. */
   hasProgressionPattern: boolean;
+  velocityDetail: VelocityDetail;
+  /**
+   * Carried through so fusion can pick a posture without the kernel having to
+   * thread bands separately (ROADMAP S4).
+   */
+  actorBand: AgeBand;
+  targetBand: AgeBand;
   rationale: string[];
 }
 
@@ -170,6 +217,8 @@ export function applyMessage(state: PairState, msg: PairMessage): PairState {
         weight: 3.0,
         matched: `operator verdict on ${msg.media.sha256.slice(0, 12)}`,
         eventExternalId: msg.externalId,
+        // The kernel never reads material. Only a reviewer action sets this.
+        viewedByHuman: false,
         ts: msg.ts,
       });
     }
@@ -193,6 +242,7 @@ export function applyMessage(state: PairState, msg: PairMessage): PairState {
       excerpt: detection.excerpt.slice(0, 280),
       matched: detection.matched.slice(0, 280),
       eventExternalId: msg.externalId,
+      viewedByHuman: false,
       ts: msg.ts,
     });
 
@@ -216,6 +266,7 @@ export function applyMessage(state: PairState, msg: PairMessage): PairState {
         excerpt: paymentHit.excerpt.slice(0, 280),
         matched: `payment entity ${Math.round(gapMs / 60000)} min after inbound media`,
         eventExternalId: msg.externalId,
+        viewedByHuman: false,
         ts: msg.ts,
       });
       next.firstStageAt.coerce ??= ts;
@@ -294,6 +345,16 @@ function gate(d: Detection, state: PairState): { kind: SignalKind; weight: numbe
       // Scripts are reused verbatim and almost never appear innocently.
       break;
 
+    case "coercion_nonfinancial":
+      // Deliberately not gated on the age gap. Patchin and Hinduja (n=5,568)
+      // and Thorn 2025 both find a large share of these accounts are minors
+      // themselves, so damping on a missing gap would suppress the pattern
+      // exactly where it is most common. The false-positive control is the
+      // phrase gating in findCoercionDirective, not a multiplier here. What
+      // does raise it is a demand for proof of compliance in the same message.
+      if (d.meta?.compliance_demand === true) weight *= 1.2;
+      break;
+
     default:
       break;
   }
@@ -318,6 +379,10 @@ export function criticalSignalsFor(state: PairState): SignalKind[] {
       case "threat_template":
       case "payment_after_media":
       case "known_csam_hash":
+      // Forces a review the way a payment demand does. The demand is
+      // compliance rather than money, so the payment join never sees it
+      // (ROADMAP S3).
+      case "coercion_nonfinancial":
         out.add(s.kind);
         break;
       case "meetup_logistics":
@@ -332,11 +397,21 @@ export function criticalSignalsFor(state: PairState): SignalKind[] {
 
 export function scorePair(state: PairState, config: PairConfig = {}): PairScoreResult {
   const w = { ...DEFAULT_PAIR_WEIGHTS, ...(config.weights ?? {}) };
-  const velocityWindowMs = config.velocityWindowMs ?? DEFAULT_PAIR_CONFIG.velocityWindowMs;
+  const mode = config.velocityMode ?? "dual";
+  const standardWindowMs = config.velocityWindowMs ?? DEFAULT_PAIR_CONFIG.velocityWindowMs;
+  const fastWindowMs = config.fastWindowMs ?? DEFAULT_PAIR_CONFIG.fastWindowMs;
+  const slowWindowMs = config.slowWindowMs ?? DEFAULT_PAIR_CONFIG.slowWindowMs;
 
   const ordered = orderedStages(state);
   const prog = progression(ordered);
-  const vel = velocity(state, ordered, velocityWindowMs);
+
+  const velocityDetail = velocityWindows(state, ordered, {
+    mode,
+    fastWindowMs,
+    slowWindowMs,
+    standardWindowMs,
+  });
+  const vel = chosenVelocity(velocityDetail);
   const asym = asymmetry(state);
   const gapTerm = ageGapMultiplier(state.actorBand, state.targetBand);
   const econ = economicTerm(state);
@@ -359,8 +434,8 @@ export function scorePair(state: PairState, config: PairConfig = {}): PairScoreR
   if (prog.transitions.length > 0) {
     rationale.push(`Stage progression observed: ${prog.transitions.join(", ")}.`);
   }
-  if (vel > 0.5) {
-    rationale.push(`Multiple stages reached within ${Math.round(velocityWindowMs / 3600000)}h.`);
+  if (velocityDetail.window !== null && vel > VELOCITY_RATIONALE_FLOOR[velocityDetail.window]) {
+    rationale.push(velocitySentence(velocityDetail));
   }
   if (asym > 0.5) {
     rationale.push(
@@ -376,8 +451,105 @@ export function scorePair(state: PairState, config: PairConfig = {}): PairScoreR
     criticalSignals: criticalSignalsFor(state),
     signals: state.signals,
     hasProgressionPattern: prog.weightedTransitions > 0 || prog.transitions.length >= 2,
+    velocityDetail,
+    actorBand: state.actorBand,
+    targetBand: state.targetBand,
     rationale,
   };
+}
+
+/**
+ * How large the term has to be before it is worth a sentence in front of a
+ * reviewer. The slow window's floor is lower because its rate is per day, so
+ * the same walk of the ladder produces a smaller number by construction.
+ */
+const VELOCITY_RATIONALE_FLOOR: Record<"fast" | "slow" | "standard", number> = {
+  fast: 0.5,
+  standard: 0.5,
+  // A campaign is slow by definition, so its rate is small in the shared unit.
+  // The sentence is worth printing for the window it names, not its magnitude.
+  slow: 0,
+};
+
+interface VelocityWindowOptions {
+  mode: "dual" | "single";
+  fastWindowMs: number;
+  slowWindowMs: number;
+  standardWindowMs: number;
+}
+
+function velocityWindows(
+  state: PairState,
+  ordered: OrderedStage[],
+  opts: VelocityWindowOptions,
+): VelocityDetail {
+  const standard = velocity(state, ordered, opts.standardWindowMs);
+
+  if (opts.mode === "single") {
+    return {
+      fast: 0,
+      slow: 0,
+      standard,
+      window: standard > 0 ? "standard" : null,
+      fastWindowMs: opts.fastWindowMs,
+      slowWindowMs: opts.slowWindowMs,
+      standardWindowMs: opts.standardWindowMs,
+    };
+  }
+
+  const fast = velocity(state, ordered, opts.fastWindowMs);
+  // Every window is read in the same unit, stages per hour. log1p is not scale
+  // invariant, so a rate expressed per day and a rate expressed per hour are
+  // not comparable numbers: the coarser unit wins by construction for any span
+  // over about an hour, which made the fourteen day frame the velocity term for
+  // almost every pair. The slow window's floor is a whole day instead, in the
+  // shared unit, because a rate cannot be extrapolated from a span far shorter
+  // than the window measuring it.
+  const slow = velocity(state, ordered, opts.slowWindowMs, HOUR_MS, SLOW_SPAN_FLOOR_HOURS);
+
+  // Which window the stages actually fall inside, not which number came out
+  // bigger. Rates measured against different units are not comparable: any
+  // speed measure ranks the coarser frame higher, so picking by magnitude
+  // would label every sprint a campaign. The fast window is a strict subset of
+  // the slow one, so it is tested first and a conversation that walked the
+  // ladder inside it is a sprint whatever the arithmetic says.
+  let window: VelocityDetail["window"] = null;
+  if (countInWindow(state, ordered, opts.fastWindowMs) >= 2) window = "fast";
+  else if (countInWindow(state, ordered, opts.slowWindowMs) >= 2) window = "slow";
+  else if (standard > 0) window = "standard";
+
+  return {
+    fast,
+    slow,
+    standard,
+    window,
+    fastWindowMs: opts.fastWindowMs,
+    slowWindowMs: opts.slowWindowMs,
+    standardWindowMs: opts.standardWindowMs,
+  };
+}
+
+/**
+ * Take the stronger of the terms once a window has fired. All three are stages
+ * per hour, so the comparison is between like readings of the same stage times.
+ * Keeping the single 24h term in the maximum is what guarantees no conversation
+ * scores lower than it did before the second window existed.
+ */
+function chosenVelocity(detail: VelocityDetail): number {
+  if (detail.window === null) return 0;
+  return Math.max(detail.fast, detail.slow, detail.standard);
+}
+
+function velocitySentence(detail: VelocityDetail): string {
+  const hours = (ms: number) => Math.round(ms / 3600000);
+  const days = (ms: number) => Math.round(ms / (24 * 3600000));
+  if (detail.window === "fast") {
+    return `Multiple stages reached within ${hours(detail.fastWindowMs)}h, the fast window.`;
+  }
+  if (detail.window === "slow") {
+    return `Stages accumulated across the ${days(detail.slowWindowMs)} day window rather than in a single session.`;
+  }
+  return `Multiple stages reached within ${hours(detail.standardWindowMs)}h.`;
 }
 
 interface OrderedStage {
@@ -424,20 +596,50 @@ function progression(ordered: OrderedStage[]): {
   return { value, transitions, weightedTransitions };
 }
 
-/** How fast. DHS notes the whole sequence can compress into minutes. */
-function velocity(state: PairState, ordered: OrderedStage[], windowMs: number): number {
-  if (ordered.length < 2) return 0;
-  const end = new Date(state.lastSeenAt ?? ordered[ordered.length - 1]!.at).getTime();
-  const inWindow = ordered.filter((s) => end - s.at <= windowMs);
+/**
+ * How fast. DHS notes the whole sequence can compress into minutes.
+ *
+ * `unitMs` is the reference unit the rate is expressed in. Every window uses
+ * stages per hour, which is the DESIGN.md 6.2 behaviour, so that the three
+ * readings can be compared to each other at all.
+ *
+ * `minUnits` is the floor on the denominator, in the same unit. It stops a rate
+ * being extrapolated from a span far shorter than the window measuring it:
+ * three stages in ninety minutes is not a fourteen day campaign rate.
+ */
+function velocity(
+  state: PairState,
+  ordered: OrderedStage[],
+  windowMs: number,
+  unitMs = 3600000,
+  minUnits = 1 / 60,
+): number {
+  const inWindow = stagesInWindow(state, ordered, windowMs);
   if (inWindow.length < 2) return 0;
 
   const span = inWindow[inWindow.length - 1]!.at - inWindow[0]!.at;
   const stages = inWindow.length;
 
   // Same number of stages in an hour is worth more than in a day.
-  const hours = Math.max(span / 3600000, 1 / 60);
-  const rate = (stages - 1) / hours;
+  const units = Math.max(span / unitMs, minUnits);
+  const rate = (stages - 1) / units;
   return clamp(Math.log1p(rate) * 1.5, 0, 4);
+}
+
+/** The stages whose first hit falls inside `windowMs` of the pair's last activity. */
+function stagesInWindow(
+  state: PairState,
+  ordered: OrderedStage[],
+  windowMs: number,
+): OrderedStage[] {
+  if (ordered.length < 2) return [];
+  const end = new Date(state.lastSeenAt ?? ordered[ordered.length - 1]!.at).getTime();
+  return ordered.filter((s) => end - s.at <= windowMs);
+}
+
+/** How many stages a window can see. The window label turns on this, not on a rate. */
+function countInWindow(state: PairState, ordered: OrderedStage[], windowMs: number): number {
+  return stagesInWindow(state, ordered, windowMs).length;
 }
 
 function initiatorRatio(state: PairState): number {

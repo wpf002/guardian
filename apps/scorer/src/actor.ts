@@ -1,4 +1,4 @@
-import { isMinorBand, type ActorScore, type AgeBand } from "@guardian/schema";
+import { bandGap, isMinorBand, type ActorScore, type AgeBand } from "@guardian/schema";
 
 /**
  * Per-actor skew and graph features (DESIGN.md 5, 6.3).
@@ -29,7 +29,29 @@ export interface ActorState {
   hints: string[];
   outboundBurstMax1h: number;
   recentOutboundTs: string[];
+  /**
+   * The inbound half of the same graph (ROADMAP S1). One entry per distinct
+   * source that has opened a conversation with this account, carrying the most
+   * recent contact time. Optional so a row written before this field existed
+   * still hydrates; treat undefined as empty.
+   */
+  inbound?: InboundContact[];
 }
+
+/**
+ * One distinct account that has contacted this one. A type alias rather than
+ * an interface on purpose: this lands in a Prisma json column, and Prisma's
+ * InputJsonValue only accepts types that carry an implicit index signature.
+ */
+export type InboundContact = {
+  uid: string;
+  /** Most recent contact from this source, ISO. */
+  ts: string;
+  /** True when the source's band is above this account's band. */
+  older: boolean;
+  /** Sticky. True once any message from this source carried a detector hit. */
+  flagged: boolean;
+};
 
 export function emptyActorState(actorBand: AgeBand): ActorState {
   return {
@@ -44,6 +66,7 @@ export function emptyActorState(actorBand: AgeBand): ActorState {
     hints: [],
     outboundBurstMax1h: 0,
     recentOutboundTs: [],
+    inbound: [],
   };
 }
 
@@ -132,6 +155,184 @@ export function fanOut(state: ActorState, days: number, now: Date, minorsOnly = 
     for (const uid of uids) seen.add(uid);
   }
   return seen.size;
+}
+
+/** Cap on stored inbound sources. A convergence is tens of accounts, not thousands. */
+const MAX_INBOUND_SOURCES = 1000;
+
+export interface InboundObservation {
+  ts: Date;
+  /** Hashed uid of the account that sent to this one. */
+  sourceUid: string;
+  sourceBand: AgeBand;
+  /** True when that message carried a detector hit. */
+  flagged: boolean;
+}
+
+/**
+ * Record the inbound half of the graph on the receiving account's state
+ * (ROADMAP S1). The kernel already calls `observeActor` for the sender; this is
+ * the same event seen from the other end, and it is what makes fan-IN
+ * computable without a second graph.
+ */
+export function observeInbound(state: ActorState, obs: InboundObservation): ActorState {
+  if (!obs.sourceUid) return state;
+
+  const gap = bandGap(obs.sourceBand, state.actorBand);
+  const older = gap !== null && gap > 0;
+  const existing = state.inbound ?? [];
+  const at = existing.findIndex((c) => c.uid === obs.sourceUid);
+
+  const inbound = [...existing];
+  if (at === -1) {
+    if (inbound.length >= MAX_INBOUND_SOURCES) return { ...state, inbound };
+    inbound.push({
+      uid: obs.sourceUid,
+      ts: obs.ts.toISOString(),
+      older,
+      flagged: obs.flagged,
+    });
+  } else {
+    const prev = inbound[at]!;
+    inbound[at] = {
+      uid: prev.uid,
+      ts: obs.ts.toISOString() > prev.ts ? obs.ts.toISOString() : prev.ts,
+      // Bands get filled in later by the customer, so once a source is known to
+      // be older it stays older.
+      older: prev.older || older,
+      flagged: prev.flagged || obs.flagged,
+    };
+  }
+
+  const cutoff = obs.ts.getTime() - MAX_DAYS * DAY_MS;
+  return { ...state, inbound: inbound.filter((c) => new Date(c.ts).getTime() >= cutoff) };
+}
+
+export interface FanInOptions {
+  /** Trailing window. Convergence is about the window, not the lifetime. */
+  windowMs?: number;
+  /** How many converging older-band accounts before the pattern is called. */
+  minSources?: number;
+  /**
+   * An inbound source to leave out of every count. The caller passes the
+   * account it is scoring, so the threshold counts the accounts around the
+   * pair rather than including the pair itself.
+   */
+  excludeUid?: string;
+  now?: Date;
+}
+
+export const DEFAULT_FANIN = {
+  windowMs: 7 * DAY_MS,
+  minSources: 3,
+} as const;
+
+/** Distinct accounts that contacted this one inside the window. */
+export function fanIn(
+  state: ActorState,
+  windowMs: number,
+  now: Date,
+  filter: { olderOnly?: boolean; flaggedOnly?: boolean; excludeUid?: string } = {},
+): number {
+  const cutoff = now.getTime() - windowMs;
+  let count = 0;
+  for (const contact of state.inbound ?? []) {
+    if (new Date(contact.ts).getTime() < cutoff) continue;
+    if (filter.excludeUid !== undefined && contact.uid === filter.excludeUid) continue;
+    if (filter.olderOnly && !contact.older) continue;
+    if (filter.flaggedOnly && !contact.flagged) continue;
+    count += 1;
+  }
+  return count;
+}
+
+export interface FanInSignal {
+  /** Every distinct account that contacted this one in the window. */
+  distinctSources: number;
+  /** Of those, the ones in an older band. */
+  distinctOlderSources: number;
+  /** Of those, the ones whose messages carried a detector hit. */
+  convergingSources: number;
+  windowMs: number;
+  minSources: number;
+  /** True when the guarded pattern is present. */
+  converging: boolean;
+  /** Multiplier on the pair score. 1.0 when the pattern is absent. */
+  multiplier: number;
+  rationale: string[];
+}
+
+export const NO_FANIN: FanInSignal = {
+  distinctSources: 0,
+  distinctOlderSources: 0,
+  convergingSources: 0,
+  windowMs: DEFAULT_FANIN.windowMs,
+  minSources: DEFAULT_FANIN.minSources,
+  converging: false,
+  multiplier: 1,
+  rationale: [],
+};
+
+/**
+ * Fan-IN inversion (ROADMAP S1). The kernel computes fan-out, one account to
+ * many targets. This is the same graph read from the other end: many distinct
+ * accounts converging on one account in a minor band inside a window. Greggy's
+ * Cult (EDNY, indicted December 2025) was five defendants against one victim
+ * set and ran a year undetected, because no single pair looks unusual and pair
+ * scoring alone understates it.
+ *
+ * Three guards, because a popular streamer receives many contacts too:
+ *
+ *   1. The receiving account must be in a minor band.
+ *   2. The converging accounts must be in older bands.
+ *   3. Their messages must have carried a signal that survived gating at full
+ *      strength. A fan base sends benign messages, and a game community sends
+ *      giveaway offers and handle swaps all day; a damped or mid-weight hit is
+ *      what that traffic looks like, so it does not count.
+ *
+ * The account being scored is excluded from the counts by its caller, so the
+ * minimum is that many *other* accounts.
+ *
+ * The output is a multiplier on existing pair signal, never a tier driver of
+ * its own. A pair with no behavioural signal multiplies to nothing.
+ */
+export function scoreFanIn(state: ActorState, opts: FanInOptions = {}): FanInSignal {
+  const now = opts.now ?? new Date();
+  const windowMs = opts.windowMs ?? DEFAULT_FANIN.windowMs;
+  const minSources = opts.minSources ?? DEFAULT_FANIN.minSources;
+
+  const excludeUid = opts.excludeUid;
+  const distinctSources = fanIn(state, windowMs, now, { excludeUid });
+  const distinctOlderSources = fanIn(state, windowMs, now, { olderOnly: true, excludeUid });
+  const convergingSources = fanIn(state, windowMs, now, {
+    olderOnly: true,
+    flaggedOnly: true,
+    excludeUid,
+  });
+
+  const base: FanInSignal = {
+    distinctSources,
+    distinctOlderSources,
+    convergingSources,
+    windowMs,
+    minSources,
+    converging: false,
+    multiplier: 1,
+    rationale: [],
+  };
+
+  if (!isMinorBand(state.actorBand)) return base;
+  if (convergingSources < minSources) return base;
+
+  const days = Math.round(windowMs / DAY_MS);
+  return {
+    ...base,
+    converging: true,
+    multiplier: Number(Math.min(1.6, 1 + 0.15 * (convergingSources - minSources + 1)).toFixed(3)),
+    rationale: [
+      `${convergingSources} separate accounts in older age bands opened conversations carrying flagged patterns with this younger account in ${days} days.`,
+    ],
+  };
 }
 
 /**

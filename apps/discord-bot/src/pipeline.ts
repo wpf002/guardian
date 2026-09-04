@@ -18,7 +18,7 @@ import {
 import { decideAction, type BotAction } from "./actions.js";
 import { buildModAlert } from "./alerts.js";
 import type { GuildConfig } from "./config.js";
-import { toEvent, type DiscordMessageLike } from "./mapping.js";
+import { toEvent, type DiscordMessageLike, type MemberBand } from "./mapping.js";
 
 /**
  * The bot's own pipeline: map, minimize, score, decide, and keep just enough
@@ -74,7 +74,7 @@ export class BotPipeline {
   async handle(
     msg: DiscordMessageLike,
     config: GuildConfig,
-    memberBands: (userId: string) => AgeBand,
+    memberBands: (userId: string) => MemberBand,
     now = new Date(),
   ): Promise<HandleResult> {
     const mapped = toEvent(msg, config, memberBands, now);
@@ -120,7 +120,10 @@ export class BotPipeline {
       signals: scored.detections.map((d) => d.kind),
     });
 
-    const action = decideAction(tier, config);
+    // ROADMAP S4. The posture decides whether friction is applied at all and
+    // whether the card carries the removal route, so both consumers read it.
+    const posture = scored.result.suggestedPosture ?? "enforcement";
+    const action = decideAction(tier, config, posture);
     const alert =
       action.kind === "none"
         ? null
@@ -132,6 +135,8 @@ export class BotPipeline {
             rationale: scored.result.rationale,
             criticalSignals: scored.result.criticalSignals,
             stagesHit: scored.result.pair.stagesHit,
+            posture,
+            supportReferral: scored.result.supportReferral ?? null,
           });
 
     if (action.kind !== "none") {
@@ -146,6 +151,7 @@ export class BotPipeline {
           criticalSignals: scored.result.criticalSignals,
           versions: scored.result.versions,
           action: action.kind,
+          suggestedPosture: posture,
         },
       });
     }

@@ -36,3 +36,25 @@ def test_there_is_no_endpoint_that_accepts_bytes():
     schema = app.openapi()["components"]["schemas"]["ScoreIn"]["properties"]
     for field in schema:
         assert field not in {"image", "bytes", "media", "attachment", "url"}
+
+
+def test_score_accepts_conversational_history_for_the_pii_contract():
+    body = client.post(
+        "/score",
+        json={
+            "text": "add me on snapchat",
+            "history": [
+                {"speaker": "kai", "text": "how do i reach you outside here"},
+                {"speaker": "t", "text": "not on this app"},
+            ],
+        },
+    ).json()
+    assert body["pii_migration"] > 0
+    # No weights in CI, so the rule fallback answers and names itself.
+    assert body["pii_source"] == "rule"
+    assert body["pii_labels"] == {}
+
+
+def test_history_turns_carry_no_media_fields():
+    schema = app.openapi()["components"]["schemas"]["TurnIn"]["properties"]
+    assert set(schema) == {"speaker", "text"}

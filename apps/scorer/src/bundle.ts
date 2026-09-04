@@ -65,6 +65,9 @@ export function buildEvidenceBundle(input: BuildBundleInput): EvidenceBundle {
         knownCsamVerdict: row.knownCsamVerdict,
         stage: row.stage,
         signals: row.signals,
+        // A bundle the kernel just generated has been read by nobody. Only a
+        // reviewer action in apps/review may flip this to true.
+        viewedByHuman: false,
       })),
     signals: input.signals,
     versions: input.versions,

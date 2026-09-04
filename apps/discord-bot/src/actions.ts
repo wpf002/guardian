@@ -1,4 +1,4 @@
-import type { Tier } from "@guardian/schema";
+import type { SuggestedPosture, Tier } from "@guardian/schema";
 import type { GuildConfig } from "./config.js";
 
 /**
@@ -20,7 +20,18 @@ export const FORBIDDEN_ACTIONS = [
   "publish anything outside the server",
 ] as const;
 
-export function decideAction(tier: Tier, config: GuildConfig): BotAction {
+/**
+ * The posture is a routing decision, not a severity one (ROADMAP S4). Under
+ * "support" the account this tier describes is itself in a minor band, so an
+ * automatic timeout would land on the child the referral is written for. The
+ * alert still goes to the mod channel, and a human still looks. What the
+ * posture removes is the enforcement action taken before they do.
+ */
+export function decideAction(
+  tier: Tier,
+  config: GuildConfig,
+  posture: SuggestedPosture = "enforcement",
+): BotAction {
   if (config.modChannelId === null) return { kind: "none" };
 
   switch (tier) {
@@ -31,7 +42,7 @@ export function decideAction(tier: Tier, config: GuildConfig): BotAction {
       return { kind: "none" };
     case "T2":
     case "T3":
-      return config.autoTimeoutOnT2
+      return config.autoTimeoutOnT2 && posture !== "support"
         ? {
             kind: "alert_and_timeout",
             channelId: config.modChannelId,

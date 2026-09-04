@@ -9,11 +9,12 @@ import {
   type SignalHit,
   type SignalKind,
   type Stage,
+  type SuggestedPosture,
   type Tier,
   type TierResult,
 } from "@guardian/schema";
 import type { PrismaClient } from "@guardian/schema/db";
-import type { ActorState } from "./actor.js";
+import type { ActorState, InboundContact } from "./actor.js";
 import type { PairState } from "./pair.js";
 import type { KernelStore } from "./store.js";
 
@@ -34,7 +35,8 @@ import type { KernelStore } from "./store.js";
  *   role, accountAgeHours, hints        -> same names
  *   firstSeenAt, lastSeenAt             -> firstSeen, lastSeen (null leaves the column default)
  *   daily, contactsByDay, minorContactsByDay,
- *   recentOutboundTs, outboundBurstMax1h -> graphState (json)
+ *   recentOutboundTs, outboundBurstMax1h,
+ *   inbound                              -> graphState (json)
  *
  * Every write sets customerId and a retention class (CLAUDE.md rule 7). State
  * writes use WATCH_30D with an expiry 30 days from the write. Retention only
@@ -82,6 +84,12 @@ export type StoredSignal = {
   matched?: string;
   eventExternalId?: string;
   ts: string;
+  /**
+   * Set only by a reviewer action. Absent on a row written before the field
+   * existed, and signalHitSchema fills those back as false, which is the
+   * honest answer: nobody is on record as having read it.
+   */
+  viewedByHuman?: boolean;
 };
 
 /** Shape of the actors.graphState json column. */
@@ -91,6 +99,11 @@ export type GraphState = {
   minorContactsByDay: Record<string, string[]>;
   recentOutboundTs: string[];
   outboundBurstMax1h: number;
+  /**
+   * The inbound half of the graph (ROADMAP S1). Absent on a row written before
+   * the field existed, which hydrates as an empty list.
+   */
+  inbound?: InboundContact[];
 };
 
 /** The columns this store reads back from pairs. */
@@ -141,6 +154,10 @@ type PairScoreColumns = {
   fusedScore?: number;
   tier?: Tier;
   criticalSignals?: SignalKind[];
+  /** Article 5(1)(d) evidence, computed by isActorScoreSoleBasis in fusion. */
+  soleAutomatedBasis?: boolean;
+  /** Enforcement or support, as fusion emitted it (ROADMAP S4). */
+  suggestedPosture?: SuggestedPosture | null;
   modelVersion?: string;
   lexiconVersion?: string;
   fusionVersion?: string;
@@ -318,6 +335,11 @@ export class PrismaKernelStore implements KernelStore {
       fusedScore: result.fusedScore,
       tier: result.tier,
       criticalSignals: [...result.criticalSignals],
+      soleAutomatedBasis: result.soleAutomatedBasis,
+      // ROADMAP S4. Without this the posture dies with the request and the
+      // reviewer queue has no way to recompute it: the bands it derives from
+      // are on the event, not on the pair.
+      suggestedPosture: result.suggestedPosture ?? null,
       windowStart: new Date(result.pair.windowStart),
       windowEnd: new Date(result.pair.windowEnd),
       modelVersion: result.versions.modelVersion,
@@ -459,6 +481,7 @@ function actorColumns(state: ActorState): ActorStateColumns {
       minorContactsByDay: { ...state.minorContactsByDay },
       recentOutboundTs: [...state.recentOutboundTs],
       outboundBurstMax1h: state.outboundBurstMax1h,
+      inbound: [...(state.inbound ?? [])],
     },
   };
   const firstSeen = toDate(state.firstSeenAt);
@@ -484,6 +507,7 @@ function actorStateFromRow(row: ActorRow): ActorState | null {
     hints: [...row.hints],
     outboundBurstMax1h: graph.outboundBurstMax1h ?? 0,
     recentOutboundTs: [...(graph.recentOutboundTs ?? [])],
+    inbound: [...(graph.inbound ?? [])],
   };
 }
 
@@ -516,6 +540,9 @@ function storedSignal(hit: SignalHit): StoredSignal {
   if (hit.excerpt !== undefined) out.excerpt = hit.excerpt;
   if (hit.matched !== undefined) out.matched = hit.matched;
   if (hit.eventExternalId !== undefined) out.eventExternalId = hit.eventExternalId;
+  // A flag a reviewer set has to survive a persist and a reload, or the
+  // per-excerpt human-viewed record is only as durable as one worker's memory.
+  if (hit.viewedByHuman) out.viewedByHuman = true;
   return out;
 }
 

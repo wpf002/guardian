@@ -418,6 +418,16 @@ export function minimize(inbound: InboundEvent, customer: Customer, receivedAt =
     media: inbound.media ?? null,
     actorBand: inbound.actorBand,
     targetBand: inbound.targetBand,
+    // Compliance provenance travels with the band, or the band on the stored
+    // row is a claim with no source behind it. Absent stays absent: a
+    // confidence nobody published must not become a zero, and an unstated
+    // visibility must not become "public" (treatAsPrivateMessaging reads the
+    // absence as private, which is the stricter rule).
+    actorBandConfidence: inbound.actorBandConfidence ?? null,
+    actorBandProvenance: inbound.actorBandProvenance ?? null,
+    targetBandConfidence: inbound.targetBandConfidence ?? null,
+    targetBandProvenance: inbound.targetBandProvenance ?? null,
+    channelVisibility: inbound.channelVisibility ?? null,
     actorRole: inbound.actorRole,
     actorAccountAgeHours: inbound.actorAccountAgeHours ?? null,
     deviceHints: inbound.deviceHints

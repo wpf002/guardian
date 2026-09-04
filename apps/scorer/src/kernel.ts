@@ -1,4 +1,5 @@
 import {
+  isActorScoreSoleBasis,
   loadLexicon,
   loadScriptCorpus,
   type AgeBand,
@@ -7,10 +8,31 @@ import {
   type TierResult,
   type Versions,
 } from "@guardian/schema";
-import { emptyActorState, observeActor, scoreActor } from "./actor.js";
-import { detectMessage, ScriptIndex, stageFromDetections, type Detection } from "./detectors/index.js";
+import {
+  emptyActorState,
+  observeActor,
+  observeInbound,
+  scoreActor,
+  scoreFanIn,
+  NO_FANIN,
+  type FanInSignal,
+} from "./actor.js";
+import {
+  BASE_WEIGHT,
+  detectMessage,
+  ScriptIndex,
+  stageFromDetections,
+  type Detection,
+} from "./detectors/index.js";
 import { fuse, FUSION_VERSION, type FusionThresholds } from "./fusion.js";
-import { applyMessage, emptyPairState, hasSeenMessage, scorePair, type PairMessage } from "./pair.js";
+import {
+  applyMessage,
+  emptyPairState,
+  hasSeenMessage,
+  scorePair,
+  type PairMessage,
+  type PairState,
+} from "./pair.js";
 import type { KernelStore } from "./store.js";
 
 /**
@@ -138,6 +160,21 @@ export class Kernel {
     const nextPair = replay ? previous : applyMessage(previous, message);
     if (!replay) await this.store.putPair(event.customerId, event.actorUid, event.targetUid, nextPair);
 
+    // The same event read from the receiving end (ROADMAP S1). observeActor
+    // above recorded the sender's fan-out; this records the inbound half on
+    // the target, which is what makes fan-IN computable without a second
+    // graph. Skipped on a replay so a redelivered message cannot inflate the
+    // convergence count.
+    //
+    // The flag is the gated weight this message put on the pair, not the raw
+    // detection count. A detection the pair scorer damped for being same-band,
+    // and a mid-weight hit like a giveaway offer, are what ordinary game
+    // community traffic looks like; counting either toward convergence is the
+    // popular-account false positive guard 3 exists to stop.
+    if (!replay) {
+      await this.observeTargetInbound(event, carriedFullSignal(nextPair, event.externalId));
+    }
+
     const pairScore = scorePair(nextPair);
     const bannedHints = await this.store.bannedHints(event.customerId);
     const actorScore = scoreActor(event.customerId, event.actorUid, actorState, {
@@ -145,7 +182,13 @@ export class Kernel {
       bannedHints,
     });
 
-    const fused = fuse({ pair: pairScore, actor: actorScore, thresholds: this.thresholds });
+    const targetFanIn = await this.targetFanIn(event);
+    const fused = fuse({
+      pair: pairScore,
+      actor: actorScore,
+      thresholds: this.thresholds,
+      targetFanIn,
+    });
 
     const result: TierResult = {
       tier: fused.tier,
@@ -176,6 +219,22 @@ export class Kernel {
       },
       versions: this.versions,
       producedBy: "model",
+      // Article 5(1)(d) of Regulation (EU) 2024/1689. Recorded per row rather
+      // than reconstructed from the fusion code later.
+      soleAutomatedBasis: isActorScoreSoleBasis({
+        tier: fused.tier,
+        pairSignals: pairScore.signals,
+        criticalSignals: fused.criticalSignals,
+      }),
+      suggestedPosture: fused.suggestedPosture,
+      supportReferral: fused.supportReferral,
+      velocityWindow: fused.velocityWindow,
+      fanIn: {
+        distinctSources: fused.fanIn.distinctSources,
+        convergingSources: fused.fanIn.convergingSources,
+        converging: fused.fanIn.converging,
+        multiplier: fused.fanIn.multiplier,
+      },
       scoredAt: new Date(),
     };
 
@@ -212,6 +271,42 @@ export class Kernel {
     await this.store.putPair(event.customerId, event.targetUid, event.actorUid, next);
   }
 
+  /**
+   * Record this event on the target's own actor state as an inbound contact
+   * (ROADMAP S1). The target is an actor in its own right; this only touches
+   * the inbound list, so nothing here inflates the target's fan-out.
+   */
+  private async observeTargetInbound(event: Event, flagged: boolean): Promise<void> {
+    if (!event.targetUid) return;
+    const stored = await this.store.getActor(event.customerId, event.targetUid);
+    const state = stored ?? emptyActorState(event.targetBand);
+    state.actorBand = preferKnown(state.actorBand, event.targetBand);
+
+    const next = observeInbound(state, {
+      ts: event.ts,
+      sourceUid: event.actorUid,
+      sourceBand: event.actorBand,
+      flagged,
+    });
+    await this.store.putActor(event.customerId, event.targetUid, next);
+  }
+
+  /**
+   * Convergence on the receiving account, read from the target's stored state.
+   * Neutral when the target has no state yet, which is the common case on a
+   * first message.
+   */
+  private async targetFanIn(event: Event): Promise<FanInSignal> {
+    if (!event.targetUid) return NO_FANIN;
+    const state = await this.store.getActor(event.customerId, event.targetUid);
+    // The account being scored is one of the target's inbound sources, so
+    // leaving it in would mean a minimum of three sources really asked for two
+    // others. Convergence is about the accounts around this pair, not this one.
+    return state
+      ? scoreFanIn(state, { now: event.ts, excludeUid: event.actorUid })
+      : NO_FANIN;
+  }
+
   /** Observe the actor even when there is no pair, so fan-out still accrues. */
   private async updateActor(event: Event, flagged: boolean) {
     const stored = await this.store.getActor(event.customerId, event.actorUid);
@@ -243,4 +338,18 @@ export class Kernel {
 
 function preferKnown(current: AgeBand, incoming: AgeBand): AgeBand {
   return incoming === "UNKNOWN" ? current : incoming;
+}
+
+/**
+ * Guard 3 of fan-IN (ROADMAP S1): did this message carry a signal at full
+ * strength after gating. `BASE_WEIGHT.high` is the bar because everything
+ * under it is either a mid-weight hit, which a giveaway thread produces all
+ * day, or a hit the pair scorer already damped for a missing age gap or a
+ * same-band pair. Convergence has to mean more than "several accounts said
+ * something the lexicon recognises".
+ */
+function carriedFullSignal(state: PairState, externalId: string): boolean {
+  return state.signals.some(
+    (s) => s.eventExternalId === externalId && s.weight >= BASE_WEIGHT.high,
+  );
 }

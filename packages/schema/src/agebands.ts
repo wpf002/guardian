@@ -37,6 +37,55 @@ const MIDPOINT: Record<AgeBand, number | null> = {
   UNKNOWN: null,
 };
 
+/**
+ * The four statutory brackets. The kernel reasons in six bands because that is
+ * what the platforms publish; the statutes reason in brackets. Texas HB 18 and
+ * the California Age-Appropriate Design Code both cut at under 13, 13 to 15,
+ * 16 to 17 and adult, and Regulation (EU) 2026/1881 turns on age difference
+ * across that same line.
+ *
+ * Deriving rather than storing keeps one mapping. Every band sits inside
+ * exactly one bracket, so nothing is lost in the projection, and any future
+ * change to the band scheme has to preserve that property or this function
+ * stops being total. The band coverage test in agebands.test.ts holds that.
+ */
+export const STATUTORY_BRACKETS = [
+  "UNDER_13",
+  "AGE_13_15",
+  "AGE_16_17",
+  "AGE_18_PLUS",
+  "UNKNOWN",
+] as const;
+
+export type StatutoryBracket = (typeof STATUTORY_BRACKETS)[number];
+
+const BRACKET: Record<AgeBand, StatutoryBracket> = {
+  UNDER_9: "UNDER_13",
+  A9_12: "UNDER_13",
+  A13_15: "AGE_13_15",
+  A16_17: "AGE_16_17",
+  A18_20: "AGE_18_PLUS",
+  A21_PLUS: "AGE_18_PLUS",
+  UNKNOWN: "UNKNOWN",
+};
+
+/** The statutory bracket a band falls in. Derived, never stored. */
+export function statutoryBracket(band: AgeBand): StatutoryBracket {
+  return BRACKET[band];
+}
+
+/**
+ * True when both bands are known and fall in different brackets. This is the
+ * age-difference test the EU derogation names as a permitted risk factor, and
+ * it is coarser on purpose than `bandGap`.
+ */
+export function crossesStatutoryBracket(actor: AgeBand, target: AgeBand): boolean {
+  const a = statutoryBracket(actor);
+  const t = statutoryBracket(target);
+  if (a === "UNKNOWN" || t === "UNKNOWN") return false;
+  return a !== t;
+}
+
 export function isMinorBand(band: AgeBand): boolean {
   return band === "UNDER_9" || band === "A9_12" || band === "A13_15" || band === "A16_17";
 }

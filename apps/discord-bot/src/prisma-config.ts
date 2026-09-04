@@ -1,4 +1,4 @@
-import type { AgeBand, Tier } from "@guardian/schema";
+import type { AgeBand, AgeBandProvenance, Tier } from "@guardian/schema";
 import { guildConfigSchema, type GuildConfig, type GuildConfigStore } from "./config.js";
 
 /**
@@ -22,6 +22,7 @@ export interface GuildConfigRow {
   roleBands: unknown;
   trustedRoleIds: string[];
   defaultBand: string;
+  defaultBandProvenance: string;
   autoTimeoutOnT2: boolean;
   autoTimeoutMinutes: number;
   excludedChannelIds: string[];
@@ -34,6 +35,7 @@ export interface GuildConfigWrite {
   roleBands: Record<string, AgeBand>;
   trustedRoleIds: string[];
   defaultBand: AgeBand;
+  defaultBandProvenance: AgeBandProvenance;
   autoTimeoutOnT2: boolean;
   autoTimeoutMinutes: number;
   excludedChannelIds: string[];
@@ -90,6 +92,7 @@ export class PrismaGuildConfigStore implements GuildConfigStore {
       roleBands: row.roleBands ?? {},
       trustedRoleIds: row.trustedRoleIds,
       defaultBand: row.defaultBand,
+      defaultBandProvenance: row.defaultBandProvenance,
       autoTimeoutOnT2: row.autoTimeoutOnT2,
       autoTimeoutMinutes: row.autoTimeoutMinutes,
       excludedChannelIds: row.excludedChannelIds,
@@ -104,6 +107,7 @@ export class PrismaGuildConfigStore implements GuildConfigStore {
       roleBands: config.roleBands,
       trustedRoleIds: config.trustedRoleIds,
       defaultBand: config.defaultBand,
+      defaultBandProvenance: config.defaultBandProvenance,
       autoTimeoutOnT2: config.autoTimeoutOnT2,
       autoTimeoutMinutes: config.autoTimeoutMinutes,
       excludedChannelIds: config.excludedChannelIds,

@@ -1,4 +1,10 @@
-import { assertNoAccusation, type EvidenceBundle, type Tier, type WebhookPayload } from "@guardian/schema";
+import {
+  assertNoAccusation,
+  type EvidenceBundle,
+  type SuggestedPosture,
+  type Tier,
+  type WebhookPayload,
+} from "@guardian/schema";
 
 /**
  * Mod-channel alerts. Every string here goes through the accusation guard
@@ -21,6 +27,10 @@ export interface AlertInput {
   criticalSignals: string[];
   stagesHit: string[];
   bundleId?: string;
+  /** Enforcement or support (ROADMAP S4). Absent reads as enforcement. */
+  posture?: SuggestedPosture;
+  /** Shown under the support posture. Names no person and uses no pronouns. */
+  supportReferral?: string | null;
 }
 
 const TIER_HEADLINE: Record<Tier, string> = {
@@ -55,6 +65,11 @@ export function buildModAlert(input: AlertInput): string {
 
   lines.push("");
   lines.push(TIER_GUIDANCE[input.tier]);
+  // The referral replaces the enforcement reading of the card, so it sits with
+  // the guidance rather than at the end where a skimming moderator misses it.
+  if (input.posture === "support" && input.supportReferral) {
+    lines.push(input.supportReferral);
+  }
   lines.push(
     "This is a risk tier produced from message patterns. It is not a finding about any person, and Guardian has made no report to anyone.",
   );

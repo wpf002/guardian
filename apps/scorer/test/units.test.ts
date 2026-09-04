@@ -1,6 +1,14 @@
 import { loadScriptCorpus } from "@guardian/schema";
 import { describe, expect, it } from "vitest";
-import { emptyActorState, fanOut, observeActor, scoreActor, skew } from "../src/actor.js";
+import {
+  emptyActorState,
+  fanIn,
+  fanOut,
+  observeActor,
+  observeInbound,
+  scoreActor,
+  skew,
+} from "../src/actor.js";
 import { ScriptIndex, jaccard } from "../src/detectors/minhash.js";
 import { buildEvidenceBundle, summarizeBundle } from "../src/bundle.js";
 import { fuse } from "../src/fusion.js";
@@ -106,6 +114,33 @@ describe("actor graph features", () => {
     expect(skew(recent, now)).toBeGreaterThan(skew(old, now));
   });
 
+  it("counts inbound sources once each, however many messages they send", () => {
+    let target = emptyActorState("A9_12");
+    for (let i = 0; i < 20; i++) {
+      target = observeInbound(target, {
+        ts: new Date(now.getTime() - i * 60_000),
+        sourceUid: i % 2 === 0 ? "src-a" : "src-b",
+        sourceBand: "A21_PLUS",
+        flagged: true,
+      });
+    }
+    expect(fanIn(target, 7 * 24 * 3600_000, now)).toBe(2);
+    expect(fanIn(target, 7 * 24 * 3600_000, now, { olderOnly: true })).toBe(2);
+  });
+
+  it("keeps the two halves of the graph apart", () => {
+    let state = emptyActorState("A13_15");
+    state = observeActor(state, { ts: now, targetUid: "t1", targetBand: "A13_15", flagged: false });
+    state = observeInbound(state, {
+      ts: now,
+      sourceUid: "s1",
+      sourceBand: "A21_PLUS",
+      flagged: true,
+    });
+    expect(fanOut(state, 7, now)).toBe(1);
+    expect(fanIn(state, 7 * 24 * 3600_000, now)).toBe(1);
+  });
+
   it("flags a device hint shared with an account the operator actioned", () => {
     let state = emptyActorState("A21_PLUS");
     state = observeActor(state, {
@@ -142,6 +177,17 @@ describe("fusion gates", () => {
       criticalSignals: critical as never,
       signals: [],
       hasProgressionPattern: progression,
+      velocityDetail: {
+        fast: 0,
+        slow: 0,
+        standard: 0,
+        window: null as null,
+        fastWindowMs: 4 * 3600_000,
+        slowWindowMs: 14 * 24 * 3600_000,
+        standardWindowMs: 24 * 3600_000,
+      },
+      actorBand: "A21_PLUS" as const,
+      targetBand: "A9_12" as const,
       rationale: [],
     };
   }

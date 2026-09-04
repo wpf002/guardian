@@ -1,6 +1,7 @@
 import type { AgeBand, Lexicon, SignalKind, Stage } from "@guardian/schema";
 import { normalize, type NormalizedText } from "@guardian/schema";
 import {
+  findCoercionDirective,
   findHandoffs,
   findPatterns,
   findPaymentEntity,
@@ -149,6 +150,21 @@ export function detectNormalized(n: NormalizedText, ctx: DetectContext): Detecti
         payment_entity: true,
         via: payment.via,
         amounts: payment.amounts,
+      }),
+    );
+  }
+
+  // Non-financial coercion (ROADMAP S3). Critical like a threat template,
+  // because the demand is compliance rather than payment and the payment join
+  // never sees it. The exemptions that keep a support conversation out of the
+  // queue live in findCoercionDirective.
+  const coercion = findCoercionDirective(n, lex);
+  if (coercion) {
+    out.push(
+      toDetection("coercion_nonfinancial", "coerce", BASE_WEIGHT.crit, coercion.match, {
+        coercion_via: coercion.via,
+        compliance_demand: coercion.complianceDemand,
+        demand_matched: coercion.demandMatched,
       }),
     );
   }

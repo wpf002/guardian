@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AGE_BANDS } from "@guardian/schema";
+import { AGE_BANDS, AGE_BAND_PROVENANCES } from "@guardian/schema";
 
 /**
  * Per-guild configuration. The server owner declares what their roles mean;
@@ -23,6 +23,15 @@ export const guildConfigSchema = z.object({
    * this is the band Guardian assumes rather than UNKNOWN.
    */
   defaultBand: z.enum(AGE_BANDS).default("A13_15"),
+  /**
+   * Where the fallback band came from. A band read off a guild role is
+   * server_role by construction; this records the claim behind the fallback,
+   * which is the honest answer to an age assurance question about a Discord
+   * deployment. Neither satisfies the UK Online Safety Act's highly effective
+   * age assurance test, and recording which one applied is what lets that be
+   * said out loud.
+   */
+  defaultBandProvenance: z.enum(AGE_BAND_PROVENANCES).default("platform_default"),
   /** Owner opt-in. Off by default; a timeout is an enforcement action. */
   autoTimeoutOnT2: z.boolean().default(false),
   autoTimeoutMinutes: z.number().int().min(1).max(10080).default(60),

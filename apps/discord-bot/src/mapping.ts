@@ -1,4 +1,4 @@
-import type { AgeBand, InboundEvent } from "@guardian/schema";
+import type { AgeBand, AgeBandProvenance, ChannelVisibility, InboundEvent } from "@guardian/schema";
 import type { GuildConfig } from "./config.js";
 
 /**
@@ -40,11 +40,55 @@ export type MappingRefusal =
   | "no_target";
 
 export function bandForRoles(roleIds: string[], config: GuildConfig): AgeBand {
+  return bandWithProvenance(roleIds, config).band;
+}
+
+/**
+ * A band together with the claim behind it. The resolver reports both, because
+ * provenance cannot be inferred from the band: an owner who maps a role to the
+ * same band as the guild default is the ordinary setup, and comparing the two
+ * values reads every one of those members as an unmapped default.
+ */
+export interface MemberBand {
+  band: AgeBand;
+  provenance: AgeBandProvenance;
+}
+
+/**
+ * The band and the claim behind it. A band the owner mapped to a guild role is
+ * server_role; the fallback carries whatever the guild config says its default
+ * is, which is platform_default unless the owner set something stronger.
+ * Neither is a verified age, and the provenance is what says so on the row.
+ */
+export function bandWithProvenance(
+  roleIds: string[],
+  config: GuildConfig,
+): { band: AgeBand; provenance: AgeBandProvenance } {
   for (const roleId of roleIds) {
     const band = config.roleBands[roleId];
-    if (band) return band;
+    if (band) return { band, provenance: "server_role" };
   }
-  return config.defaultBand;
+  return { band: config.defaultBand, provenance: config.defaultBandProvenance };
+}
+
+/**
+ * Guild channels are open to the server, so they are public. The DM cases are
+ * unreachable from toEvent, which refuses them before this is called, but they
+ * are mapped rather than defaulted so that a future surface cannot inherit
+ * "public" by accident. Regulation (EU) 2026/1881's stricter path applies to
+ * anything not public, and treatAsPrivateMessaging is where that is decided.
+ */
+export function visibilityFor(
+  channelType: DiscordMessageLike["channelType"],
+): ChannelVisibility {
+  switch (channelType) {
+    case "dm":
+      return "private";
+    case "group_dm":
+      return "group";
+    default:
+      return "public";
+  }
 }
 
 export function roleFor(
@@ -78,7 +122,7 @@ export type MapResult =
 export function toEvent(
   msg: DiscordMessageLike,
   config: GuildConfig,
-  memberBands: (userId: string) => AgeBand,
+  memberBands: (userId: string) => MemberBand,
   now = new Date(),
 ): MapResult {
   // The bot has no business in a DM and Discord does not grant it one. This is
@@ -94,6 +138,8 @@ export function toEvent(
   if (!config.enabled || config.modChannelId === null) return { ok: false, refusal: "not_ready" };
 
   const targetUid = targetOf(msg);
+  const actor = bandWithProvenance(msg.authorRoleIds, config);
+  const target = targetUid ? memberBands(targetUid) : null;
 
   return {
     ok: true,
@@ -107,8 +153,17 @@ export function toEvent(
       // Attachments are counted, never fetched. A media event with no hash is
       // still a temporal marker for the payment join.
       media: null,
-      actorBand: bandForRoles(msg.authorRoleIds, config),
-      targetBand: targetUid ? memberBands(targetUid) : "UNKNOWN",
+      actorBand: actor.band,
+      targetBand: target?.band ?? "UNKNOWN",
+      actorBandProvenance: actor.provenance,
+      // Reported by the resolver, never inferred here. This column exists to
+      // answer where an age claim came from, and the UK Online Safety Act's
+      // highly-effective-age-assurance test turns on that answer, so a guess
+      // is worse than no column. There is no calibrated confidence behind a
+      // Discord role, so the confidence stays absent rather than becoming a
+      // number nobody measured.
+      targetBandProvenance: target?.provenance ?? "unknown",
+      channelVisibility: visibilityFor(msg.channelType),
       actorRole: roleFor(msg.authorRoleIds, config),
       actorAccountAgeHours: accountAgeHours(msg.authorCreatedAt, now),
       deviceHints: null,

@@ -24,7 +24,7 @@ import {
   type PairLookup,
 } from "./commands.js";
 import { MemoryGuildConfigStore, defaultGuildConfig, type GuildConfigStore } from "./config.js";
-import type { DiscordMessageLike } from "./mapping.js";
+import { bandWithProvenance, type DiscordMessageLike, type MemberBand } from "./mapping.js";
 import { BotPipeline } from "./pipeline.js";
 import { PrismaGuildConfigStore, type GuardianDb } from "./prisma-config.js";
 
@@ -183,14 +183,13 @@ export async function handleMessage(message: Message, deps: HandlerDeps): Promis
   const guildId = message.guildId;
 
   const config = (await deps.configs.get(guildId)) ?? defaultGuildConfig(guildId);
-  const bands = (userId: string): AgeBand => {
+  // The band and the claim behind it, reported rather than inferred (F7). A
+  // member the bot cannot see carries the guild default's own claim, which is
+  // whatever the owner set it to, and never a stronger one.
+  const bands = (userId: string): MemberBand => {
     const member = message.guild?.members.cache.get(userId);
-    if (!member) return config.defaultBand;
-    for (const roleId of member.roles.cache.keys()) {
-      const band = config.roleBands[roleId];
-      if (band) return band;
-    }
-    return config.defaultBand;
+    if (!member) return { band: config.defaultBand, provenance: config.defaultBandProvenance };
+    return bandWithProvenance([...member.roles.cache.keys()], config);
   };
 
   const result = await deps.pipeline.handle(toDiscordMessageLike(message), config, bands);

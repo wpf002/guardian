@@ -5,6 +5,8 @@ import {
   stageSchema,
   textRetainedForTier,
   type AgeBand,
+  type AgeBandProvenance,
+  type ChannelVisibility,
   type Event,
   type RetentionClass,
   type SignalKind,
@@ -66,6 +68,25 @@ type EventColumns = {
   knownCsamVerdict: string | null;
   actorBand: AgeBand;
   targetBand: AgeBand;
+  /**
+   * The band as captured at event time, with where it came from and how sure
+   * the source was (ROADMAP R3). The surface adapter fills these: a Discord
+   * band read off a guild role is server_role, one from the guild default is
+   * platform_default. An event that states neither is recorded as unknown,
+   * which is the honest answer, and a confidence nobody published stays null
+   * rather than becoming a zero somebody could read as low.
+   */
+  actorBandConfidence: number | null;
+  actorBandProvenance: AgeBandProvenance;
+  targetBandConfidence: number | null;
+  targetBandProvenance: AgeBandProvenance;
+  /**
+   * Null means the customer did not say. Nothing may read that as public:
+   * treatAsPrivateMessaging() is the one place that decision is made, and it
+   * returns true for null so the stricter Regulation (EU) 2026/1881 rule
+   * applies by default.
+   */
+  channelVisibility: ChannelVisibility | null;
   actorRole: Event["actorRole"];
   features: StoredDetection[];
   stage: Stage | null;
@@ -140,6 +161,11 @@ export async function persistScoredEvent(
     knownCsamVerdict: event.media?.knownCsamVerdict ?? null,
     actorBand: event.actorBand,
     targetBand: event.targetBand,
+    actorBandConfidence: event.actorBandConfidence ?? null,
+    actorBandProvenance: event.actorBandProvenance ?? "unknown",
+    targetBandConfidence: event.targetBandConfidence ?? null,
+    targetBandProvenance: event.targetBandProvenance ?? "unknown",
+    channelVisibility: event.channelVisibility ?? null,
     actorRole: event.actorRole,
     features: scored.detections.map(storedDetection),
     stage: stageColumn(scored.stage),

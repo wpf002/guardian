@@ -5,7 +5,15 @@ import { describe, expect, it } from "vitest";
 import { decideAction, FORBIDDEN_ACTIONS } from "../src/actions.js";
 import { buildModAlert, buildReportDraft } from "../src/alerts.js";
 import { defaultGuildConfig, guildConfigSchema, isReady } from "../src/config.js";
-import { bandForRoles, targetOf, toEvent, type DiscordMessageLike } from "../src/mapping.js";
+import {
+  bandForRoles,
+  bandWithProvenance,
+  targetOf,
+  toEvent,
+  visibilityFor,
+  type DiscordMessageLike,
+  type MemberBand,
+} from "../src/mapping.js";
 import { BotPipeline } from "../src/pipeline.js";
 
 const GUILD = "guild-1";
@@ -41,7 +49,15 @@ function message(overrides: Partial<DiscordMessageLike> = {}): DiscordMessageLik
   };
 }
 
-const bands = (id: string) => (id === "user-kid" ? ("A9_12" as const) : ("A21_PLUS" as const));
+/**
+ * The resolver reports the band and the claim behind it. Both of these come
+ * from a mapped guild role, which is what a real member with a mapped role
+ * gives (F7).
+ */
+const bands = (id: string): MemberBand =>
+  id === "user-kid"
+    ? { band: "A9_12", provenance: "server_role" }
+    : { band: "A21_PLUS", provenance: "server_role" };
 
 describe("guild config", () => {
   it("does not score until an owner picks a mod channel and enables it", () => {
@@ -89,6 +105,53 @@ describe("mapping", () => {
     expect(bandForRoles(["role-nothing"], config())).toBe("A13_15");
   });
 
+  it("says where a band came from, because a guild role is not a verified age", () => {
+    expect(bandWithProvenance(["role-kid"], config())).toEqual({
+      band: "A9_12",
+      provenance: "server_role",
+    });
+    expect(bandWithProvenance(["role-nothing"], config())).toEqual({
+      band: "A13_15",
+      provenance: "platform_default",
+    });
+  });
+
+  it("marks guild traffic as public and never claims that for a DM", () => {
+    const result = toEvent(message(), config(), bands);
+    expect(result.ok && result.event.channelVisibility).toBe("public");
+    expect(result.ok && result.event.actorBandProvenance).toBe("server_role");
+    expect(visibilityFor("dm")).toBe("private");
+    expect(visibilityFor("group_dm")).toBe("group");
+  });
+
+  // F7. The target's provenance used to be inferred by comparing the resolved
+  // band to the guild default, so an owner who maps a role to the same band as
+  // the default recorded platform_default for every member holding that role.
+  it("records the target's provenance as the resolver reported it", () => {
+    const cfg = config({ defaultBand: "A9_12", roleBands: { "role-kid": "A9_12" } });
+    const fromRole = toEvent(message(), cfg, () => ({
+      band: "A9_12",
+      provenance: "server_role",
+    }));
+    expect(fromRole.ok && fromRole.event.targetBand).toBe("A9_12");
+    expect(fromRole.ok && fromRole.event.targetBandProvenance).toBe("server_role");
+
+    const fromDefault = toEvent(message(), cfg, () => ({
+      band: "A9_12",
+      provenance: "platform_default",
+    }));
+    expect(fromDefault.ok && fromDefault.event.targetBandProvenance).toBe("platform_default");
+  });
+
+  it("never claims a source for a band the resolver could not resolve", () => {
+    const unknown = toEvent(message(), config(), () => ({ band: "UNKNOWN", provenance: "unknown" }));
+    expect(unknown.ok && unknown.event.targetBand).toBe("UNKNOWN");
+    expect(unknown.ok && unknown.event.targetBandProvenance).toBe("unknown");
+
+    const noTarget = toEvent(message({ mentionedUserIds: [] }), config(), bands);
+    expect(noTarget.ok && noTarget.event.targetBandProvenance).toBe("unknown");
+  });
+
   it("marks an owner vouched role as a trusted adult", () => {
     const result = toEvent(message({ authorRoleIds: ["role-mod", "role-adult"] }), config(), bands);
     expect(result.ok && result.event.actorRole).toBe("trusted_adult");
@@ -130,6 +193,25 @@ describe("actions", () => {
   it("adds a timeout only when the owner opted in", () => {
     const action = decideAction("T2", config({ autoTimeoutOnT2: true, autoTimeoutMinutes: 30 }));
     expect(action).toEqual({ kind: "alert_and_timeout", channelId: MOD_CHANNEL, minutes: 30 });
+  });
+
+  // FP-4 and F5. The S4 posture was computed, stored on the row, and read by
+  // nobody, so a support-posture T2 still applied a Discord timeout to the
+  // child the referral was written for.
+  it("withholds the timeout under the support posture, even where the owner opted in", () => {
+    const opted = config({ autoTimeoutOnT2: true, autoTimeoutMinutes: 30 });
+    expect(decideAction("T2", opted, "enforcement")).toEqual({
+      kind: "alert_and_timeout",
+      channelId: MOD_CHANNEL,
+      minutes: 30,
+    });
+    expect(decideAction("T2", opted, "support")).toEqual({
+      kind: "alert_mod_channel",
+      channelId: MOD_CHANNEL,
+    });
+    // A human still looks. What the posture removes is the enforcement action
+    // taken against a child before they do.
+    expect(decideAction("T3", opted, "support").kind).toBe("alert_mod_channel");
   });
 
   it("does nothing when no mod channel is set", () => {
@@ -198,6 +280,39 @@ describe("pipeline", () => {
     }
     expect(last?.tier).toBe("T2");
     expect(last?.alert).toContain("tier T2");
+  });
+
+  // FP-4 and F5, end to end. Both accounts in a minor band, the owner opted
+  // into the timeout, and the tier is forced by a critical signal.
+  it("routes a minor-band account to the referral rather than to a timeout", async () => {
+    const p = pipeline();
+    const minorBands = (): MemberBand => ({ band: "A13_15", provenance: "server_role" });
+    const result = await p.handle(
+      message({
+        content: "send it or i will ruin your life, you have 1 hour",
+        authorRoleIds: ["role-teen"],
+      }),
+      config({ autoTimeoutOnT2: true, autoTimeoutMinutes: 60 }),
+      minorBands,
+    );
+
+    expect(result.tier).toBe("T2");
+    expect(result.scored?.result.suggestedPosture).toBe("support");
+    expect(result.action.kind).toBe("alert_mod_channel");
+    expect(result.alert).toContain("Take It Down");
+    expect(result.alert).toContain("StopNCII");
+  });
+
+  it("keeps the enforcement card free of the referral", async () => {
+    const p = pipeline();
+    const result = await p.handle(
+      message({ content: "send it or i will ruin your life, you have 1 hour" }),
+      config({ autoTimeoutOnT2: true, autoTimeoutMinutes: 60 }),
+      bands,
+    );
+    expect(result.scored?.result.suggestedPosture).toBe("enforcement");
+    expect(result.action.kind).toBe("alert_and_timeout");
+    expect(result.alert).not.toContain("Take It Down");
   });
 
   it("hashes the discord id before it reaches kernel state", async () => {

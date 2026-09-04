@@ -169,6 +169,7 @@ function tierResult(tier: Tier, event: Event): TierResult {
     },
     versions: { modelVersion: "rules-v1", lexiconVersion: "v1", fusionVersion: "rules-v1" },
     producedBy: "model",
+    soleAutomatedBasis: false,
     scoredAt: NOW,
   };
 }
@@ -179,6 +180,7 @@ function scoredEvent(tier: Tier, event: Event, detections: Detection[] = [DETECT
     detections,
     stage: "probe",
     excerpts: detections.map((d) => d.excerpt),
+    replay: false,
   };
 }
 
