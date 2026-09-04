@@ -4,5 +4,6 @@ export { LexiconEditor, type LexiconEditorProps } from "./LexiconEditor";
 export { RetentionTable } from "./RetentionTable";
 export { SessionLimitsForm, type SessionLimitsFormProps } from "./SessionLimitsForm";
 export { SubmitButton } from "./SubmitButton";
-export { ThemePicker, type ThemeChoice } from "./ThemePicker";
+export { ThemePicker } from "./ThemePicker";
+export type { ThemeChoice } from "@/lib/theme";
 export { WebhookPanel, type WebhookPanelProps } from "./WebhookPanel";

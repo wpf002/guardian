@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockSession } from "../auth";
-import { resetMockData } from "../mock/fixtures";
+import { getMockData, resetMockData } from "../mock/fixtures";
 import { getAuditEntry, listAuditEntries, verifyAuditChain } from "./audit";
 import { getCase, getTimeline, listQueue, markExcerptsViewed } from "./cases";
 import { getDashboardSummary } from "./dashboard";
@@ -79,16 +79,50 @@ describe("the viewedByHuman write", () => {
     if (before.state !== "ready") throw new Error("expected a ready timeline");
     expect(before.rows.every((row) => row.viewedByHuman === false)).toBe(true);
 
+    // The ids it actually wrote, not a count: the caller has to reconcile
+    // against them rather than assume its whole request landed.
     const marked = await markExcerptsViewed(session, "pair_4f2a", [before.rows[0]!.id]);
-    expect(marked).toBe(1);
+    expect(marked).toEqual([before.rows[0]!.id]);
 
     const after = await getTimeline(session, "pair_4f2a");
     if (after.state !== "ready") throw new Error("expected a ready timeline");
     expect(after.rows.filter((row) => row.viewedByHuman).length).toBe(1);
   });
 
+  it("returns nothing the second time, so a repeat cannot inflate a read count", async () => {
+    const before = await getTimeline(session, "pair_4f2a");
+    if (before.state !== "ready") throw new Error("expected a ready timeline");
+    const id = before.rows[0]!.id;
+    expect(await markExcerptsViewed(session, "pair_4f2a", [id])).toEqual([id]);
+    expect(await markExcerptsViewed(session, "pair_4f2a", [id])).toEqual([]);
+  });
+
+  it("clears the unread marker, which is derived from the same fact", async () => {
+    const before = await listQueue(session);
+    expect(before.cases.find((row) => row.pairId === "pair_4f2a")?.unread).toBe(true);
+
+    const timeline = await getTimeline(session, "pair_4f2a");
+    if (timeline.state !== "ready") throw new Error("expected a ready timeline");
+    await markExcerptsViewed(session, "pair_4f2a", [timeline.rows[0]!.id]);
+
+    const after = await listQueue(session);
+    expect(after.cases.find((row) => row.pairId === "pair_4f2a")?.unread).toBe(false);
+  });
+
+  it("puts the read on the audit chain, because it is the private-search claim", async () => {
+    const timeline = await getTimeline(session, "pair_4f2a");
+    if (timeline.state !== "ready") throw new Error("expected a ready timeline");
+    const id = timeline.rows[0]!.id;
+    await markExcerptsViewed(session, "pair_4f2a", [id]);
+
+    const entries = await listAuditEntries(session, { kind: "evidence.read", limit: 10 });
+    expect(entries.length).toBe(1);
+    expect(entries[0]!.payload.pairId).toBe("pair_4f2a");
+    expect(entries[0]!.payload.excerptIds).toEqual([id]);
+  });
+
   it("writes nothing for a case in another partition", async () => {
-    expect(await markExcerptsViewed(otherCustomer, "pair_4f2a", ["pair_4f2a_row_0"])).toBe(0);
+    expect(await markExcerptsViewed(otherCustomer, "pair_4f2a", ["pair_4f2a_row_0"])).toEqual([]);
   });
 });
 
@@ -98,6 +132,61 @@ describe("the aggregate surface", () => {
     expect(summary.pairsByTier.T2).toBeGreaterThan(0);
     expect(summary.t2PositivePredictiveValue).toBeNull();
     expect(Object.keys(summary)).not.toContain("reviewerPace");
+  });
+
+  /**
+   * DESIGN.md 10 sets the pass mark at two reviewer minutes per 1,000 users per
+   * day. The minutes are a window total, so the window has to be divided out:
+   * without it the seven day figure was seven times its own label and a
+   * partition inside the target read as a failure.
+   */
+  it("reports reviewer minutes per day, not per window", async () => {
+    const week = await getDashboardSummary(session, { windowDays: 7, activeUsers: 4200 });
+    const fortnight = await getDashboardSummary(session, { windowDays: 14, activeUsers: 4200 });
+
+    // Same decisions, twice the window, so at most half the daily rate. An
+    // undivided total would return the identical number for both.
+    expect(week.reviewerMinutesPer1kUsers).not.toBeNull();
+    expect(fortnight.reviewerMinutesPer1kUsers).not.toBe(week.reviewerMinutesPer1kUsers);
+    expect(fortnight.reviewerMinutesPer1kUsers!).toBeLessThan(week.reviewerMinutesPer1kUsers!);
+
+    const minutes = (await getMockData()).reviews
+      .filter((r) => r.createdAt >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+      .reduce((sum, r) => sum + (r.minutesSpent ?? 0), 0);
+    expect(week.reviewerMinutesPer1kUsers).toBeCloseTo(
+      Math.round((minutes / 7 / 4200) * 1000 * 10) / 10,
+      5,
+    );
+  });
+
+  /**
+   * "Realized T2 predictive value" is about T2. Dividing by every decision in
+   * the window diluted it with T1 and T3 work, so the number the operator reads
+   * against the 40% target described nothing.
+   */
+  it("counts only decisions on model-T2 pairs toward the T2 predictive value", async () => {
+    const summary = await getDashboardSummary(session, { windowDays: 30 });
+    const reviews = (await getMockData()).reviews.filter(
+      (r) => r.createdAt >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    );
+    const t2 = reviews.filter((r) => r.modelTier === "T2");
+
+    expect(reviews.length).toBeGreaterThan(t2.length);
+    expect(summary.decisionsSampleSize).toBe(t2.length);
+  });
+
+  /**
+   * The tier bars exist to compare two windows. The mock branch ignored the
+   * window entirely, so seven days and thirty days printed the same rows in
+   * every development and screenshot build.
+   */
+  it("applies the window to the tier counts", async () => {
+    const day = await getDashboardSummary(session, { windowDays: 1 });
+    const year = await getDashboardSummary(session, { windowDays: 365 });
+    const total = (counts: typeof day.pairsByTier) =>
+      Object.values(counts).reduce((a, b) => a + b, 0);
+
+    expect(total(year.pairsByTier)).toBeGreaterThan(total(day.pairsByTier));
   });
 });
 

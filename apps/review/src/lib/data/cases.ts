@@ -8,6 +8,7 @@
  */
 
 import { getPrisma, isMockMode } from "../db";
+import { appendAudit, appendAuditInTransaction } from "./audit";
 import { getMockData, bandWord } from "../mock/fixtures";
 import { compose } from "../compose";
 import type { Session } from "../auth";
@@ -147,10 +148,17 @@ function stagesInOrder(firstStageAt: unknown): Array<{ stage: string; at: Date }
   return out;
 }
 
-/** SLA is a queue property: four hours from the score for T2, none below it. */
-function slaRemainingMinutes(tier: string, updatedAt: Date, now: Date): number | null {
+/**
+ * SLA is a queue property: four hours from arrival for T2, none below it.
+ *
+ * From createdAt, never from updatedAt. updatedAt is a Prisma @updatedAt
+ * column, so a reviewer opening the case, a rescore, or any other write reset
+ * the countdown: a T2 waiting since nine o'clock dropped out of the breach chip
+ * and off the operator dashboard because somebody looked at it.
+ */
+function slaRemainingMinutes(tier: string, arrivedAt: Date, now: Date): number | null {
   if (tier !== "T2" && tier !== "T3") return null;
-  const deadline = updatedAt.getTime() + 4 * 60 * 60 * 1000;
+  const deadline = arrivedAt.getTime() + 4 * 60 * 60 * 1000;
   return Math.round((deadline - now.getTime()) / 60_000);
 }
 
@@ -169,6 +177,8 @@ interface PairRow {
   windowStart: Date | null;
   windowEnd: Date | null;
   humanViewedAt: Date | null;
+  /** When the scorer first wrote this pair. Immutable, unlike updatedAt. */
+  createdAt: Date;
   updatedAt: Date;
   resolvedAt: Date | null;
   modelVersion: string | null;
@@ -222,7 +232,7 @@ function toQueueCase(
     messageCount: total,
     spanHours,
     mediaEventCount: row.lastInboundMediaAt ? 1 : 0,
-    slaRemainingMinutes: slaRemainingMinutes(row.tier, row.updatedAt, now),
+    slaRemainingMinutes: slaRemainingMinutes(row.tier, row.createdAt, now),
     // The schema has no claim columns yet (DESIGN-UI 13.2 gap 1), so a database
     // read is always unclaimed. Nothing here guesses at ownership.
     claim: { state: "unclaimed" },
@@ -403,7 +413,10 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
       lexiconVersion: row.lexiconVersion ?? "unknown",
       fusionVersion: row.fusionVersion ?? "unknown",
     },
-    scoredAt: row.updatedAt,
+    // The pair row is written when the scorer first scores the pair, so this is
+    // a score time. updatedAt is not: the decision transaction sets it, so
+    // every latency measured against it came out as zero or negative.
+    scoredAt: row.createdAt,
     auditSeq: null,
     humanViewedAt: row.humanViewedAt,
   };
@@ -485,28 +498,49 @@ export async function getTimeline(session: Session, pairId: string): Promise<Tim
 /**
  * Writes viewedByHuman on the excerpts a person actually read (DESIGN-UI 5.3).
  * Never called on case open, and never by scrolling past a collapsed span.
+ *
+ * Returns the ids it actually wrote, not a count. The caller has to know which
+ * flags landed: a client that adds an id to its own read set before the server
+ * agrees will unblock confirm and propose on a write that failed or matched
+ * nothing, and the bundle would then say those excerpts were read by nobody
+ * while the audit chain says a person read them.
+ *
+ * The write goes on the chain, because this is the claim the private-search
+ * argument rests on and every other reviewer act is on the chain already.
  */
 export async function markExcerptsViewed(
   session: Session,
   pairId: string,
   excerptIds: string[],
-): Promise<number> {
-  if (excerptIds.length === 0) return 0;
+): Promise<string[]> {
+  if (excerptIds.length === 0) return [];
 
   if (isMockMode()) {
     const data = await getMockData();
     const found = data.pairs.find(
       (p) => p.queue.pairId === pairId && p.queue.customerId === session.customerId,
     );
-    if (!found || found.timeline.state !== "ready") return 0;
-    let marked = 0;
+    if (!found || found.timeline.state !== "ready") return [];
+    const marked: string[] = [];
     for (const row of found.timeline.rows) {
       if (excerptIds.includes(row.id) && !row.viewedByHuman) {
         row.viewedByHuman = true;
-        marked += 1;
+        marked.push(row.id);
       }
     }
-    if (marked > 0 && found.humanViewedAt === null) found.humanViewedAt = new Date();
+    if (marked.length === 0) return [];
+    if (found.humanViewedAt === null) found.humanViewedAt = new Date();
+    // Unread is derived from humanViewedAt, here as it is against a database.
+    found.queue.unread = found.humanViewedAt === null;
+    await appendAudit(session, {
+      kind: "evidence.read",
+      payload: {
+        pairId,
+        reviewerId: session.reviewerId,
+        excerptIds: marked,
+        excerptCount: marked.length,
+      },
+    });
     return marked;
   }
 
@@ -515,34 +549,46 @@ export async function markExcerptsViewed(
     where: { pairId, customerId: session.customerId },
     orderBy: { generatedAt: "desc" },
   });
-  if (!bundle) return 0;
+  if (!bundle) return [];
 
-  let marked = 0;
+  const marked: string[] = [];
   const timeline = asArray(bundle.timeline).map((raw, index) => {
     const entry = asRecord(raw);
-    if (excerptIds.includes(`${bundle.bundleId}_${index}`) && entry.viewedByHuman !== true) {
-      marked += 1;
+    const id = `${bundle.bundleId}_${index}`;
+    if (excerptIds.includes(id) && entry.viewedByHuman !== true) {
+      marked.push(id);
       return { ...entry, viewedByHuman: true };
     }
     return entry;
   });
-  if (marked === 0) return 0;
+  if (marked.length === 0) return [];
 
   const now = new Date();
-  await prisma.$transaction([
-    prisma.evidenceBundle.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.evidenceBundle.update({
       where: { id: bundle.id },
       data: {
         timeline: timeline as never,
         humanViewedAt: bundle.humanViewedAt ?? now,
         humanViewedByReviewerId: bundle.humanViewedByReviewerId ?? session.reviewerId,
       },
-    }),
-    prisma.pair.updateMany({
+    });
+    await tx.pair.updateMany({
       where: { id: pairId, customerId: session.customerId, humanViewedAt: null },
       data: { humanViewedAt: now },
-    }),
-  ]);
+    });
+    await appendAuditInTransaction(session, tx as never, {
+      kind: "evidence.read",
+      payload: {
+        pairId,
+        bundleId: bundle.bundleId,
+        reviewerId: session.reviewerId,
+        excerptIds: marked,
+        excerptCount: marked.length,
+      },
+      ts: now,
+    });
+  });
   return marked;
 }
 

@@ -93,14 +93,17 @@ export async function submitDecisionAction(
 export interface UndoInput {
   pairId: string;
   reviewId: string;
-  /** The tier the model had left the pair at, before the decision. */
-  restoreTier: Tier;
 }
 
+/**
+ * The tier to restore is not an argument. It is read from the review being
+ * compensated, so an undo cannot write a tier no decision and no score ever
+ * produced.
+ */
 export async function undoDecisionAction(input: UndoInput): Promise<DecisionOutcome> {
   const session = await requireSession();
   try {
-    const { auditSeq } = await undoDecision(session, input.reviewId, input.restoreTier);
+    const { auditSeq } = await undoDecision(session, input.reviewId);
     revalidatePath(`/cases/${input.pairId}`);
     return { ok: true, auditSeq, summary: "The decision was reversed. The earlier row is unchanged, and a compensating entry is on the chain." };
   } catch (error) {
@@ -110,16 +113,31 @@ export async function undoDecisionAction(input: UndoInput): Promise<DecisionOutc
 }
 
 /**
+ * The most excerpts one call may claim. A case is a conversation, not a corpus,
+ * and the reveal-all path marks a whole timeline in one request, so the cap is
+ * generous. It exists so a call cannot assert a read over an arbitrary list.
+ */
+const MAX_EXCERPTS_PER_CALL = 500;
+
+/**
  * The viewedByHuman write path. Called when an excerpt becomes legibly rendered
  * to this reviewer, and on nothing else: not on case open, and not by scrolling
  * past a collapsed span. It is a claim about a private search rather than an
  * engagement metric, so it has to be honest enough to survive a motion.
+ *
+ * What the server can check, it checks. The ids are matched against the pair's
+ * own current bundle under this customer, the call is capped, and the write
+ * appends an evidence.read entry naming the reviewer, the time and the
+ * excerpts, so the claim has a tamper-evident record behind it rather than two
+ * mutable columns. The draft says what the record is: recorded as read in the
+ * console, not asserted beyond that.
  */
 export async function markExcerptsViewedAction(
   pairId: string,
   excerptIds: string[],
-): Promise<number> {
+): Promise<string[]> {
   const session = await requireSession();
+  if (excerptIds.length > MAX_EXCERPTS_PER_CALL) return [];
   return markExcerptsViewed(session, pairId, excerptIds);
 }
 

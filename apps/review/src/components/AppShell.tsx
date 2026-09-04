@@ -3,10 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { LIVE_REGION_ID } from "@/lib/announce";
+import {
+  NEXT_THEME,
+  THEME_WORD,
+  applyTheme,
+  setStoredTheme,
+  subscribeToTheme,
+  themeServerSnapshot,
+  themeSnapshot,
+} from "@/lib/theme";
 import styles from "./AppShell.module.css";
 
-const THEME_KEY = "guardian.theme";
-export type ThemeChoice = "system" | "light" | "dark";
+export type { ThemeChoice } from "@/lib/theme";
 
 export interface NavItem {
   href: string;
@@ -26,74 +35,19 @@ export interface AppShellSession {
 export interface AppShellProps {
   session: AppShellSession;
   nav: NavItem[];
+  /**
+   * True when the deployment is serving fixtures. It is stated on screen
+   * because mock mode also signs everybody in as the same owner seat, and a
+   * console that looks real while showing invented cases is worse than one that
+   * will not start.
+   */
+  mock?: boolean;
   /** The exposure meter, pinned to the foot of the rail. */
   railFoot?: ReactNode;
   children: ReactNode;
 }
 
-function readStoredTheme(): ThemeChoice {
-  try {
-    const value = window.localStorage.getItem(THEME_KEY);
-    if (value === "light" || value === "dark" || value === "system") return value;
-  } catch {
-    // A browser with storage blocked still gets a working app on the system theme.
-  }
-  return "system";
-}
-
-/**
- * The theme lives outside React, because it is a browser fact rather than page
- * state: the server has no way to know it, and reading it during render would
- * be a hydration mismatch. useSyncExternalStore is the supported way to say so.
- */
-let currentTheme: ThemeChoice | null = null;
-const themeListeners = new Set<() => void>();
-
-function subscribeToTheme(listener: () => void): () => void {
-  themeListeners.add(listener);
-  return () => {
-    themeListeners.delete(listener);
-  };
-}
-
-function themeSnapshot(): ThemeChoice {
-  if (currentTheme === null) currentTheme = readStoredTheme();
-  return currentTheme;
-}
-
-function themeServerSnapshot(): ThemeChoice {
-  return "system";
-}
-
-function setStoredTheme(next: ThemeChoice) {
-  currentTheme = next;
-  try {
-    window.localStorage.setItem(THEME_KEY, next);
-  } catch {
-    // The choice still holds for this page. It just will not survive a reload.
-  }
-  for (const listener of themeListeners) listener();
-}
-
-function applyTheme(choice: ThemeChoice) {
-  const root = document.documentElement;
-  if (choice === "system") root.removeAttribute("data-theme");
-  else root.setAttribute("data-theme", choice);
-}
-
-const NEXT_THEME: Record<ThemeChoice, ThemeChoice> = {
-  system: "light",
-  light: "dark",
-  dark: "system",
-};
-
-const THEME_WORD: Record<ThemeChoice, string> = {
-  system: "system theme",
-  light: "light theme",
-  dark: "dark theme",
-};
-
-export function AppShell({ session, nav, railFoot, children }: AppShellProps) {
+export function AppShell({ session, nav, railFoot, mock = false, children }: AppShellProps) {
   const pathname = usePathname();
   const theme = useSyncExternalStore(subscribeToTheme, themeSnapshot, themeServerSnapshot);
 
@@ -138,6 +92,12 @@ export function AppShell({ session, nav, railFoot, children }: AppShellProps) {
 
       <div className={styles.content}>
         <div className={styles.topline}>
+          {mock ? (
+            <span className={styles.fixtures}>
+              Running on fixtures. No database is attached, every seat is the same demo seat, and
+              nothing on screen is real traffic.
+            </span>
+          ) : null}
           <span className={styles.who}>
             {session.displayName} &middot; {session.role}
             {session.customerName ? ` · ${session.customerName}` : ""}
@@ -146,9 +106,14 @@ export function AppShell({ session, nav, railFoot, children }: AppShellProps) {
             {THEME_WORD[theme]}
           </button>
         </div>
-        {/* Queue count changes announce politely. Individual cases never do. */}
-        <div aria-live="polite" className="sr-only" id="guardian-live-region" />
-        <main id="main">{children}</main>
+        {/* Written through lib/announce. Sentences about what changed on the
+            page, never an event feed and never a person. */}
+        <div aria-live="polite" className="sr-only" id={LIVE_REGION_ID} />
+        {/* tabIndex -1 so the skip link actually moves focus rather than only
+            scrolling. It is not a tab stop; it can only be reached by target. */}
+        <main id="main" tabIndex={-1}>
+          {children}
+        </main>
       </div>
     </div>
   );

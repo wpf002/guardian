@@ -100,6 +100,7 @@ interface PairSpec {
   channel: string;
   slaRemainingMinutes: number | null;
   claim: MockPair["queue"]["claim"];
+  /** Seeds humanViewedAt. The queue's unread flag is derived from that, never set here. */
   unread: boolean;
   openedMinutesAgo: number;
   resolvedMinutesAgo?: number;
@@ -649,6 +650,13 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
     spec.resolvedMinutesAgo === undefined
       ? null
       : new Date(now.getTime() - spec.resolvedMinutesAgo * MINUTE);
+  /**
+   * One fact, two readers. spec.unread seeds this rather than the queue flag,
+   * so the fixture cannot hold a pair that is both unread and already viewed:
+   * the queue's unread is derived from it, and marking an excerpt read updates
+   * it, which is what the database mapper does.
+   */
+  const humanViewedAt = spec.unread ? null : new Date(now.getTime() - 3 * 24 * HOUR);
 
   return {
     queue: {
@@ -670,7 +678,9 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
       mediaEventCount,
       slaRemainingMinutes: spec.slaRemainingMinutes,
       claim: spec.claim,
-      unread: spec.unread,
+      // Derived, exactly as the database mapper derives it, so a read in mock
+      // mode clears the dot the way it does in production.
+      unread: humanViewedAt === null,
       updatedAt: rows.length > 0 ? rows[rows.length - 1]!.at : start,
       resolvedAt,
     },
@@ -697,9 +707,13 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
       editedBy: spec.policyCriteria === null ? null : "M. Osei",
     },
     versions: { ...VERSIONS },
-    scoredAt: new Date(start.getTime() + Math.max(spec.openedMinutesAgo - 5, 0) * MINUTE),
+    // Five minutes after the pair's window opened, so a fixture pair's score
+    // time tracks its age. It used to be five minutes before now for every
+    // pair, whatever its age, which made every window filter and every
+    // score-to-decision latency built on it meaningless.
+    scoredAt: new Date(start.getTime() + Math.min(5, spec.openedMinutesAgo) * MINUTE),
     auditSeq,
-    humanViewedAt: spec.tier === "T3" ? new Date(now.getTime() - 3 * 24 * HOUR) : null,
+    humanViewedAt,
     timeline,
   };
 }

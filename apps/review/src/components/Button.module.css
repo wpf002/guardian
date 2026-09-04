@@ -37,12 +37,12 @@
 
 .secondary {
   background: var(--surface);
-  border-color: var(--divider);
+  border-color: var(--border);
   color: var(--text);
 }
 
 .secondary:hover:not(:disabled) {
-  border-color: var(--border);
+  border-color: var(--border-strong);
 }
 
 .secondary:active:not(:disabled) {

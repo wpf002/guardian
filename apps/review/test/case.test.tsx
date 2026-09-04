@@ -163,6 +163,73 @@ describe("the case detail at /cases/[id]", () => {
     expect(within(dialog).getByText(/The timeline note is empty/)).toBeTruthy();
   });
 
+  /**
+   * DESIGN-UI 12: after a decision, focus lands on the confirmation region and
+   * the next Tab reaches Undo. It never lands on nothing.
+   */
+  it("lands focus on the confirmation, announces it, and puts Undo first", async () => {
+    document.body.insertAdjacentHTML(
+      "afterbegin",
+      '<div aria-live="polite" id="guardian-live-region"></div>',
+    );
+    await renderCase("pair_4f2a");
+
+    fireEvent.click(screen.getByRole("button", { name: /threat language, 22 words/ }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Confirm T2/ })).toHaveProperty("disabled", false);
+    });
+
+    fireEvent.change(screen.getByLabelText(/What in the timeline supports this/), {
+      target: { value: "Supervision probe, then a migration ask 19 hours later." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Confirm T2/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Record this decision" }));
+
+    const recorded = await screen.findByRole("region", { name: "Decision recorded" });
+    expect(document.activeElement).toBe(recorded);
+    expect(document.getElementById("guardian-live-region")?.textContent).toMatch(
+      /You can reverse it for the next 60 seconds/,
+    );
+
+    // Undo is reachable, and it is the first control inside the region.
+    const buttons = within(recorded).getAllByRole("button");
+    expect(buttons[0]?.textContent).toBe("Undo");
+  });
+
+  /**
+   * The reason list is an aria-activedescendant listbox. Without the combobox
+   * role the highlight moves and nothing is spoken, so a reviewer can record a
+   * decision under a reason they never heard.
+   */
+  it("declares the reason filter as a combobox that owns the listbox", async () => {
+    await renderCase("pair_4f2a");
+    fireEvent.click(screen.getByRole("button", { name: /Dismiss/ }));
+
+    const filter = screen.getByRole("combobox", { name: "Filter reasons" });
+    expect(filter.getAttribute("aria-expanded")).toBe("true");
+    expect(filter.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(filter.getAttribute("aria-controls")).toBe("reasons-dismiss");
+    expect(screen.getByRole("listbox").id).toBe("reasons-dismiss");
+    expect(filter.getAttribute("aria-activedescendant")).toMatch(/^reasons-dismiss-/);
+  });
+
+  /**
+   * A term that lowered the tier and a term that raised it must not draw the
+   * same bar in the same direction: read by length alone, the negative term
+   * looks like the second largest reason the case is here.
+   */
+  it("draws a negative fusion term as a subtraction, in words and in geometry", async () => {
+    const { container } = await renderCase("pair_aa19");
+
+    expect(screen.getByText(/pulled the tier down/)).toBeTruthy();
+    expect(screen.getAllByText(/pushed the tier up/).length).toBeGreaterThan(0);
+
+    const fills = Array.from(container.querySelectorAll('[class*="barFill"]'));
+    const negative = fills.filter((fill) => fill.className.includes("barNegative"));
+    expect(negative.length).toBe(1);
+    expect(fills.length).toBeGreaterThan(negative.length);
+  });
+
   it("gives an owner a drafted report that says Guardian submits nothing", async () => {
     await renderCase("pair_4f2a");
     expect(

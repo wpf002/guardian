@@ -46,8 +46,15 @@ export function Toast({
     <div className={`${styles.toast} ${styles[tone]}`} role="status" aria-live="polite">
       <span className={styles.message}>{message}</span>
       {children}
+      {/*
+        The counter is hidden from assistive technology on purpose. This is a
+        polite live region, so a seconds figure inside it queues one
+        announcement per tick and a sixty second window saturates the output
+        for a minute, over the top of the message and the action. The window is
+        stated once, in the message, by whoever mounts the bar.
+      */}
       {remaining !== null ? (
-        <span className={styles.seconds}>
+        <span className={styles.seconds} aria-hidden="true">
           {expired ? "window closed" : `${remaining}s left`}
         </span>
       ) : null}

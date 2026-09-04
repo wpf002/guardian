@@ -135,7 +135,11 @@ export function buildReportDraft(input: ReportDraftInput): string {
         `    [${row.collapsed.spanClass}, ${row.collapsed.wordCount} words. The bundle holds this excerpt verbatim; this draft was generated without it loaded.]`,
       );
     }
-    out.push(`    read by a person at Guardian: ${row.viewedByHuman ? "yes" : "no"}`);
+    out.push(
+      `    recorded as read by a person at Guardian in the review console: ${
+        row.viewedByHuman ? "yes" : "no"
+      }`,
+    );
   }
   out.push("");
   out.push("MEDIA EVENTS");
@@ -157,9 +161,15 @@ export function buildReportDraft(input: ReportDraftInput): string {
   out.push(
     line(
       "Excerpts",
-      `${excerpts.length} present, ${readCount} read by a person at Guardian, ${
+      `${excerpts.length} present, ${readCount} recorded as read by a person at Guardian, ${
         excerpts.length - readCount
-      } read by nobody`,
+      } recorded as read by nobody`,
+    ),
+  );
+  out.push(
+    line(
+      "Read record",
+      "written by the review console when an excerpt was rendered to a named reviewer, and appended to the hash-chained audit log as an evidence.read entry with the reviewer, the timestamp and the excerpts it covered",
     ),
   );
   out.push(line("Timestamps", "present, with timezone"));

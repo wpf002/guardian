@@ -8,7 +8,13 @@
  * names the row that broke.
  */
 
-import { AuditLog, PrismaAuditStore, type AuditKind, type VerifyResult } from "@guardian/audit";
+import {
+  AUDIT_APPEND_LOCK_KEY,
+  AuditLog,
+  PrismaAuditStore,
+  type AuditKind,
+  type VerifyResult,
+} from "@guardian/audit";
 import { getPrisma, isMockMode } from "../db";
 import { getMockData } from "../mock/fixtures";
 import type { Session } from "../auth";
@@ -44,6 +50,47 @@ export async function appendAudit(
   input: AppendAuditInput,
 ): Promise<{ seq: number; hash: string }> {
   const log = await getAuditLog();
+  const entry = await log.append({
+    kind: input.kind,
+    customerId: session.customerId,
+    payload: input.payload,
+    ...(input.ts ? { ts: input.ts } : {}),
+  });
+  return { seq: entry.seq, hash: entry.hash };
+}
+
+/**
+ * The slice of an interactive Prisma transaction this module needs. Typed here
+ * rather than imported so nothing drags the generated client into a component
+ * test.
+ */
+export interface AuditTransaction {
+  auditEntry: unknown;
+  $executeRaw(query: TemplateStringsArray, ...values: unknown[]): Promise<number>;
+}
+
+/**
+ * Appends inside a caller's transaction, so a row and its chain entry commit or
+ * roll back together.
+ *
+ * Use this wherever the entry and the row it describes have to agree. Appending
+ * after the transaction commits leaves the other failure open: the write lands,
+ * the append throws, and the caller tells the reviewer nothing changed while the
+ * pair has already moved tier with no entry on the chain.
+ *
+ * The advisory lock is taken on the caller's transaction rather than by the
+ * store, because a store that opened its own transaction would be nesting one
+ * inside another. Same lock, same key, so appends from every process still
+ * serialize on it.
+ */
+export async function appendAuditInTransaction(
+  session: Session,
+  tx: AuditTransaction,
+  input: AppendAuditInput,
+): Promise<{ seq: number; hash: string }> {
+  if (isMockMode()) return appendAudit(session, input);
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(CAST(${AUDIT_APPEND_LOCK_KEY} AS bigint))`;
+  const log = new AuditLog(new PrismaAuditStore(tx.auditEntry as never), auditSecret());
   const entry = await log.append({
     kind: input.kind,
     customerId: session.customerId,
@@ -126,13 +173,22 @@ export async function getAuditEntry(
 }
 
 /**
+ * The most entries one verification will pull into memory.
+ *
+ * The chain is global, so an unbounded walk reads every customer's rows on a
+ * deployment that has more than one, on every render of a page that only needed
+ * a verdict. A bounded walk is the whole point of naming the row that broke.
+ */
+export const MAX_VERIFY_ENTRIES = 2000;
+
+/**
  * Verifies a slice of the chain. The verifier names the row that broke rather
  * than returning a bare false, because chain of custody is what makes a report
  * survive a defence motion.
  */
 export async function verifyAuditChain(fromSeq = 1, limit?: number): Promise<VerifyResult> {
   const log = await getAuditLog();
-  return log.verify(fromSeq, limit);
+  return log.verify(fromSeq, Math.min(limit ?? MAX_VERIFY_ENTRIES, MAX_VERIFY_ENTRIES));
 }
 
 export async function getAuditHead(): Promise<{ seq: number; hash: string }> {

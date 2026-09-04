@@ -38,7 +38,7 @@ import {
 } from "./reasons";
 import { getPrisma, isMockMode } from "./db";
 import { getMockData } from "./mock/fixtures";
-import { appendAudit } from "./data/audit";
+import { appendAudit, appendAuditInTransaction } from "./data/audit";
 import type { Session } from "./auth";
 import type { ReviewRecord } from "./data/types";
 
@@ -180,6 +180,22 @@ function assertT3Allowed(
   }
 }
 
+/**
+ * A confirm and a proposal both claim a person read the evidence. The browser
+ * counts what it rendered, which is a claim the server cannot check, so the
+ * server checks its own record instead: markExcerptsViewed is the only thing
+ * that sets humanViewedAt, and a pair without it has had no excerpt rendered to
+ * anybody.
+ */
+function assertExcerptRead(decision: ReviewDecision, humanViewedAt: Date | null): void {
+  if (decision !== "confirm" && decision !== "report") return;
+  if (humanViewedAt !== null) return;
+  throw new DecisionRefused(
+    "excerpt_not_read",
+    "No excerpt on this case has been rendered to a person yet. Open one in the timeline before confirming or proposing.",
+  );
+}
+
 function summaryFor(state: ReviewState, resultTier: Tier, reasonCode: string): string {
   const label = reasonLabel(reasonCode);
   switch (state) {
@@ -236,11 +252,11 @@ function validate(input: RecordDecisionInput): Reason {
  * Records one decision: a Review row, the pair's tier and resolvedAt, a
  * retention escalation, and one review.decision entry on the audit chain.
  *
- * The write order matters. The audit entry is appended after the row lands, so
- * a failed write never leaves a chain entry claiming a decision that does not
- * exist. A failed write returns an error and changes nothing, because a
- * decision that may or may not have landed is the one error this app cannot
- * ship.
+ * All four are one transaction. Appending after the row committed left the
+ * mirror-image failure open: the decision lands, the append throws, the
+ * reviewer is told nothing changed, and the pair sits at its new tier with no
+ * entry on the chain. A decision that may or may not have landed is the one
+ * error this app cannot ship, so either everything commits or nothing does.
  */
 export async function recordDecision(input: RecordDecisionInput): Promise<DecisionResult> {
   const reason = validate(input);
@@ -258,6 +274,8 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
         "This tier rests on the actor score alone, with no conversational fact on the pair. A report cannot be proposed from it.",
       );
     }
+
+    assertExcerptRead(decision, pair.humanViewedAt);
 
     const modelTier = pair.queue.tier;
     const { tier: resultTier, state } = resolveResultTier(decision, modelTier, input.concurrence);
@@ -309,6 +327,8 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
       id: true,
       tier: true,
       retention: true,
+      expiresAt: true,
+      humanViewedAt: true,
       soleAutomatedBasis: true,
     },
   });
@@ -319,16 +339,27 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
       "This tier rests on the actor score alone, with no conversational fact on the pair. A report cannot be proposed from it.",
     );
   }
+  assertExcerptRead(decision, pair.humanViewedAt);
 
   const modelTier = pair.tier as Tier;
   const { tier: resultTier, state } = resolveResultTier(decision, modelTier, input.concurrence);
   assertT3Allowed(resultTier, decision, input.concurrence, session);
 
+  const currentRetention = pair.retention as RetentionClass;
   const retention: RetentionClass = escalateRetention(
-    pair.retention as RetentionClass,
+    currentRetention,
     retentionForTier(resultTier),
   );
-  const retentionDeadline = expiresAt(retention);
+  /**
+   * The deletion clock moves only when the class actually escalates.
+   *
+   * expiresAt() anchors on now, so rewriting it on every decision restarted the
+   * countdown: a T1 pair one day from deletion, dismissed, was kept another
+   * thirty days because somebody decided it was nothing. A dismissal must not
+   * extend retention, and repeated decisions must not keep a pair alive.
+   */
+  const escalated = retention !== currentRetention;
+  const retentionDeadline = escalated ? expiresAt(retention) : pair.expiresAt;
 
   const created = await prisma.$transaction(async (tx) => {
     const row = await tx.review.create({
@@ -351,24 +382,24 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
           tier: resultTier,
           resolvedAt: new Date(),
           retention,
-          expiresAt: retentionDeadline,
+          ...(escalated ? { expiresAt: retentionDeadline } : {}),
         },
       });
     }
-    return row;
+    const audit = await appendAuditInTransaction(session, tx as never, {
+      kind: "review.decision",
+      payload: {
+        ...auditPayload(input, reason, modelTier, resultTier, state),
+        reviewId: row.id,
+      },
+    });
+    return { row, seq: audit.seq };
   });
-
-  const { seq } = await appendAudit(session, {
-    kind: "review.decision",
-    payload: {
-      ...auditPayload(input, reason, modelTier, resultTier, state),
-      reviewId: created.id,
-    },
-  });
+  const { row: createdRow, seq } = created;
 
   return {
     review: {
-      id: created.id,
+      id: createdRow.id,
       pairId,
       shortId: pairId.slice(-4),
       reviewerId: session.reviewerId,
@@ -378,15 +409,15 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
       reasonLabel: reason.label,
       modelTier,
       resultTier,
-      minutesSpent: created.minutesSpent,
-      viewedExcerptCount: created.viewedExcerptCount,
+      minutesSpent: createdRow.minutesSpent,
+      viewedExcerptCount: createdRow.viewedExcerptCount,
       notes: {
         timeline: input.notes?.timeline ?? null,
         outsideContext: input.notes?.outsideContext ?? null,
         recommendation: input.notes?.recommendation ?? null,
       },
       parentReviewId: input.concurrence?.proposalReviewId ?? null,
-      createdAt: created.createdAt,
+      createdAt: createdRow.createdAt,
       retentionDeadline,
       auditSeq: seq,
     },
@@ -434,33 +465,38 @@ function auditPayload(
  * Undo, within the 60 second window. Emits a compensating audit entry and never
  * mutates the original row: history is additive, and a defence lawyer reading a
  * mutated decision log gets a free cross-examination.
+ *
+ * The tier restored is the one recorded on the review being compensated, not a
+ * tier the caller chose. A client-supplied tier was a tier write with no Review
+ * row behind it, no reason code and no place in the taxonomy: a pair the model
+ * scored T0 could be undone into T2, back into the queue with a four hour SLA
+ * and into the dashboard's tier rates.
  */
 export async function undoDecision(
   session: Session,
   reviewId: string,
-  restoreTier: Tier,
-): Promise<{ auditSeq: number }> {
-  if (restoreTier === "T3") {
-    throw new DecisionRefused(
-      "cannot_restore_t3",
-      "Undo cannot restore tier T3. A reported case is retracted, which is a different act.",
-    );
-  }
-
+): Promise<{ auditSeq: number; restoredTier: Tier }> {
   if (isMockMode()) {
     const data = await getMockData();
-    const review = data.reviews.find((r) => r.id === reviewId);
+    const review = data.reviews.find(
+      (r) => r.id === reviewId && r.reviewerId === session.reviewerId,
+    );
     if (!review) throw new DecisionRefused("not_found", "That decision is not in your log.");
+    assertUndoAllowed(review.modelTier, review.createdAt);
     const pair = data.pairs.find((p) => p.queue.pairId === review.pairId);
     if (pair) {
-      pair.queue.tier = restoreTier;
+      pair.queue.tier = review.modelTier;
       pair.queue.resolvedAt = null;
     }
     const { seq } = await appendAudit(session, {
       kind: "review.decision",
-      payload: { compensates: reviewId, pairId: review.pairId, restoredTier: restoreTier },
+      payload: {
+        compensates: reviewId,
+        pairId: review.pairId,
+        restoredTier: review.modelTier,
+      },
     });
-    return { auditSeq: seq };
+    return { auditSeq: seq, restoredTier: review.modelTier };
   }
 
   const prisma = await getPrisma();
@@ -468,19 +504,34 @@ export async function undoDecision(
     where: { id: reviewId, reviewerId: session.reviewerId, pair: { customerId: session.customerId } },
   });
   if (!review) throw new DecisionRefused("not_found", "That decision is not in your log.");
-  if (Date.now() - review.createdAt.getTime() > UNDO_WINDOW_MS) {
+  const restoreTier = review.modelTier as Tier;
+  assertUndoAllowed(restoreTier, review.createdAt);
+
+  const { seq } = await prisma.$transaction(async (tx) => {
+    await tx.pair.updateMany({
+      where: { id: review.pairId, customerId: session.customerId },
+      data: { tier: restoreTier, resolvedAt: null },
+    });
+    return appendAuditInTransaction(session, tx as never, {
+      kind: "review.decision",
+      payload: { compensates: reviewId, pairId: review.pairId, restoredTier: restoreTier },
+    });
+  });
+  return { auditSeq: seq, restoredTier: restoreTier };
+}
+
+/** The two things that close an undo: the tier it would restore, and the clock. */
+function assertUndoAllowed(restoreTier: Tier, decidedAt: Date): void {
+  if (restoreTier === "T3") {
+    throw new DecisionRefused(
+      "cannot_restore_t3",
+      "Undo cannot restore tier T3. A reported case is retracted, which is a different act.",
+    );
+  }
+  if (Date.now() - decidedAt.getTime() > UNDO_WINDOW_MS) {
     throw new DecisionRefused(
       "undo_window_closed",
       "The undo window has closed. Reopen the decision from your decision log instead.",
     );
   }
-  await prisma.pair.updateMany({
-    where: { id: review.pairId, customerId: session.customerId },
-    data: { tier: restoreTier, resolvedAt: null },
-  });
-  const { seq } = await appendAudit(session, {
-    kind: "review.decision",
-    payload: { compensates: reviewId, pairId: review.pairId, restoredTier: restoreTier },
-  });
-  return { auditSeq: seq };
 }

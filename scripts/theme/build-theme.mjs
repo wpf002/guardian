@@ -113,13 +113,20 @@ const semantic = {
     surface: P("white"),
     "surface-raised": P("white"),
     "surface-sunken": P("neutral", 100),
-    // border is a control boundary (inputs, outlined buttons) and must read at
-    // 3:1. divider is a hairline between rows and only needs to be visible.
+    // border is the resting boundary of a control (input, outlined button, chip,
+    // card that is a button) and must read at 3:1 on every surface it can sit
+    // on, because this app spends nothing on shadows and the 1px rule is the
+    // whole affordance. border-strong is the same boundary under the pointer or
+    // in a pending state, so hover still reads as a change. divider is a
+    // hairline between rows inside one surface and only needs to be visible.
     border: P("neutral", 500),
+    "border-strong": P("neutral", 600),
     divider: P("neutral", 300),
+    // Three text tiers, all of them body copy somewhere, so all three clear
+    // 4.5:1 on bg, surface and surface-sunken.
     text: P("neutral", 900),
-    "text-muted": P("neutral", 600),
-    "text-subtle": P("neutral", 500),
+    "text-muted": P("neutral", 700),
+    "text-subtle": P("neutral", 600),
     accent: P("accent", 600),
     "accent-hover": P("accent", 700),
     "accent-fg": P("white"),
@@ -137,15 +144,16 @@ const semantic = {
     "surface-raised": P("neutral", 800),
     "surface-sunken": P("neutral", 950),
     border: P("neutral", 600),
+    "border-strong": P("neutral", 500),
     divider: P("neutral", 800),
     text: P("neutral", 50),
-    "text-muted": P("neutral", 400),
-    "text-subtle": P("neutral", 500),
-    accent: P("accent", 500),
-    "accent-hover": P("accent", 400),
+    "text-muted": P("neutral", 300),
+    "text-subtle": P("neutral", 400),
+    accent: P("accent", 400),
+    "accent-hover": P("accent", 300),
     "accent-fg": P("neutral", 950),
     "accent-soft": P("accent", 900),
-    "focus-ring": P("accent", 400),
+    "focus-ring": P("accent", 300),
     "info": P("info", 300), "info-soft": P("info", 900),
     "warning": P("warning", 300), "warning-soft": P("warning", 900),
     "danger": P("danger", 300), "danger-soft": P("danger", 900),
@@ -154,9 +162,21 @@ const semantic = {
   },
 };
 
+/**
+ * Translucent values, kept out of the semantic map because the contrast
+ * validator reasons over opaque hex. The scrim dims the page behind a dialog
+ * rather than replacing it, which is what makes a dialog read as a layer.
+ */
+const overlays = {
+  light: { scrim: "rgb(20 22 34 / 0.45)" },
+  dark: { scrim: "rgb(4 5 6 / 0.62)" },
+};
+
 /** Component layer: only where a component genuinely diverges from semantic. */
 const component = {
-  "tier-t0": { fg: "text-subtle", bg: "surface-sunken", border: "divider" },
+  // T0 takes the control border rather than the hairline, so its tier bar is as
+  // perceivable as T1, T2 and T3 are.
+  "tier-t0": { fg: "text-subtle", bg: "surface-sunken", border: "border" },
   "tier-t1": { fg: "info", bg: "info-soft", border: "info" },
   "tier-t2": { fg: "warning", bg: "warning-soft", border: "warning" },
   "tier-t3": { fg: "grave", bg: "grave-soft", border: "grave" },
@@ -184,10 +204,25 @@ const nonColor = {
 
 // ---------------------------------------------------------------- validate
 
+/**
+ * Every text token is checked against all three grounds it can be painted on,
+ * because a token validated only against --bg ships as body copy on a card and
+ * on the sunken surface without anything noticing. Every boundary token is
+ * checked at the 3:1 WCAG 1.4.11 minimum on the same three grounds.
+ */
 const REQUIRED = [
-  ["text", "bg", 4.5], ["text", "surface", 4.5], ["text-muted", "bg", 4.5], ["text-muted", "surface", 4.5],
-  ["text-subtle", "bg", 3], ["accent-fg", "accent", 4.5], ["border", "bg", 3], ["divider", "bg", 1.4],
-  ["focus-ring", "bg", 3], ["accent", "bg", 3],
+  ["text", "bg", 4.5], ["text", "surface", 4.5], ["text", "surface-sunken", 4.5],
+  ["text-muted", "bg", 4.5], ["text-muted", "surface", 4.5], ["text-muted", "surface-sunken", 4.5],
+  ["text-subtle", "bg", 4.5], ["text-subtle", "surface", 4.5], ["text-subtle", "surface-sunken", 4.5],
+  ["accent-fg", "accent", 4.5],
+  ["border", "bg", 3], ["border", "surface", 3], ["border", "surface-sunken", 3],
+  ["border-strong", "bg", 3], ["border-strong", "surface", 3],
+  ["divider", "bg", 1.4],
+  ["focus-ring", "bg", 3], ["focus-ring", "surface", 3],
+  // The accent is a link colour on every surface and the active nav item's text
+  // on its own soft fill, so it is body contrast in four places, not three.
+  ["accent", "bg", 3],
+  ["accent", "surface", 4.5], ["accent", "surface-sunken", 4.5], ["accent", "accent-soft", 4.5],
   ["info", "info-soft", 4.5], ["warning", "warning-soft", 4.5], ["danger", "danger-soft", 4.5], ["success", "success-soft", 4.5], ["grave", "grave-soft", 4.5],
   ["info", "bg", 4.5], ["warning", "bg", 4.5], ["danger", "bg", 4.5], ["grave", "bg", 4.5],
 ];
@@ -233,6 +268,7 @@ const css = `/* Generated by scripts/theme/build-theme.mjs. Do not edit by hand.
 :root {
   color-scheme: light;
 ${cssVars(semantic.light)}
+${cssVars(overlays.light)}
 ${nonColorVars}
 ${componentVars("light")}
 }
@@ -240,18 +276,20 @@ ${componentVars("light")}
 :root[data-theme="dark"] {
   color-scheme: dark;
 ${cssVars(semantic.dark)}
+${cssVars(overlays.dark)}
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 ${cssVars(semantic.dark).replace(/^/gm, "  ")}
+${cssVars(overlays.dark).replace(/^/gm, "  ")}
   }
 }
 `;
 
 mkdirSync(OUT_DIR, { recursive: true });
-writeFileSync(join(OUT_DIR, "tokens.json"), JSON.stringify({ primitives, semantic, component, ...nonColor }, null, 2));
+writeFileSync(join(OUT_DIR, "tokens.json"), JSON.stringify({ primitives, semantic, component, overlays, ...nonColor }, null, 2));
 writeFileSync(join(OUT_DIR, "theme.css"), css);
 
 console.log("theme  pair                         ratio  min");

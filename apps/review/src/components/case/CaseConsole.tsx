@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { UNDO_WINDOW_MS } from "@/lib/reasons";
 import type { Tier, TimelineState } from "@/lib/data/types";
 import type {
   DecisionOutcome,
@@ -33,7 +34,7 @@ export interface CaseConsoleProps {
   leaveHref: string;
   onSubmit: (input: SubmitDecisionInput) => Promise<DecisionOutcome>;
   onUndo: (input: UndoInput) => Promise<DecisionOutcome>;
-  onExcerptsViewed: (pairId: string, excerptIds: string[]) => Promise<number>;
+  onExcerptsViewed: (pairId: string, excerptIds: string[]) => Promise<string[]>;
   onExportDraft: (pairId: string, method: "copy" | "download") => Promise<{ ok: boolean }>;
 }
 
@@ -67,8 +68,23 @@ export function CaseConsole({
   const [readCount, setReadCount] = useState(initialReadCount);
   const [reopened, setReopened] = useState(false);
   const [openedAt] = useState(() => Date.now());
+  const [decidedAt, setDecidedAt] = useState<number | null>(null);
 
-  const resolved = resolvedAt !== null && !reopened;
+  /**
+   * Recording a decision revalidates the route, which comes back with
+   * resolvedAt set. Swapping straight to the resolved view on that render took
+   * the confirmation and the undo bar off the screen seconds into a sixty
+   * second window, which is the opposite of what DESIGN-UI 12 asks for. The
+   * decision panel is held until the window closes or the reviewer reverses it.
+   */
+  useEffect(() => {
+    if (decidedAt === null) return;
+    const remaining = Math.max(0, UNDO_WINDOW_MS - (Date.now() - decidedAt));
+    const timer = setTimeout(() => setDecidedAt(null), remaining);
+    return () => clearTimeout(timer);
+  }, [decidedAt]);
+
+  const resolved = resolvedAt !== null && !reopened && decidedAt === null;
 
   return (
     <>
@@ -114,6 +130,8 @@ export function CaseConsole({
           openedAt={openedAt}
           onSubmit={onSubmit}
           onUndo={onUndo}
+          onDecisionRecorded={() => setDecidedAt(Date.now())}
+          onDecisionReversed={() => setDecidedAt(null)}
           leaveHref={leaveHref}
         />
       )}

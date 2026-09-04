@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { announce } from "@/lib/announce";
 import { Button } from "./Button";
 import { EmptyState } from "./EmptyState";
 import styles from "./Timeline.module.css";
@@ -46,16 +47,19 @@ function renderText(text: string, normalizations: NormalizationHit[]): ReactNode
       const segments = part.split(hit.normalized);
       segments.forEach((segment, index) => {
         if (index > 0) {
+          // A span, not a button. It was a <button> with no handler, which put
+          // a dead tab stop in the timeline for every normalized token and
+          // announced each one as activatable. The mark is the underline, the
+          // title is a mouse convenience, and the note printed under the row is
+          // the path that works for everybody.
           next.push(
-            <button
+            <span
               key={`norm-${hitIndex}-${index}`}
-              type="button"
               className={styles.normalized}
               title={`Normalized from ${hit.original}. Lexicon ${hit.lexiconVersion}, entry ${hit.entry}.`}
-              aria-label={`${hit.normalized}, normalized from ${hit.original}, lexicon ${hit.lexiconVersion}, entry ${hit.entry}`}
             >
               {hit.normalized}
-            </button>,
+            </span>,
           );
         }
         if (segment) next.push(segment);
@@ -90,6 +94,15 @@ export function Timeline({ timeline, onReveal, onRetry, error }: TimelineProps) 
       next.add(rowId);
       return next;
     });
+    const row = timeline.state === "ready" ? timeline.rows.find((r) => r.id === rowId) : undefined;
+    const span = row?.collapsed;
+    // Text appearing without a focus move or a word is a no-op to a screen
+    // reader, so the reveal says what opened.
+    announce(
+      span
+        ? `Revealed ${SPAN_WORDS[span.spanClass] ?? span.spanClass}, ${span.wordCount} words.`
+        : "Revealed one collapsed span.",
+    );
     onReveal?.(rowId);
   }
 
@@ -156,6 +169,15 @@ export function Timeline({ timeline, onReveal, onRetry, error }: TimelineProps) 
   );
 }
 
+/**
+ * One row.
+ *
+ * The body is the focus anchor and it never unmounts, so revealing a collapsed
+ * span cannot drop focus to the document. The control that opened the span does
+ * unmount, which is exactly why focus has to move somewhere that stays: without
+ * this, the next Tab after a reveal restarts at the top of the document, past
+ * the rail, the strip and the why panel.
+ */
 function TimelineRowView({
   row,
   revealed,
@@ -165,6 +187,14 @@ function TimelineRowView({
   revealed: boolean;
   onReveal: () => void;
 }) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const wasRevealed = useRef(revealed);
+
+  useEffect(() => {
+    if (revealed && !wasRevealed.current) bodyRef.current?.focus();
+    wasRevealed.current = revealed;
+  }, [revealed]);
+
   return (
     <>
       {row.gapHoursBefore ? (
@@ -174,7 +204,7 @@ function TimelineRowView({
       ) : null}
       <li className={styles.row} data-speaker={row.speaker}>
         <span className={styles.speaker}>{SPEAKER_WORDS[row.speaker] ?? row.speaker}</span>
-        <div>
+        <div ref={bodyRef} tabIndex={-1} className={styles.body}>
           <div className={styles.meta}>
             <span>{formatTime(row.at)}</span>
             <span>{row.bandLabel}</span>

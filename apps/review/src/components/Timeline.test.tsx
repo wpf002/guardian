@@ -86,6 +86,34 @@ describe("Timeline", () => {
     expect(screen.queryByText("this is the verbatim excerpt")).toBeNull();
   });
 
+  it("marks a normalized token without adding a dead tab stop to every row", () => {
+    render(<Timeline timeline={ready} />);
+    // It was a <button> with no handler: a control that did nothing when
+    // activated, one per normalized token, announced as activatable.
+    expect(screen.queryByRole("button", { name: /normalized from/ })).toBeNull();
+    const token = screen.getByTitle(/Normalized from ghost emoji/);
+    expect(token.tagName).toBe("SPAN");
+  });
+
+  it("moves focus to the row body when a span is revealed, and says what opened", () => {
+    render(
+      <>
+        <div aria-live="polite" id="guardian-live-region" />
+        <Timeline timeline={ready} />
+      </>,
+    );
+    const reveal = screen.getByRole("button", { name: /threat language, 22 words/ });
+    reveal.focus();
+    fireEvent.click(reveal);
+
+    // The control that was focused has unmounted. Focus must not fall to body.
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement?.textContent).toContain("this is the verbatim excerpt");
+    expect(document.getElementById("guardian-live-region")?.textContent).toMatch(
+      /Revealed threat language, 22 words/,
+    );
+  });
+
   it("writes the read flag only when a span is revealed", () => {
     const onReveal = vi.fn();
     render(<Timeline timeline={ready} onReveal={onReveal} />);

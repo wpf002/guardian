@@ -247,8 +247,12 @@ export interface DashboardSummary {
   reportsDrafted: number;
   /** DESIGN.md 6.4 first-class metric. Aggregate, never per reviewer. */
   reviewerMinutesPer1kUsers: number | null;
-  /** Null below the stated n: "not enough decisions yet". */
+  /**
+   * Confirms and proposals as a share of the decisions on pairs the model put
+   * at T2. Null below the stated n: "not enough decisions yet".
+   */
   t2PositivePredictiveValue: number | null;
+  /** Decisions on model-T2 pairs in the window, which is the ratio's denominator. */
   decisionsSampleSize: number;
   oldestProposalAgeHours: number | null;
   activeSeats: number;

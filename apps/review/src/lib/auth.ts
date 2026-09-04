@@ -54,7 +54,12 @@ export const MOCK_REVIEWER: ReviewerRecord = {
 function sessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
   if (secret && secret.length >= 16) return secret;
-  if (isMockMode()) return "guardian-mock-session-secret-not-for-real-use";
+  // The known literal exists so a laptop with no environment can sign a cookie.
+  // It is a published string, so any cookie minted with it is forgeable by
+  // anyone who has read this repository, and it is refused outside development.
+  if (isMockMode() && process.env.NODE_ENV !== "production") {
+    return "guardian-mock-session-secret-not-for-real-use";
+  }
   throw new Error("SESSION_SECRET must be set to at least 16 characters");
 }
 
@@ -196,6 +201,28 @@ export function roleAllows(role: Role, minimum: Role): boolean {
 }
 
 /**
+ * Re-resolves the seat against the current roster on every request.
+ *
+ * The cookie proves identity and nothing else. Role and customerId come from
+ * the roster row, so removing a seat or demoting an owner takes effect on the
+ * next request rather than up to twelve hours later: there is no session table
+ * to revoke against, and rotating SESSION_SECRET signs out everybody. A cookie
+ * whose id is no longer on the roster is not a session.
+ */
+export function resolveSession(claim: Session | null): Session | null {
+  if (!claim) return null;
+  const seat = loadReviewers().find((r) => r.id === claim.reviewerId);
+  if (!seat) return null;
+  return {
+    reviewerId: seat.id,
+    displayName: seat.name,
+    role: seat.role,
+    customerId: seat.customerId,
+    issuedAt: claim.issuedAt,
+  };
+}
+
+/**
  * Reads the cookie. Mock mode signs in the default seat so the app runs with no
  * environment at all.
  */
@@ -203,7 +230,7 @@ export async function getSession(): Promise<Session | null> {
   if (isMockMode()) return mockSession();
   const { cookies } = await import("next/headers");
   const jar = await cookies();
-  return verifySessionCookie(jar.get(SESSION_COOKIE)?.value);
+  return resolveSession(verifySessionCookie(jar.get(SESSION_COOKIE)?.value));
 }
 
 /** Every server component and route handler gets the session from here. */

@@ -161,7 +161,15 @@
   color: var(--text-muted);
 }
 
+/*
+ * Two-sided. The track has a baseline down the middle: a term that raised the
+ * tier fills to the right of it, a term that lowered the tier fills to the
+ * left. A left-anchored fill for both would draw a negative term as though it
+ * were the second largest reason the case is here, when it is the reason it
+ * nearly was not.
+ */
 .bar {
+  position: relative;
   grid-column: 1 / -1;
   height: 8px;
   border: 1px solid var(--divider);
@@ -170,14 +178,35 @@
   overflow: hidden;
 }
 
+.bar::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(50% - 1px);
+  width: 1px;
+  background: var(--border);
+}
+
 .barFill {
-  display: block;
-  height: 100%;
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
   background: var(--text-subtle);
+}
+
+.barNegative {
+  inset-inline-start: auto;
+  inset-inline-end: 50%;
 }
 
 .barCritical {
   background: var(--tier-t2-border);
+}
+
+/* The sign is in words as well as in geometry, never in direction alone. */
+.directionWord {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
 }
 
 .criticalWord {
@@ -341,4 +370,18 @@
   padding-inline-start: var(--space-5);
   max-width: var(--measure);
   font-size: var(--text-sm);
+}
+
+/*
+ * The timeline heading is the focus anchor for reveal-all: the control that
+ * opened the dialog unmounts when the spans open, so focus has to land on
+ * something that stays. Not a tab stop.
+ */
+.signalName:focus {
+  outline: none;
+}
+
+.signalName:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }

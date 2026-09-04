@@ -37,6 +37,20 @@ import styles from "@/components/case/Case.module.css";
  * action in ./actions.
  */
 
+/**
+ * Two cases open in two tabs have to be tellable apart, and a screen reader
+ * speaks the title on arrival. The short id is what the whole app calls a pair,
+ * and it names no person.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<{ title: string }> {
+  const { id } = await params;
+  return { title: `Pair ${id.slice(-4)}` };
+}
+
 const TIMELINE_FAILED =
   "The evidence timeline could not be loaded. You can defer this case or reload. Do not decide on the strip alone when the timeline is unavailable.";
 

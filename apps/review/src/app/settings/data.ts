@@ -30,6 +30,7 @@ import {
 import type { Session } from "@/lib/auth";
 import { getPrisma, isMockMode } from "@/lib/db";
 import { getLexiconExtension } from "@/lib/data/settings";
+import { checkWebhookTarget } from "./webhook-target";
 import type {
   LexiconFieldView,
   LexiconView,
@@ -154,7 +155,14 @@ export function sampleWebhookPayload(session: Session, scoredAt = new Date()): W
 export interface TestDeliveryOutcome {
   attempted: boolean;
   delivered: boolean;
-  status?: number;
+  /** True when the endpoint answered with a redirect, which is not a delivery. */
+  redirected?: boolean;
+  /**
+   * Set only where the reason is Guardian's own configuration. A failure from
+   * the far end never carries a status code or a transport error: the
+   * difference between a refused connection, a timeout and a live service is a
+   * host-and-port oracle for Guardian's private network.
+   */
   error?: string;
   /** The body that was signed, pretty printed. */
   sample: string;
@@ -201,6 +209,13 @@ export async function sendTestDelivery(
     };
   }
 
+  // Re-checked here and not only on the save, because a name that answered
+  // publicly when it was stored can answer privately now.
+  const target = await checkWebhookTarget(new URL(view.url));
+  if (!target.ok) {
+    return { attempted: false, delivered: false, error: target.reason, sample: pretty };
+  }
+
   const timestamp = Math.floor((opts.now ?? Date.now)() / 1000);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 5000);
@@ -214,16 +229,28 @@ export async function sendTestDelivery(
         "x-guardian-signature": signPayload(body, secret, timestamp),
       },
       body,
+      // Manual, so a first hop that answers 302 cannot walk this request onto
+      // plain http or onto an address the https check never saw, carrying the
+      // customer's signature headers with it.
+      redirect: "manual",
       signal: controller.signal,
     });
-    return { attempted: true, delivered: res.ok, status: res.status, sample: pretty };
-  } catch (err) {
-    return {
-      attempted: true,
-      delivered: false,
-      error: err instanceof Error ? err.message : String(err),
-      sample: pretty,
-    };
+    // A redirect is not a delivery. It also is not an endpoint answering, so it
+    // says so in its own words rather than reporting a status.
+    if (res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400)) {
+      return {
+        attempted: true,
+        delivered: false,
+        redirected: true,
+        sample: pretty,
+      };
+    }
+    return { attempted: true, delivered: res.ok, sample: pretty };
+  } catch {
+    // Deliberately not the underlying error. The exact failure mode separates a
+    // refused connection from a timeout from a live service, which turns this
+    // button into a scanner for whatever Guardian's own network can reach.
+    return { attempted: true, delivered: false, sample: pretty };
   } finally {
     clearTimeout(timer);
   }

@@ -7,10 +7,11 @@
   --surface-raised: #ffffff;
   --surface-sunken: #f0f2f4;
   --border: #80878e;
+  --border-strong: #696f77;
   --divider: #cdd1d7;
   --text: #222427;
-  --text-muted: #696f77;
-  --text-subtle: #80878e;
+  --text-muted: #51565c;
+  --text-subtle: #696f77;
   --accent: #2e71b6;
   --accent-hover: #20578f;
   --accent-fg: #ffffff;
@@ -26,6 +27,7 @@
   --success-soft: #e2f4e6;
   --grave: #64456e;
   --grave-soft: #f6e9fa;
+  --scrim: rgb(20 22 34 / 0.45);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -63,7 +65,7 @@
   --measure: 68ch;
   --tier-t0-fg: var(--text-subtle);
   --tier-t0-bg: var(--surface-sunken);
-  --tier-t0-border: var(--divider);
+  --tier-t0-border: var(--border);
   --tier-t1-fg: var(--info);
   --tier-t1-bg: var(--info-soft);
   --tier-t1-border: var(--info);
@@ -88,15 +90,16 @@
   --surface-raised: #3a3d42;
   --surface-sunken: #101214;
   --border: #696f77;
+  --border-strong: #80878e;
   --divider: #3a3d42;
   --text: #f7f9fb;
-  --text-muted: #9fa5ac;
-  --text-subtle: #80878e;
-  --accent: #4789d0;
-  --accent-hover: #71a9e7;
+  --text-muted: #cdd1d7;
+  --text-subtle: #9fa5ac;
+  --accent: #71a9e7;
+  --accent-hover: #b1d5fd;
   --accent-fg: #101214;
   --accent-soft: #0e253e;
-  --focus-ring: #71a9e7;
+  --focus-ring: #b1d5fd;
   --info: #9ccce6;
   --info-soft: #102c3a;
   --warning: #eac79d;
@@ -107,6 +110,7 @@
   --success-soft: #1f3324;
   --grave: #dac0e3;
   --grave-soft: #36283a;
+  --scrim: rgb(4 5 6 / 0.62);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -117,15 +121,16 @@
     --surface-raised: #3a3d42;
     --surface-sunken: #101214;
     --border: #696f77;
+    --border-strong: #80878e;
     --divider: #3a3d42;
     --text: #f7f9fb;
-    --text-muted: #9fa5ac;
-    --text-subtle: #80878e;
-    --accent: #4789d0;
-    --accent-hover: #71a9e7;
+    --text-muted: #cdd1d7;
+    --text-subtle: #9fa5ac;
+    --accent: #71a9e7;
+    --accent-hover: #b1d5fd;
     --accent-fg: #101214;
     --accent-soft: #0e253e;
-    --focus-ring: #71a9e7;
+    --focus-ring: #b1d5fd;
     --info: #9ccce6;
     --info-soft: #102c3a;
     --warning: #eac79d;
@@ -136,5 +141,6 @@
     --success-soft: #1f3324;
     --grave: #dac0e3;
     --grave-soft: #36283a;
+    --scrim: rgb(4 5 6 / 0.62);
   }
 }

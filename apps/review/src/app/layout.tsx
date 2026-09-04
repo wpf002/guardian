@@ -1,15 +1,34 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/AppShell";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 import { getSession } from "@/lib/auth";
+import { isMockMode } from "@/lib/db";
 import { listQueue } from "@/lib/data/cases";
 import { navForRole } from "@/lib/nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Guardian review console",
+  // Every route names itself. Two cases open in two tabs have to be tellable
+  // apart, and the title is the first thing a screen reader speaks on a load.
+  title: {
+    default: "Guardian review console",
+    template: "%s · Guardian review console",
+  },
   description:
     "Reviewer queue for Guardian. Risk tiers and evidence bundles for human review.",
 };
+
+/**
+ * Stamps the stored theme on the root element before the first paint.
+ *
+ * Without it a reviewer whose choice disagrees with their operating system gets
+ * a full screen of the wrong theme until the client bundle hydrates, on a
+ * surface that carries threat and coercion excerpts. The script is inline and
+ * blocking on purpose, and it is the first thing in the document body.
+ */
+function ThemeBoot() {
+  return <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />;
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -19,7 +38,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   if (!session) {
     return (
       <html lang="en">
-        <body>{children}</body>
+        <body>
+          <ThemeBoot />
+          {children}
+        </body>
       </html>
     );
   }
@@ -37,9 +59,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body>
+        <ThemeBoot />
         <AppShell
           session={{ displayName: session.displayName, role: session.role }}
           nav={navForRole(session.role, { queue: queueCount })}
+          mock={isMockMode()}
         >
           {children}
         </AppShell>

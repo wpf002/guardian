@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   SESSION_TTL_MS,
   loadReviewers,
+  resolveSession,
   roleAllows,
   sessionForToken,
   signSession,
@@ -75,5 +76,43 @@ describe("roles", () => {
     expect(roleAllows("owner", "operator")).toBe(true);
     expect(roleAllows("operator", "reviewer")).toBe(true);
     expect(roleAllows("reviewer", "operator")).toBe(false);
+  });
+});
+
+/**
+ * There is no session table and no revocation list, so a cookie is only as
+ * current as the roster it is checked against. Reading role and customerId out
+ * of the cookie body meant an offboarded seat kept owner rights for up to
+ * twelve hours, and the only remedy was rotating the secret and signing out
+ * everybody.
+ */
+describe("re-resolving a session against the roster", () => {
+  const roster = [
+    { id: "rev_ar", name: "A. Rivera", role: "owner", customerId: "cus_northwood", token: "t1" },
+  ];
+
+  afterEach(() => {
+    delete process.env.REVIEWERS;
+  });
+
+  it("takes role and customerId from the roster row, not from the cookie", () => {
+    process.env.REVIEWERS = JSON.stringify(roster);
+    const claim: Session = { ...session, role: "owner", customerId: "cus_elsewhere" };
+    expect(resolveSession(claim)).toMatchObject({
+      reviewerId: "rev_ar",
+      role: "owner",
+      customerId: "cus_northwood",
+    });
+  });
+
+  it("demotes on the next request rather than at the end of the window", () => {
+    process.env.REVIEWERS = JSON.stringify([{ ...roster[0], role: "reviewer" }]);
+    const claim: Session = { ...session, role: "owner" };
+    expect(resolveSession(claim)?.role).toBe("reviewer");
+  });
+
+  it("is not a session at all once the seat is off the roster", () => {
+    process.env.REVIEWERS = JSON.stringify([]);
+    expect(resolveSession(session)).toBeNull();
   });
 });

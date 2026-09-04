@@ -27,7 +27,7 @@
   text-decoration: none;
   white-space: nowrap;
   background: var(--surface);
-  border: 1px solid var(--divider);
+  border: 1px solid var(--border);
   border-radius: var(--radius-full);
   transition:
     border-color var(--motion-fast) var(--motion-in),
@@ -35,7 +35,7 @@
 }
 
 .chip:hover {
-  border-color: var(--border);
+  border-color: var(--border-strong);
   color: var(--text);
 }
 

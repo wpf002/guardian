@@ -16,6 +16,7 @@ import {
   setSessionLimits,
   setWebhookUrl,
 } from "./data";
+import { checkWebhookTarget } from "./webhook-target";
 import type {
   LexiconState,
   SessionLimits,
@@ -296,15 +297,19 @@ export async function updateWebhookUrlAction(
   } catch {
     return { error: "That is not a URL. It needs a scheme and a host.", message: null };
   }
-  if (url.protocol !== "https:") {
-    return { error: "The endpoint has to be https. Tier events are not sent in the clear.", message: null };
-  }
   if (url.search.length > 0 || url.hash.length > 0) {
     return {
       error:
         "Drop the query string and the fragment. Nothing about a pair belongs in a URL, so Guardian will not store one that carries parameters.",
       message: null,
     };
+  }
+  // https, and a host that is actually on the public internet. Guardian's own
+  // container makes this request, so an endpoint inside its network would make
+  // this field a way to reach it.
+  const target = await checkWebhookTarget(url);
+  if (!target.ok) {
+    return { error: target.reason, message: null };
   }
 
   await setWebhookUrl(session, url.toString());
@@ -333,9 +338,12 @@ export async function sendTestDeliveryAction(
   }
   if (!outcome.delivered) {
     return {
-      error: outcome.status
-        ? `Your endpoint answered ${outcome.status}. Guardian treats anything outside 2xx as a failed delivery and retries a real event.`
-        : `The request did not complete: ${outcome.error ?? "no response"}.`,
+      // No status code and no transport error. Guardian makes this request from
+      // its own network, so a precise failure would report on hosts and ports
+      // the person pressing the button has no business enumerating.
+      error: outcome.redirected
+        ? "Your endpoint answered with a redirect. Guardian does not follow one on a delivery, because a redirect can move a signed request onto plain http or onto another host. Point the URL at the final endpoint."
+        : "The delivery did not succeed. Guardian treats anything outside 2xx, and anything that does not complete, as a failed delivery and retries a real event.",
       message: null,
       sample: outcome.sample,
       attempted: true,
@@ -343,7 +351,8 @@ export async function sendTestDeliveryAction(
   }
   return {
     error: null,
-    message: `Your endpoint answered ${outcome.status}. The signature header it verified was built the same way a real tier event is.`,
+    message:
+      "Your endpoint answered inside 2xx. The signature header it verified was built the same way a real tier event is.",
     sample: outcome.sample,
     attempted: true,
   };

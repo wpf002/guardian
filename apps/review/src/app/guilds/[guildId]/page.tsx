@@ -6,9 +6,14 @@ import { getGuildConfig } from "@/lib/data/guilds";
 import { saveGuildSettings } from "../actions";
 import styles from "@/components/guilds/Guilds.module.css";
 
-export const metadata = {
-  title: "Server setup",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ guildId: string }>;
+}): Promise<{ title: string }> {
+  const { guildId } = await params;
+  return { title: `Server ${guildId}` };
+}
 
 /**
  * Setup for one Discord server.

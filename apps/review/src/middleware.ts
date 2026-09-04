@@ -11,9 +11,15 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 const SESSION_COOKIE = "guardian_session";
 
+/**
+ * The same predicate as lib/db.ts isMockMode, duplicated because the edge
+ * runtime cannot import that module. Keep the two in step: mock mode waves
+ * every request through, so an accidental true here is an open console.
+ */
 function mockMode(): boolean {
-  if (process.env.GUARDIAN_MOCK === "1") return true;
   if (process.env.GUARDIAN_MOCK === "0") return false;
+  if (process.env.GUARDIAN_MOCK === "1") return true;
+  if (process.env.NODE_ENV === "production") return false;
   return !process.env.DATABASE_URL;
 }
 

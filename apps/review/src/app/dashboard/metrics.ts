@@ -103,8 +103,12 @@ export interface CostAndCalibration {
   assumedActiveUsers: number;
   minutesLogged: number;
   decisionsCounted: number;
-  /** Realized T2 predictive value from reviewer decisions. Null below the stated n. */
+  /**
+   * Realized T2 predictive value: confirms and proposals as a share of the
+   * decisions on pairs the model put at T2, and nothing else. Null below n.
+   */
   realizedT2Ppv: number | null;
+  /** The denominator of that ratio: decisions on model-T2 pairs in the window. */
   ppvSampleSize: number;
   minSampleForRate: number;
 }
@@ -154,9 +158,16 @@ export interface AuditStatus {
   verification: VerificationView;
 }
 
+/**
+ * The broken variant carries the sequence number and the reason and nothing
+ * else. The verifier's own detail string names the entry's kind and the
+ * customer that wrote it, and the chain spans every customer, so surfacing it
+ * on one operator's dashboard would print another tenant's identifiers. It goes
+ * to the server log instead.
+ */
 export type VerificationView =
   | { state: "ok"; checked: number; head: string; at: Date }
-  | { state: "broken"; checked: number; brokenAt: number; reason: string; detail: string; at: Date }
+  | { state: "broken"; checked: number; brokenAt: number; reason: string; at: Date }
   | { state: "unavailable"; why: string; at: Date };
 
 export interface VersionSighting {
@@ -290,19 +301,33 @@ async function retentionStatus(session: Session, now: Date): Promise<RetentionSt
   };
 }
 
-/** Walks the chain and names the row that broke, rather than returning a bare false. */
+/** How far back from the head a dashboard verification walks. */
+export const VERIFY_TAIL_ENTRIES = 500;
+
+/**
+ * Walks the tail of the chain and names the row that broke, rather than
+ * returning a bare false.
+ *
+ * The tail rather than the whole chain: seq is assigned across every customer,
+ * so verifying from entry 1 loads every other customer's rows into this process
+ * on every render of this page. The window is stated on the panel.
+ */
 export async function runVerification(now = new Date()): Promise<VerificationView> {
   try {
-    const result = await verifyAuditChain(1);
+    const head = await getAuditHead();
+    const from = Math.max(1, head.seq - VERIFY_TAIL_ENTRIES + 1);
+    const result = await verifyAuditChain(from, VERIFY_TAIL_ENTRIES);
     if (result.ok) {
       return { state: "ok", checked: result.checked, head: result.head, at: now };
     }
+    console.error(
+      `[guardian] audit chain verification failed at #${result.brokenAt}: ${result.detail}`,
+    );
     return {
       state: "broken",
       checked: result.checked,
       brokenAt: result.brokenAt,
       reason: result.reason,
-      detail: result.detail,
       at: now,
     };
   } catch (error) {

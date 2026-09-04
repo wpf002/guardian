@@ -118,7 +118,9 @@ export default async function AuditPage({
         defaultFrom={defaultFrom}
         defaultTo={newestOnPage}
         canExport={roleAllows(session.role, "operator")}
-        exportBlockedReason="An operator seat exports the chain for counsel. Yours can read and verify it."
+        exportBlockedReason="An operator seat exports the chain for counsel. Yours can read it."
+        canVerify={roleAllows(session.role, "operator")}
+        verifyBlockedReason="An operator seat verifies a range of the chain. Yours can read it."
         onVerify={verifyRangeAction}
         onExport={exportRangeAction}
       />

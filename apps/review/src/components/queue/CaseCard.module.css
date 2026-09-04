@@ -21,7 +21,7 @@
   text-align: start;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--divider);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   transition:
     border-color var(--motion-fast) var(--motion-in),
@@ -30,7 +30,7 @@
 }
 
 .card:hover {
-  border-color: var(--border);
+  border-color: var(--border-strong);
 }
 
 .card:active {
@@ -40,23 +40,23 @@
 /* Unread is a fill and an outline. Colour belongs to the tier scale. */
 .card[data-unread="true"] {
   background: var(--surface-sunken);
-  border-color: var(--border);
+  border-color: var(--border-strong);
 }
 
 /*
  * A card a reviewer cannot act on is read only, which is a different thing from
  * disabled and says so. It stays focusable and it still opens.
+ *
+ * The state is a dashed boundary plus the claim line naming who holds it, never
+ * an opacity. Group opacity composites the whole subtree, so a child cannot opt
+ * back out of it, and every line on the card would drop below body contrast.
  */
 .card[data-claimed-elsewhere="true"] {
-  opacity: 0.7;
-}
-
-.card[data-claimed-elsewhere="true"] .claim {
-  opacity: 1;
+  border-style: dashed;
 }
 
 .card[data-pending="true"] {
-  border-color: var(--border);
+  border-color: var(--border-strong);
 }
 
 /* The tier bar: 3px start border, full card height, drawn by TierBadge. */

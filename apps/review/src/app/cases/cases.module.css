@@ -22,21 +22,20 @@
   list-style: none;
 }
 
+/*
+ * The tier is encoded once, by the bar TierBadge draws down the start edge of
+ * line one. The row itself carries no tier colour: a filled badge on every row,
+ * or a badge plus a row rule, reads as an alarm list rather than as a queue.
+ */
 .row {
-  border: 1px solid var(--divider);
-  border-inline-start: 3px solid var(--tier-t0-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
   transition: border-color var(--motion-fast) var(--motion-in);
 }
 
-.row[data-tier="T1"] { border-inline-start-color: var(--tier-t1-border); }
-.row[data-tier="T2"] { border-inline-start-color: var(--tier-t2-border); }
-.row[data-tier="T3"] { border-inline-start-color: var(--tier-t3-border); }
-
 .row:hover {
-  border-block-color: var(--border);
-  border-inline-end-color: var(--border);
+  border-color: var(--border-strong);
 }
 
 .row:active {

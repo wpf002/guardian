@@ -152,3 +152,22 @@
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
+
+/*
+ * The row body is the focus anchor for a reveal. It never unmounts, so focus
+ * has somewhere to land when the reveal control disappears. It is not a tab
+ * stop; it can only be reached programmatically.
+ */
+.body {
+  min-width: 0;
+}
+
+.body:focus {
+  outline: none;
+}
+
+.body:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

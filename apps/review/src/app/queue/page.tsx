@@ -8,6 +8,8 @@ import type { QueueCase, QueueFilters, QueueSummary, Tier } from "@/lib/data/typ
 import { openCase } from "./actions";
 import styles from "./page.module.css";
 
+export const metadata = { title: "Queue" };
+
 /** The queue is live. A cached queue is a queue that lies about what is waiting. */
 export const dynamic = "force-dynamic";
 

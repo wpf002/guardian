@@ -9,6 +9,15 @@ import styles from "./page.module.css";
 /** One entry, read only. Every provenance line in the app links here. */
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ seq: string }>;
+}): Promise<{ title: string }> {
+  const { seq } = await params;
+  return { title: `Chain entry #${seq}` };
+}
+
 export default async function AuditEntryPage({
   params,
 }: {

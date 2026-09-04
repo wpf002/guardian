@@ -150,7 +150,7 @@ What the Foundation owner builds. Every component gets default, hover, focus-vis
 | `ErrorState` | Every failure. Names what failed, what is unaffected, and one manual retry | `title`, `unaffected`, `lastSuccessAt?`, `onRetry` | default, retrying. Never auto-retries |
 | `SkeletonRows` | Loading placeholder at exact final height so nothing reflows | `count`, `height` | default. No shimmer, no spinner |
 
-Type sizes used across the whole app: `--text-xs` 12, `--text-sm` 14, `--text-md` 16, `--text-lg` 20, `--text-2xl` 32. `--text-xl` is deliberately unused so the ramp stays at five. Weights: 400 body, 500 headings and tier words, 700 for the page title alone. One accent, on the primary action and the active nav item, nowhere else. Two elevation levels: `.surface` with a 1px `--divider`, and `--shadow-overlay` for the reveal-all confirmation and the undo bar. No `.surface-raised` in this app. Red is `--danger` only, reserved for retract and the one destructive confirmation, and never touches the tier scale.
+Type sizes used across the whole app: `--text-xs` 12, `--text-sm` 14, `--text-md` 16, `--text-lg` 20, `--text-2xl` 32. `--text-xl` is deliberately unused so the ramp stays at five. Weights: 400 body, 500 headings and tier words, 700 for the page title alone. One accent, on the primary action and the active nav item, nowhere else. Two elevation levels: `.surface` with a 1px boundary, and `--shadow-overlay` for the reveal-all confirmation and the undo bar. No `.surface-raised` in this app. The boundary token depends on what it separates: `--border` at rest and `--border-strong` on hover for anything a reviewer can act on (an input, an outlined button, a chip, a card that is a button, a dialog panel), because this app spends nothing on shadows and that 1px rule is the whole affordance, so it carries the 3:1 WCAG 1.4.11 minimum on every surface it can sit on. `--divider` stays what its name says, a hairline between rows inside one surface, and is never a control's only edge. A dialog dims the page behind it with `--scrim`, a translucent token, rather than covering it with a surface: an opaque backdrop the colour of the page reads as a navigation rather than a layer. Red is `--danger` only, reserved for retract and the one destructive confirmation, and never touches the tier scale.
 
 ---
 
@@ -298,7 +298,9 @@ Three things on this screen are grafts, and each answers a documented failure.
 
 **Speaker tags are `t`, `s1`, `s2`**, the same convention the ML service puts on the wire, so a reviewer reads what the model read. Each row carries the tag, weekday and time, band word, the text, and a stage annotation in the right margin with the label and a calibrated confidence to two decimals. Never the raw logit. A stage label below the operator's precision threshold renders muted with a low-confidence tag rather than being hidden, so near-misses stay visible.
 
-**Normalization is shown, not hidden.** The normalized token renders inline and underlined; the original appears on hover **and** on focus, in the same popover as the matching lexicon entry and version, with a control to report the token as a false positive that writes into the mining loop with `feedbackSource: reviewer`. A reviewer who cannot see that `leVe` fired the migration signal cannot tell a true hit from a lexicon bug.
+**Normalization is shown, not hidden.** The normalized token renders inline and underlined, and the original, the lexicon entry and its version are printed as visible text under the row. A reviewer who cannot see that `leVe` fired the migration signal cannot tell a true hit from a lexicon bug.
+
+Until the popover exists, the token is a `<span>` rather than a control. A `<button>` with no behaviour is a dead tab stop per normalized token in the one view a reviewer traverses for hours, and a screen reader announces each one as activatable. When the popover is built it opens on click **and** on focus, carries the entry and version, and carries the control to report the token as a false positive, which writes into the mining loop with `feedbackSource: reviewer`. The visible note under the row stays either way: it is the path that works without a pointer.
 
 **Media events** carry four lines. Direction in words, the truncated hash in mono with a copy control, the operator verdict, and the human-viewed flag as a full sentence rather than a boolean, because it is load-bearing legal metadata in the Second, Fourth and Ninth Circuits and a reviewer skimming a table of checkmarks will miss it. The fourth line, "Guardian holds no image and there is nothing here to open", stops a reader spending their minute hunting for a thumbnail and is CLAUDE.md rule 1 expressed as interface rather than policy.
 
@@ -307,6 +309,10 @@ Three things on this screen are grafts, and each answers a documented failure.
 **The collapse setting is a one-way ratchet.** The org default is set at `/settings/people` and moves downward only, toward more collapsing. A reviewer may turn collapsing **on** for themselves and never off. Per-case overrides do not exist. The AURA finding is that 35.8% of workers who could turn off video never did, and the ones who do are under pressure; a protection that a person can disable under load is not a protection.
 
 **The `viewedByHuman` write path (ROADMAP F-1).** The flag is written true at the moment an excerpt is legibly rendered to *this* reviewer: an uncollapsed row in the viewport for longer than a second, or a collapsed span being revealed. Not on case open. Not by scrolling past a collapsed span. Reveal-all writes the flag on every span it opens, and says so before it opens them. It is a claim about a private search, not an engagement metric, and it has to be honest enough to survive a suppression motion.
+
+Three things follow from that, and all three are server-side. The flag is written by the server against the pair's own current bundle under this customer, so the ids a client sends are matched rather than trusted. The write appends an `evidence.read` entry to the hash chain naming the reviewer, the time and the excerpts it covered, so the claim has a tamper-evident record behind it rather than two mutable columns, and it is the only reviewer act that was ever missing one. And the count that unblocks Confirm and Propose T3 is built only from ids the server confirmed it wrote: adding them optimistically meant a failed write still unblocked the two decisions that depend on the claim, and put a `viewedExcerptCount` on the Review row and in the chain entry that the bundle contradicted. The drafted bundle says what the record is, in those words: *recorded as read by a person at Guardian in the review console*, not a bare assertion the record cannot carry.
+
+The server holds the same line at the decision. `recordDecision` refuses a confirm or a proposal on a pair with no `humanViewedAt`, whatever count the browser sends, because the browser's count is a claim and `humanViewedAt` is something the server watched happen.
 
 ### Deliberately not shown, anywhere in the case view
 
@@ -547,7 +553,7 @@ Three lines, never four. Line one is identity and routing, line two the pattern,
 
 | # | Field | Rendering | Why |
 |---|---|---|---|
-| 1 | Tier bar | 3px left border in `--tier-t*-border`, full height. Not a filled badge | A wall of filled badges is the alarm styling the brief forbids. At 320px it becomes a 2px top border |
+| 1 | Tier bar | 3px left border in `--tier-t*-border`, full height. Not a filled badge, and never a badge plus a second rule on the row | A wall of filled badges is the alarm styling the brief forbids. It binds every list of cases, not only this card, so two list surfaces cannot disagree about the same data. `--tier-t0-border` is `--border` rather than the hairline, so a T0 bar is as perceivable as the other three. At 320px it becomes a 2px top border |
 | 2 | Critical marker | Filled diamond before the tier word when `criticalSignals` is non-empty, always with the signal named in words, and "critical: none" when it is empty | Never colour or shape alone. The absent case is stated rather than left to inference |
 | 3 | Tier word | `T2`, medium, tabular | The word T2, not "high risk". A risk word is an adjective looking for a person |
 | 4 | Pair id | Mono 12px, `Pair 4f2a` | The header names the pair, never the people. No display name, no avatar, no handle anywhere on the card |
@@ -556,12 +562,12 @@ Three lines, never four. Line one is identity and routing, line two the pattern,
 | 7 | Pattern clause | Line two, 14px medium. A noun phrase: "Stage 3 to 4 in 19h", "Migration ask with age gap", "Coercion language, non-financial" | Names the pattern, never a person, never a score |
 | 8 | Bands and provenance | Line two, regular. "bands 16-17 to 9-12, role-derived" | The gap usually drives the rank, and the reviewer needs to know when it rests on a guess |
 | 9 | Actor context | Line three. "actor in 3 pairs this week", "first case for this actor", or "fan-in: 4 accounts converged in 90 min" | The cheapest one-off versus pattern separator. A count, never a judgment |
-| 10 | SLA remaining | Line three right, tabular, one-minute granularity | Minutes and not seconds: a ticking second counter is a stopwatch, and the SLA is a queue property. T1 prints "no SLA (watch)" so the absence is a statement |
+| 10 | SLA remaining | Line three right, tabular, one-minute granularity, counted from the pair's arrival | Minutes and not seconds: a ticking second counter is a stopwatch, and the SLA is a queue property. Arrival and not last-touched: a deadline derived from an `@updatedAt` column resets every time somebody opens the case or the scorer rescores it, so a case can be pushed past its target by being looked at and the operator dashboard never shows a breach. T1 prints "no SLA (watch)" so the absence is a statement |
 | 11 | Unread state | Light `--surface-sunken` fill plus a 1px `--border` outline on the whole card | Never colour; colour is spent on the tier scale |
 
 **Deliberately not on the card:** the fused score, the actor skew value, any percentage, any avatar, any handle, any channel preview, any excerpt. A queue you can read without reading anybody's words is the point.
 
-**States.** Hover raises the border to `--border` and nothing moves. Focus-visible draws the 2px `--focus-ring` at 2px offset around the whole card; the card is the tab stop, not its buttons. Active drops to `--surface-sunken`. Claimed-elsewhere renders at 0.7 opacity with the claim line at full opacity, stays focusable, and opens into the read-only view. Loading is a skeleton at the same three-line height, so the list never reflows. Disabled does not exist for a card: a card a reviewer cannot act on is read-only, which is a different thing and says so.
+**States.** Hover raises the border to `--border` and nothing moves. Focus-visible draws the 2px `--focus-ring` at 2px offset around the whole card; the card is the tab stop, not its buttons. Active drops to `--surface-sunken`. Claimed-elsewhere renders with a dashed boundary and the claim line naming who holds it, stays focusable, and opens into the read-only view. Not an opacity: group opacity composites the whole subtree, so a child cannot opt back out of it, and the claim line, which is the one string telling a reviewer the case is read only, would be the least legible text on the card. Loading is a skeleton at the same three-line height, so the list never reflows. Disabled does not exist for a card: a card a reviewer cannot act on is read-only, which is a different thing and says so.
 
 ---
 
@@ -613,6 +619,8 @@ Minutes are auto-timed from case open, paused when the tab is hidden for more th
 ### 8.3 Undo
 
 `Cmd-Z` reverses the last decision for 60 seconds, rendered as a persistent inline bar with the remaining seconds in text rather than a toast that expires while the reviewer is reading. Undo emits a compensating audit entry and never mutates the original row. After the window, the path is reopen from `/decisions`.
+
+Two things the window depends on. The confirmation and the bar stay mounted for the full sixty seconds even though the write has already resolved the case and the route has revalidated, or the reviewer gets a few seconds of a minute they were promised. And the tier an undo restores is the `modelTier` recorded on the review it compensates, never a value the caller supplies: a caller-chosen tier is a tier write with no decision and no score behind it, back in the queue with a four hour SLA and counted in the tier rates.
 
 ### 8.4 The confirm step
 
@@ -876,7 +884,7 @@ Every binding lives in `lib/keys.ts` and the shortcut sheet renders from that re
 
 **Rules that hold everywhere.** No binding fires while focus is in a text field, the reason filter or an attestation input. `Esc` never navigates away from a claimed case. No shortcut fires an irreversible action without a focused step between the keypress and the write. Focus is always visible, including inside the timeline, and focus order follows reading order. Every hover-only reveal also opens on focus, and the per-case reveal-all is a real control rather than only a shortcut, or the collapse feature becomes a barrier rather than a protection. The SLA countdown never moves the user, never auto-releases a claim without a warning and an extension, and never blocks input.
 
-**Screen reader semantics.** The timeline is a list; each row announces speaker, time and stage annotation once. Collapsed spans announce their class and word count, never their content. Queue count changes announce politely; individual new cases do not announce at all, because a queue that interrupts is a queue that gets muted. After a decision, focus lands on the confirmation region, then Tab reaches Undo first. It never lands on nothing.
+**Screen reader semantics.** The timeline is a list; each row announces speaker, time and stage annotation once. Collapsed spans announce their class and word count, never their content. Queue count changes announce politely; individual new cases do not announce at all, because a queue that interrupts is a queue that gets muted. After a decision, focus lands on the confirmation region, then Tab reaches Undo first, and the confirmation stays on screen for the whole undo window even though the write has already resolved the case. It never lands on nothing. Revealing a span moves focus to the row body, which does not unmount, and says in the live region what class opened; reveal-all moves focus to the timeline heading, because the control that opened it has gone. The undo bar's seconds counter is hidden from assistive technology: inside a polite live region a ticking figure queues one announcement per second and drowns everything else for a minute.
 
 ---
 
@@ -937,6 +945,10 @@ A `REVIEWERS` environment variable holds a JSON array:
 
 `/sign-in` takes an id and a shared secret, and sets an `HttpOnly`, `Secure`, `SameSite=Lax` cookie carrying `{ reviewerId, displayName, role, customerIds, issuedAt }` signed with an HMAC over a server-side key. Sessions expire after 12 hours and on end-of-shift. `lib/session.ts` is the only module that reads the cookie, and every route handler and server component gets the session from it rather than parsing headers.
 
+**The cookie proves identity and nothing else.** Role and customer are re-resolved from the roster on every request, so removing a seat or demoting an owner takes effect on the next request. Trusting the role in the cookie body meant an offboarded seat kept its rights for up to twelve hours, and with no session table the only remedy was rotating the key and signing out everybody.
+
+**Sign-in is a same-origin POST.** There is no GET that sets the cookie, and no seat token in a query string. A cookie-setting operation on an idempotent GET is reachable from any cross-site link or image, so a link carrying somebody else's seat token silently reseats whoever clicks it and their decisions land in the audit chain under that seat; and a shared secret in a URL is a secret in the proxy log, the browser history and the next Referer.
+
 **Roles.**
 
 | Role | Can |
@@ -945,7 +957,7 @@ A `REVIEWERS` environment variable holds a JSON array:
 | `operator` | Everything a reviewer can, plus `/settings/people`, `/settings/policy`, `/queue/[caseId]/file`, and read access to any decision on their own customers |
 | `owner` | Everything, plus the reason taxonomy and the wellness org defaults, across customers |
 
-**Enforced, not advisory.** Every route checks the role server-side and the customer partition on every row it reads; a reviewer with no `customerIds` match on a pair gets the not-found state rather than a 403, because a 403 confirms the case exists. Possession of a case URL is never the capability. There is no shared account, no link-based access and no anonymous read.
+**Enforced, not advisory.** Every route checks the role server-side and the customer partition on every row it reads. The audit chain is the one read that is not partitioned, because seq is assigned across every customer, so walking or exporting a range of it is an operator act and the verifier's own detail string, which names the entry's kind and the customer that wrote it, goes to the server log rather than to the screen. Fixtures mode is not an auth mode: it disables all of this, so it is never inferred from a missing `DATABASE_URL` in production, and when it is on the app says so on every page. Beyond the chain, a reviewer with no `customerIds` match on a pair gets the not-found state rather than a 403, because a 403 confirms the case exists. Possession of a case URL is never the capability. There is no shared account, no link-based access and no anonymous read.
 
 **What replaces it.** SSO with the customer's own identity provider, and a real `Reviewer` table so a decision references a row rather than a string from an env var. Until then, `Review.reviewerId` and `EvidenceBundle.humanViewedByReviewerId` hold the id from the JSON, which is stable enough to audit and not stable enough to ship to a customer. Say so in the operator agreement.
 
@@ -997,7 +1009,7 @@ The reviewers of this design check these, in this order. A failure in section A 
 
 ### C. Evidence honesty
 
-- [ ] `viewedByHuman` is written only on legible render to this reviewer or on reveal. Never on case open, never on scrolling past a collapsed span.
+- [ ] `viewedByHuman` is written only on legible render to this reviewer or on reveal. Never on case open, never on scrolling past a collapsed span. The write goes on the audit chain as `evidence.read`, the read count counts only ids the server confirmed, and a confirm or a proposal is refused server-side on a pair with no `humanViewedAt`.
 - [ ] Reveal-all warns how many spans it opens and that it writes read flags, before it opens them.
 - [ ] The propose read claim is scoped to what was read, disabled with the reason in text until at least one excerpt is read, and there is no read quota.
 - [ ] The bundle carries the completeness statement naming which excerpts a person read and which nobody did.
@@ -1020,7 +1032,7 @@ The reviewers of this design check these, in this order. A failure in section A 
 ### E. Speed and correctness of the loop
 
 - [ ] A decision is two keystrokes: verb, then reason with Enter.
-- [ ] Undo is 60 seconds, a persistent inline bar with the seconds in text, and writes a compensating entry.
+- [ ] Undo is 60 seconds, a persistent inline bar with the seconds in text, and writes a compensating entry. The bar survives the route revalidating the case as resolved, and the tier it restores is read from the review it compensates, never chosen by the caller.
 - [ ] A failed write never advances the case and never looks like a completed decision.
 - [ ] If the timeline failed, Confirm and Propose disable with the reason and Dismiss, Watch, Defer and Escalate stay live.
 - [ ] Claim state is enforced. Opening a claimed case is read-only with a handoff request.
@@ -1031,11 +1043,11 @@ The reviewers of this design check these, in this order. A failure in section A 
 
 - [ ] Spacing only from 4 8 12 16 24 32 48 64 96. Five type sizes, three weights.
 - [ ] One accent, on the primary action and the active nav item only. No raw hex or px colour in any component.
-- [ ] 1px borders, two elevation levels.
+- [ ] 1px borders, two elevation levels. A control's resting boundary is `--border` (3:1 on every surface), never `--divider`. A dialog dims the page with `--scrim`, never covers it with a surface.
 - [ ] Every interactive element has default, hover, focus-visible, active, disabled and loading states. Disabled always prints its reason in text.
 - [ ] Focus rings styled, never removed. Focus order follows reading order.
 - [ ] Empty, loading and error states designed for every view. Loading skeletons at exact final height; nothing reflows.
 - [ ] Errors are named, say what is unaffected, and retry manually. "Something went wrong" appears nowhere.
-- [ ] 4.5:1 body contrast and 3:1 for meaningful UI, in both themes. Tier never encoded in colour alone.
+- [ ] 4.5:1 body contrast and 3:1 for meaningful UI, in both themes. Every text token is validated against `--bg`, `--surface` and `--surface-sunken`, not only against the page, and the generator fails the build on a pair below its minimum. No state is expressed with `opacity`, which composites a whole subtree and takes its text down with it. Tier never encoded in colour alone.
 - [ ] Holds at 320px and at 2560px. No horizontal page scroll at any width.
 - [ ] No em-dashes in any string, comment or doc.

@@ -5,7 +5,9 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
-  background: var(--surface-sunken);
+  /* A scrim, not a surface. The page stays visible behind it, so the dialog
+     reads as a layer over the case rather than as a navigation. */
+  background: var(--scrim);
   /* The second of the two elevation levels, and the only overlay in the app. */
   z-index: 20;
 }
@@ -16,7 +18,7 @@
   max-height: 80dvh;
   overflow-y: auto;
   padding: var(--space-5);
-  border: 1px solid var(--divider);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-overlay);

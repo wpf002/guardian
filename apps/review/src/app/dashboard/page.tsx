@@ -14,6 +14,8 @@ import {
 import { describeVerification } from "./verification";
 import styles from "./page.module.css";
 
+export const metadata = { title: "Health" };
+
 /**
  * The operator dashboard (RESEARCH 6.9).
  *
@@ -205,8 +207,8 @@ export function DashboardView({ metrics, verify }: DashboardViewProps) {
               <Stat
                 label={`Realized T2 predictive value, ${metrics.shortWindowDays} days`}
                 value={cost.realizedT2Ppv === null ? null : `${Math.round(cost.realizedT2Ppv * 100)}%`}
-                unavailableNote={`fewer than ${cost.minSampleForRate} decisions in this window`}
-                target={`from ${countWords(cost.ppvSampleSize, "decision", "decisions")}`}
+                unavailableNote={`fewer than ${cost.minSampleForRate} decisions on T2 pairs in this window`}
+                target={`from ${countWords(cost.ppvSampleSize, "decision on a T2 pair", "decisions on T2 pairs")}`}
               />
               <dl className={`${styles.facts} ${styles.factsSpaced}`}>
                 {(["T1", "T2", "T3"] as const).map((tier) => (

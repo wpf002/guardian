@@ -81,9 +81,20 @@ export function ReasonList({ decision, title, busy = false, onCommit, onCancel }
         </span>
       </div>
 
+      {/*
+        A combobox, declared as one. aria-activedescendant only resolves into a
+        popup the element owns as a combobox, so without the role the arrows
+        moved the highlight and a screen reader said nothing: a reviewer could
+        record a decision under a reason they never heard.
+      */}
       <input
         ref={inputRef}
         type="text"
+        role="combobox"
+        aria-expanded={matches.length > 0}
+        aria-haspopup="listbox"
+        aria-autocomplete="list"
+        autoComplete="off"
         className={styles.filter}
         value={filter}
         placeholder="Filter reasons"

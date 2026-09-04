@@ -5,6 +5,8 @@ import { listQueue, RANKING_SENTENCE } from "@/lib/data/cases";
 import styles from "./cases.module.css";
 import caseStyles from "@/components/case/Case.module.css";
 
+export const metadata = { title: "Cases" };
+
 /**
  * The entrance to the case detail.
  *
@@ -42,7 +44,7 @@ export default async function CasesPage() {
             <li key={row.pairId} className={styles.row} data-tier={row.tier}>
               <Link className={styles.link} href={`/cases/${row.pairId}`}>
                 <span className={styles.lineOne}>
-                  <TierBadge tier={row.tier} criticalSignals={row.criticalSignals} />
+                  <TierBadge tier={row.tier} variant="bar" criticalSignals={row.criticalSignals} />
                   <span className={styles.pair}>Pair {row.shortId}</span>
                   <span className={styles.where}>
                     {row.channel ?? "channel not recorded"}

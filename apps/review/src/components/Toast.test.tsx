@@ -20,4 +20,16 @@ describe("Toast", () => {
     render(<Toast message="Dismissed." countdownSeconds={60} />);
     expect(screen.getByText("60s left")).toBeTruthy();
   });
+
+  /**
+   * The bar is a polite live region, so a seconds figure inside it queues one
+   * announcement per tick: a sixty second window saturated a screen reader's
+   * output for a minute, over the message and the action it was announcing.
+   */
+  it("keeps the ticking counter out of the announcement", () => {
+    render(<Toast message="Dismissed." countdownSeconds={60} />);
+    const seconds = screen.getByText("60s left");
+    expect(seconds.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
+  });
 });

@@ -24,6 +24,13 @@ export interface ChainToolsProps {
   canExport: boolean;
   /** Printed under the export button when this seat may not export. */
   exportBlockedReason?: string;
+  /**
+   * Verification walks a range of a chain whose sequence numbers span every
+   * customer, so it is an operator act rather than a reviewer read. Defaults to
+   * true so a caller that has already gated the whole route need not repeat it.
+   */
+  canVerify?: boolean;
+  verifyBlockedReason?: string;
   onVerify: (fromSeq: number, toSeq: number) => Promise<VerifyOutcome>;
   onExport: (fromSeq: number, toSeq: number) => Promise<ExportOutcome>;
   /** Hands the file to the browser. Replaced in tests, where there is no download. */
@@ -50,6 +57,8 @@ export function ChainTools({
   defaultTo,
   canExport,
   exportBlockedReason,
+  canVerify = true,
+  verifyBlockedReason,
   onVerify,
   onExport,
   onDownload = download,
@@ -171,7 +180,13 @@ export function ChainTools({
         <Button
           variant="primary"
           loading={verifying}
-          disabledReason={blockedReason}
+          disabledReason={
+            blockedReason ??
+            (canVerify
+              ? undefined
+              : (verifyBlockedReason ??
+                "An operator seat verifies a range of the chain. Yours can read it."))
+          }
           onClick={runVerify}
         >
           Verify this range

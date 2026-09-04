@@ -104,7 +104,7 @@
 
 .themeButton {
   padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--divider);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text-muted);
@@ -112,19 +112,32 @@
 }
 
 .themeButton:hover {
-  border-color: var(--border);
+  border-color: var(--border-strong);
   color: var(--text);
 }
 
+/*
+ * The skip link never enters flow. .shell is a grid, so a focused link that
+ * became a grid item would take a cell, push the rail into column two and wrap
+ * the content to row two: the first Tab on every page would break the layout.
+ * It is positioned out of view and revealed in place instead.
+ */
 .skip {
-  position: absolute;
+  position: fixed;
+  inset-block-start: var(--space-2);
   inset-inline-start: -9999px;
+  z-index: 30;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-sm);
+  text-decoration: none;
 }
 
 .skip:focus {
-  position: static;
-  display: inline-block;
-  margin: var(--space-2);
+  inset-inline-start: var(--space-2);
 }
 
 @media (max-width: 640px) {
@@ -183,4 +196,18 @@
     order: 1;
     padding: var(--space-4);
   }
+}
+
+/*
+ * Said in words, on every page, whenever the deployment is serving fixtures.
+ * Mock mode also disables the auth stack, so this is a safety statement rather
+ * than a developer convenience.
+ */
+.fixtures {
+  flex-basis: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text);
 }

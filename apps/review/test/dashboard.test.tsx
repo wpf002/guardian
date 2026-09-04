@@ -94,7 +94,6 @@ describe("operator dashboard", () => {
         checked: 11,
         brokenAt: 12,
         reason: "hash_mismatch",
-        detail: "entry 12 does not match its recorded digest",
         at: new Date(),
       });
 
@@ -105,6 +104,30 @@ describe("operator dashboard", () => {
       expect(screen.getByText(/Chain verification failed at entry 12\./)).toBeTruthy();
     });
     expect(screen.getByText(/hash mismatch/)).toBeTruthy();
+  });
+
+  /**
+   * The chain spans every customer, so the verifier's own detail string, which
+   * names the entry's kind and the customer that wrote it, must not reach an
+   * operator's screen. It goes to the server log.
+   */
+  it("does not print another customer's identifiers when the chain breaks", async () => {
+    const verifyBroken = async () =>
+      describeVerification({
+        state: "broken" as const,
+        checked: 11,
+        brokenAt: 12,
+        reason: "hash_mismatch",
+        at: new Date(),
+      });
+
+    render(<DashboardView metrics={await metrics()} verify={verifyBroken} />);
+    fireEvent.click(screen.getByRole("button", { name: "Verify now" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Chain verification failed at entry 12\./)).toBeTruthy();
+    });
+    expect(document.body.textContent).not.toMatch(/customer cus_/);
   });
 
   it("keeps the view up when the verification itself fails", async () => {

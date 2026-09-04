@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Textarea, Toast } from "@/components";
+import { announce } from "@/lib/announce";
 import { UNDO_WINDOW_MS, type Reason } from "@/lib/reasons";
 import type { ReviewDecision, Tier } from "@/lib/data/types";
 import type {
@@ -73,6 +74,14 @@ export interface DecisionPanelProps {
   openedAt: number;
   onSubmit: (input: SubmitDecisionInput) => Promise<DecisionOutcome>;
   onUndo: (input: UndoInput) => Promise<DecisionOutcome>;
+  /**
+   * Told when a decision lands, so the console keeps this panel mounted for the
+   * length of the undo window rather than swapping in the resolved view the
+   * moment the route revalidates.
+   */
+  onDecisionRecorded?: () => void;
+  /** Told when the reviewer reverses it, so the hold is released early. */
+  onDecisionReversed?: () => void;
   /** Where the escapes go. */
   leaveHref: string;
 }
@@ -140,9 +149,12 @@ export function DecisionPanel({
   openedAt,
   onSubmit,
   onUndo,
+  onDecisionRecorded,
+  onDecisionReversed,
   leaveHref,
 }: DecisionPanelProps) {
   const timed = useMinutesOnCase(openedAt);
+  const recordedRef = useRef<HTMLElement>(null);
   const [openVerb, setOpenVerb] = useState<ReviewDecision | null>(null);
   const [proposeOpen, setProposeOpen] = useState(false);
   const [busy, setBusy] = useState<ReviewDecision | null>(null);
@@ -157,6 +169,22 @@ export function DecisionPanel({
 
   const decided = outcome?.ok === true && !undone;
   const minutes = correctedMinutes.trim() === "" ? timed : Number(correctedMinutes);
+
+  /**
+   * DESIGN-UI 12: after a decision, focus lands on the confirmation region and
+   * the next Tab reaches Undo. It never lands on nothing. Committing unmounts
+   * the whole verb subtree, so without this the reviewer's focus falls to the
+   * document and their next Tab restarts above the rail.
+   */
+  useEffect(() => {
+    if (!decided) return;
+    recordedRef.current?.focus();
+    announce(
+      outcome?.state === "proposed"
+        ? `${outcome?.summary ?? "Proposal recorded."} You can withdraw it until a second reviewer decides.`
+        : `${outcome?.summary ?? "Decision recorded."} You can reverse it for the next ${Math.round(UNDO_WINDOW_MS / 1000)} seconds.`,
+    );
+  }, [decided, outcome?.state, outcome?.summary]);
 
   const blocked = useCallback(
     (decision: ReviewDecision): string | undefined => {
@@ -233,6 +261,7 @@ export function DecisionPanel({
       setOutcome(result);
       setOpenVerb(null);
       setProposeOpen(false);
+      onDecisionRecorded?.();
     } catch {
       setFailure("The decision was not recorded. Nothing changed, and what you typed is still here.");
     } finally {
@@ -271,25 +300,24 @@ export function DecisionPanel({
 
   async function undo() {
     if (!outcome?.reviewId) return;
-    const result = await onUndo({ pairId, reviewId: outcome.reviewId, restoreTier: modelTier });
+    const result = await onUndo({ pairId, reviewId: outcome.reviewId });
     if (!result.ok) {
       setFailure(result.error ?? "The reversal was not recorded. The decision still stands.");
       return;
     }
     setUndone(true);
+    onDecisionReversed?.();
+    announce("The decision was reversed. The earlier row is unchanged.");
   }
 
   if (decided) {
     return (
-      <section className={styles.panel} aria-label="Decision recorded">
+      <section className={styles.panel} aria-label="Decision recorded" ref={recordedRef} tabIndex={-1}>
         <div className={styles.result}>
           <h2 className={styles.title}>Decision recorded</h2>
           <p className={styles.resultSummary}>{outcome?.summary}</p>
-          {outcome?.auditSeq ? (
-            <p className={styles.consequence}>
-              Chain entry <a href={`/audit/${outcome.auditSeq}`}>#{outcome.auditSeq}</a>.
-            </p>
-          ) : null}
+          {/* The undo bar comes before the chain link, because DESIGN-UI 12
+              makes Undo the first tab stop after the confirmation region. */}
           {outcome?.state === "proposed" ? (
             <p className={styles.consequence}>
               A proposal writes no tier. It waits for a second reviewer, and until they decide
@@ -297,11 +325,18 @@ export function DecisionPanel({
             </p>
           ) : (
             <Toast
-              message="You can reverse this decision. The original row is never edited."
+              message={`You can reverse this decision for ${Math.round(
+                UNDO_WINDOW_MS / 1000,
+              )} seconds. The original row is never edited.`}
               countdownSeconds={Math.round(UNDO_WINDOW_MS / 1000)}
               action={{ label: "Undo", onAction: () => void undo() }}
             />
           )}
+          {outcome?.auditSeq ? (
+            <p className={styles.consequence}>
+              Chain entry <a href={`/audit/${outcome.auditSeq}`}>#{outcome.auditSeq}</a>.
+            </p>
+          ) : null}
           {failure ? <p className={styles.failure}>{failure}</p> : null}
           <div className={styles.escapes}>
             <Link className={styles.linkEscape} href={leaveHref}>

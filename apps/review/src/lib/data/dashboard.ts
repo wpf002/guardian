@@ -40,9 +40,13 @@ export async function getDashboardSummary(
     const pairsByTier = { ...EMPTY_TIERS };
     for (const pair of data.pairs) {
       if (pair.queue.customerId !== session.customerId) continue;
+      // The window applies here as it does against a database. Without it the
+      // seven and thirty day bars were the same numbers twice.
+      if (pair.scoredAt < since) continue;
       pairsByTier[pair.queue.tier] += 1;
     }
     const reviews = data.reviews.filter((r) => r.createdAt >= since);
+    const t2Reviews = reviews.filter((r) => r.modelTier === "T2");
     const minutes = reviews.reduce((sum, r) => sum + (r.minutesSpent ?? 0), 0);
     const activeUsers = opts.activeUsers ?? 4200;
     return {
@@ -53,11 +57,10 @@ export async function getDashboardSummary(
       pairsDecided: reviews.length,
       sentToSecondReviewer: reviews.filter((r) => r.decision === "report").length,
       reportsDrafted: reviews.filter((r) => r.resultTier === "T3").length,
-      reviewerMinutesPer1kUsers:
-        activeUsers > 0 ? Math.round((minutes / activeUsers) * 1000 * 10) / 10 : null,
+      reviewerMinutesPer1kUsers: perThousandPerDay(minutes, activeUsers, windowDays),
       t2PositivePredictiveValue:
-        reviews.length >= MIN_DECISIONS_FOR_RATE ? ratioOfConfirmed(reviews) : null,
-      decisionsSampleSize: reviews.length,
+        t2Reviews.length >= MIN_DECISIONS_FOR_RATE ? ratioOfConfirmed(t2Reviews) : null,
+      decisionsSampleSize: t2Reviews.length,
       oldestProposalAgeHours: 3 * 24,
       activeSeats: data.activeSeats,
       versions: data.pairs[0]?.versions ?? {
@@ -71,14 +74,17 @@ export async function getDashboardSummary(
   const prisma = await getPrisma();
   const [customer, tierCounts, reviews] = await Promise.all([
     prisma.customer.findUnique({ where: { id: session.customerId }, select: { name: true } }),
+    // Grouped on the tier-assignment time, not on updatedAt. updatedAt is
+    // @updatedAt, so a reviewer opening or deciding a six month old pair pulled
+    // it back into the seven day bar with no tier change behind it.
     prisma.pair.groupBy({
       by: ["tier"],
-      where: { customerId: session.customerId, updatedAt: { gte: since } },
+      where: { customerId: session.customerId, createdAt: { gte: since } },
       _count: { _all: true },
     }),
     prisma.review.findMany({
       where: { createdAt: { gte: since }, pair: { customerId: session.customerId } },
-      select: { decision: true, resultTier: true, minutesSpent: true },
+      select: { decision: true, resultTier: true, minutesSpent: true, modelTier: true },
     }),
   ]);
 
@@ -88,6 +94,7 @@ export async function getDashboardSummary(
   }
   const minutes = reviews.reduce((sum, r) => sum + (r.minutesSpent ?? 0), 0);
   const activeUsers = opts.activeUsers ?? 0;
+  const t2Reviews = reviews.filter((r) => r.modelTier === "T2");
 
   return {
     customerId: session.customerId,
@@ -97,19 +104,40 @@ export async function getDashboardSummary(
     pairsDecided: reviews.length,
     sentToSecondReviewer: reviews.filter((r) => r.decision === "report").length,
     reportsDrafted: reviews.filter((r) => r.resultTier === "T3").length,
-    reviewerMinutesPer1kUsers:
-      activeUsers > 0 ? Math.round((minutes / activeUsers) * 1000 * 10) / 10 : null,
+    reviewerMinutesPer1kUsers: perThousandPerDay(minutes, activeUsers, windowDays),
     t2PositivePredictiveValue:
-      reviews.length >= MIN_DECISIONS_FOR_RATE
-        ? ratioOfConfirmed(reviews.map((r) => ({ decision: r.decision as string })))
+      t2Reviews.length >= MIN_DECISIONS_FOR_RATE
+        ? ratioOfConfirmed(t2Reviews.map((r) => ({ decision: r.decision as string })))
         : null,
-    decisionsSampleSize: reviews.length,
+    decisionsSampleSize: t2Reviews.length,
     oldestProposalAgeHours: null,
     activeSeats: 0,
     versions: { modelVersion: "unknown", lexiconVersion: "unknown", fusionVersion: "unknown" },
   };
 }
 
+/**
+ * Reviewer minutes per 1,000 users per day, which is what DESIGN.md 10 sets a
+ * pass mark against.
+ *
+ * The minutes are a window total, so the window has to be divided out. Without
+ * it the seven day figure was seven times the labelled unit, and a partition
+ * comfortably inside the target of two minutes read as a failure at fourteen.
+ */
+function perThousandPerDay(
+  minutes: number,
+  activeUsers: number,
+  windowDays: number,
+): number | null {
+  if (activeUsers <= 0 || windowDays <= 0) return null;
+  return Math.round((minutes / windowDays / activeUsers) * 1000 * 10) / 10;
+}
+
+/**
+ * The realized predictive value of one tier, over the decisions on pairs the
+ * model put at that tier. Passing every decision in the window diluted the T2
+ * figure with T1 and T3 work and made it a number about nothing.
+ */
 function ratioOfConfirmed(reviews: Array<{ decision: string }>): number {
   if (reviews.length === 0) return 0;
   const held = reviews.filter((r) => r.decision === "confirm" || r.decision === "report").length;

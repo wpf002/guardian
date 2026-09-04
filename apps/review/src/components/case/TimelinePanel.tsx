@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Dialog, Timeline } from "@/components";
+import { announce } from "@/lib/announce";
 import type { TimelineState } from "@/lib/data/types";
 import styles from "./Case.module.css";
 
@@ -13,8 +14,12 @@ export interface TimelinePanelProps {
   timeline: TimelineState;
   /** Set when the fetch threw rather than returning a state. */
   error?: string;
-  /** Called with the ids of excerpts that became legibly rendered to this reviewer. */
-  onExcerptsViewed: (pairId: string, excerptIds: string[]) => Promise<number>;
+  /**
+   * Called with the ids of excerpts that became legibly rendered to this
+   * reviewer. Resolves with the ids the server actually flagged, which is what
+   * the read count is built from.
+   */
+  onExcerptsViewed: (pairId: string, excerptIds: string[]) => Promise<string[]>;
   /** Called with the new count after each write, so the decision panel can unblock. */
   onReadCountChange: (count: number) => void;
   readCount: number;
@@ -45,7 +50,9 @@ export function TimelinePanel({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [writeError, setWriteError] = useState<string | null>(null);
   const written = useRef<Set<string>>(new Set());
+  const inFlight = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   const rows = useMemo(
     () => (timeline.state === "ready" ? timeline.rows : []),
@@ -68,20 +75,39 @@ export function TimelinePanel({
     }
   }, [rows]);
 
+  /**
+   * The count only counts flags the server confirmed it wrote.
+   *
+   * It used to add every id to the local set before awaiting the write, and to
+   * raise the count outside the try, so a failed write, or one that matched
+   * nothing, still unblocked Confirm and Propose T3 and still sent a
+   * viewedExcerptCount into the Review row and the chain entry. The one flag
+   * that has to be a truthful claim about what a person saw cannot be the one
+   * set optimistically.
+   */
   const record = useCallback(
     async (ids: string[]) => {
-      const fresh = ids.filter((id) => !written.current.has(id));
+      const fresh = ids.filter((id) => !written.current.has(id) && !inFlight.current.has(id));
       if (fresh.length === 0) return;
-      for (const id of fresh) written.current.add(id);
+      for (const id of fresh) inFlight.current.add(id);
       try {
-        await onExcerptsViewed(pairId, fresh);
+        const confirmed = await onExcerptsViewed(pairId, fresh);
+        if (confirmed.length === 0) {
+          setWriteError(
+            "The read flags for this case were not saved. The bundle will say those excerpts were read by nobody.",
+          );
+          return;
+        }
+        for (const id of confirmed) written.current.add(id);
         setWriteError(null);
+        onReadCountChange(written.current.size);
       } catch {
         setWriteError(
           "The read flags for this case were not saved. The bundle will say those excerpts were read by nobody.",
         );
+      } finally {
+        for (const id of fresh) inFlight.current.delete(id);
       }
-      onReadCountChange(written.current.size);
     },
     [onExcerptsViewed, onReadCountChange, pairId],
   );
@@ -136,16 +162,28 @@ export function TimelinePanel({
     return { ...timeline, rows: timeline.rows.map((row) => ({ ...row, collapsed: null })) };
   }, [revealAll, timeline]);
 
+  /**
+   * Reveal-all unmounts the button that opened this dialog, so the dialog's own
+   * return-focus lands on a detached node and focus falls to the document. The
+   * timeline heading is the anchor that stays, and the reveal says what it did.
+   */
   function confirmRevealAll() {
+    const opened = collapsedCount;
     setRevealAll(true);
     setConfirmOpen(false);
+    headingRef.current?.focus();
+    announce(
+      `Revealed ${opened} collapsed span${opened === 1 ? "" : "s"} in this case, and recorded every excerpt as read by you.`,
+    );
     void record(excerptIds);
   }
 
   return (
     <section id="timeline" ref={containerRef} aria-label="Evidence timeline">
       <div className={styles.timelineHead}>
-        <h2 className={styles.signalName}>Evidence timeline</h2>
+        <h2 className={styles.signalName} ref={headingRef} tabIndex={-1}>
+          Evidence timeline
+        </h2>
         <span className={styles.readCount}>
           {readCount} of {excerptIds.length} excerpts recorded as read by you
         </span>

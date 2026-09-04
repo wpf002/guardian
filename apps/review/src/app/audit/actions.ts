@@ -9,7 +9,7 @@
  * every export goes through the log.
  */
 
-import { requireRole, requireSession, type Session } from "@/lib/auth";
+import { requireRole, type Session } from "@/lib/auth";
 import { compose } from "@/lib/compose";
 import {
   appendAudit,
@@ -62,6 +62,9 @@ async function verifyRange(range: Range): Promise<VerifyOutcome> {
     };
   }
   const why = REASON_WORDS[result.reason] ?? "the chain could not be followed";
+  console.error(
+    `[guardian] audit chain verification failed at #${result.brokenAt}: ${result.detail}`,
+  );
   return {
     ok: false,
     fromSeq: range.from,
@@ -70,14 +73,19 @@ async function verifyRange(range: Range): Promise<VerifyOutcome> {
     brokenAt: result.brokenAt,
     sentence: compose(
       "audit.verify",
-      `The chain does not verify. Entry #${result.brokenAt} is where it breaks: ${why}. ${result.detail}. ${result.checked} entries before it verified.`,
+      // The verifier's detail names the entry's kind and the customer that
+      // wrote it, and seq spans every customer, so it is logged rather than
+      // printed to whichever seat ran the check.
+      `The chain does not verify. Entry #${result.brokenAt} is where it breaks: ${why}. ${result.checked} entries before it verified.`,
     ),
   };
 }
 
 /** Walks the range and names the row that broke, rather than returning a bare no. */
 export async function verifyRangeAction(fromSeq: number, toSeq: number): Promise<VerifyOutcome> {
-  await requireSession();
+  // Operator, matching the export. The chain is not partitioned by customer, so
+  // walking arbitrary windows of it is not a reviewer-level read.
+  await requireRole("operator");
   return verifyRange(clampRange(fromSeq, toSeq));
 }
 

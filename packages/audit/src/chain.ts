@@ -12,6 +12,11 @@ export const AUDIT_KINDS = [
   "event.ingested",
   "event.rejected",
   "score.assigned",
+  // A reviewer read specific excerpts. It is the claim the private-search
+  // argument and the EU derogation's human-confirmation requirement both rest
+  // on, so it belongs on the tamper-evident record like every other reviewer
+  // act, not only in two mutable columns.
+  "evidence.read",
   "review.decision",
   "bundle.exported",
   "report.filed",

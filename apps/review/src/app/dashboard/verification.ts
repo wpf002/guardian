@@ -29,9 +29,9 @@ export function describeVerification(view: VerificationView): VerificationDispla
     return {
       state: "broken",
       headline: `Chain verification failed at entry ${view.brokenAt}.`,
-      detail: `${view.reason.replace(/_/g, " ")}: ${view.detail}. ${entries(
+      detail: `${view.reason.replace(/_/g, " ")}. ${entries(
         view.checked,
-      )} checked before the break.`,
+      )} checked before the break. The entry itself is in the server log.`,
       checkedAt,
     };
   }
