@@ -4,12 +4,20 @@ Detection kernel and reporting pipeline for online child grooming, financial sex
 
 | Surface | User | Status |
 |---|---|---|
-| Discord bot | Owners of kid-heavy game communities | Phase 1 (current) |
-| Platform SDK / API | Small and mid-size games, chat apps, edtech | Phase 3 |
-| Investigator triage | ICAC units, NGO victim-ID partners | Phase 4, partner-gated |
-| Parent app | Parents of 8 to 15 year olds | Phase 5 |
+| Discord bot | Owners of kid-heavy game communities | Built. Needs a bot token to install. |
+| Reviewer console | Trained reviewers, operators, server owners | Built. |
+| Platform SDK / API | Small and mid-size games, chat apps, edtech | Built in TypeScript and Python. Reporting needs NCMEC ESP registration, which needs a customer. |
+| Investigator triage | ICAC units, NGO victim-ID partners | Not started. Gated on a signed partner. |
+| Parent app | Parents of 8 to 15 year olds | Not started. Gated on counsel. |
 
-Full spec: [docs/DESIGN.md](docs/DESIGN.md). Rendered version with the architecture diagram: `docs/design.html`. What is built so far and what is not: [docs/PHASE1.md](docs/PHASE1.md).
+| Document | What it is |
+|---|---|
+| [docs/DESIGN.md](docs/DESIGN.md) | The spec. `docs/design.html` is the rendered version with the architecture diagram. |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | What is built, what is next, and the three decisions waiting on a call. |
+| [docs/RESEARCH.md](docs/RESEARCH.md) | The September 2026 competitor and expert landscape, with the six corrections it forced on the spec. |
+| [docs/MODEL-CARD.md](docs/MODEL-CARD.md) | Evaluation numbers, limitations, and what those numbers are not. |
+| [docs/DESIGN-UI.md](docs/DESIGN-UI.md) | The reviewer console design. |
+| [docs/PHASE1.md](docs/PHASE1.md), [docs/PHASE3.md](docs/PHASE3.md) | Per-phase status. |
 
 ## What it does
 
@@ -36,9 +44,10 @@ That installs dependencies, writes `.env` with a fresh audit secret, and starts 
 
 ```bash
 pnpm db:migrate        # apply the Prisma schema
-pnpm test              # every package, plus the eval suite in quick mode (about 15s)
-pnpm eval              # the full DESIGN.md section 10 suite (about 90s)
+pnpm test              # every package, plus the eval suite in quick mode
+pnpm eval              # the full DESIGN.md section 10 suite
 pnpm ml:test           # Python service tests
+pnpm sdk-py:test       # Python SDK tests
 pnpm parity            # confirm the TS and Python MinHash indexes agree
 ```
 
@@ -52,16 +61,18 @@ pnpm ml:dev            # ML service on :8000
 ## Repo layout
 
 ```
-apps/ingest        Fastify edge. Auth, schema validation, media refusal, PII minimization, retention sweep.
+apps/ingest        Fastify edge. Auth, media refusal, PII minimization, retention sweep, webhook delivery.
 apps/scorer        The kernel. Detectors, pair trajectory, actor skew, fusion, tiers, evidence bundles, worker.
-apps/discord-bot   First shipping surface. Role to age band, mod-channel alerts, report draft.
-apps/review        Next.js reviewer queue. Phase 2, not built.
-services/ml        Python FastAPI. PII/migration classifier, script index, stage classifier interface.
+apps/discord-bot   First shipping surface. Role to age band, slash commands, mod-channel alerts, report draft.
+apps/review        Next.js reviewer console. Queue, case detail, dashboard, guild setup, audit view.
+services/ml        Python FastAPI. Roblox PII classifier v2 contract, script index, stage classifier interface.
 packages/schema    Canonical types, zod validators, lexicon, script corpus, normalizer, hashing, retention, language guard.
+packages/report    CyberTipline report builder, completeness scorer, ESP client, preservation timer.
 packages/sdk-ts    Customer SDK: send events, verify webhooks, refuse bytes client-side.
-packages/audit     Hash-chained append-only log.
+packages/sdk-py    The same SDK in Python, signature-compatible.
+packages/audit     Hash-chained append-only log, with an offline-verifiable export.
 scripts/eval       The section 10 evaluation suite.
-docs/              DESIGN.md (spec), PHASE1.md (status), design.html (rendered).
+scripts/integration End-to-end tests against live Postgres and Redis.
 ```
 
 ## Reading order
@@ -69,4 +80,4 @@ docs/              DESIGN.md (spec), PHASE1.md (status), design.html (rendered).
 1. `CLAUDE.md` for the rules and the current phase.
 2. `docs/DESIGN.md` sections 2, 5 and 6 for the constraints, the signal catalog and the scoring algorithm.
 3. `apps/scorer/src/pair.ts` for how the signal catalog's false-positive traps become gates.
-4. `scripts/eval/src/suite.ts` for what the numbers mean and what they do not.
+4. `scripts/eval/src/suite.ts` and [docs/MODEL-CARD.md](docs/MODEL-CARD.md) for what the numbers mean and what they do not.

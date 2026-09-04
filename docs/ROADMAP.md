@@ -27,7 +27,8 @@ Goal: prove the signal catalog on real traffic and start the labeled set. Instal
 | Non-retrofittable schema fields | done | R3. Migrations `20260904102106_compliance_provenance_fields` and `20260904111509_pair_suggested_posture`. Age band confidence and provenance, derived statutory bracket, per-excerpt human-viewed flag, per-customer jurisdiction and legal basis, channel visibility, `soleAutomatedBasis`, feedback attribution, and the S4 posture on the pair. Every column nullable or defaulted. |
 | Fan-IN, two velocity windows, non-financial coercion class | done | R4. S1 to S4 below. Fusion is now `rules-v2` and the default lexicon is `v2`. Nine findings from the adversarial review of that work are fixed on top of it; see the S1 to S4 rows. |
 | Discord privileged-intent application | planned | R2 below; threshold moved to 10,000 reachable users on 2026-06-10 |
-| Base-rate simulation on real traffic, model card | planned | R5 below. The simulation gate runs on generated traffic today; the honest number needs the bot installed. |
+| Model card published with honest numbers | done | [MODEL-CARD.md](MODEL-CARD.md). Includes the PII evasion benchmark at 77.6% recall with three named open defects, and states plainly that generated evaluation traffic is a regression floor and not a production number. |
+| Base-rate simulation on real traffic | blocked | Needs the bot installed. The gate runs on generated traffic today and the model card says so. |
 | Install on three friendly servers | blocked | needs a Discord application and a bot token |
 
 ## Research (September 2026)
