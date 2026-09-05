@@ -75,9 +75,16 @@ export function bandsClause(actor: BandReading, target: BandReading): string {
 }
 
 /** The absent case is stated rather than left to inference. */
-export function criticalClause(signals: string[]): string {
-  if (signals.length === 0) return "critical: none";
-  return compose("queue.criticalClause", `critical: ${signals.map(signalWord).join(", ")}`);
+/**
+ * The named signal, or nothing at all.
+ *
+ * "critical: none" used to print on every card that had no critical signal,
+ * which is a line of text saying that nothing happened. The tier badge already
+ * carries the diamond when a signal fired, so absence needs no words.
+ */
+export function criticalClause(signals: string[]): string | null {
+  if (signals.length === 0) return null;
+  return compose("queue.criticalClause", signals.map(signalWord).join(", "));
 }
 
 /** Under an hour of SLA left counts as breach risk, in the header and on the row. */

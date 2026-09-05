@@ -190,15 +190,23 @@ const nonColor = {
   font: {
     ui: "'Inter', 'SF Pro Text', system-ui, -apple-system, 'Segoe UI', sans-serif",
     mono: "'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace",
-    size: { xs: "12px", sm: "14px", md: "16px", lg: "20px", xl: "24px", "2xl": "32px" },
+    /*
+     * Five sizes, and the gaps between them are wide on purpose. The first pass
+     * had 12 and 14 doing almost all the work, which is how a screen ends up
+     * with no hierarchy: everything was small, so nothing was primary. sm is
+     * now the floor for anything a reviewer reads, xs is reserved for labels
+     * that sit beside a value and are never read on their own.
+     */
+    size: { xs: "12px", sm: "15px", md: "17px", lg: "22px", xl: "30px", "2xl": "44px" },
     weight: { regular: 400, medium: 500, bold: 700 },
-    leading: { tight: 1.2, snug: 1.4, normal: 1.6 },
+    leading: { tight: 1.15, snug: 1.35, normal: 1.6 },
   },
   shadow: {
     raised: "0 1px 2px rgb(20 22 34 / 0.06), 0 1px 3px rgb(20 22 34 / 0.08)",
     overlay: "0 8px 24px rgb(20 22 34 / 0.16), 0 2px 6px rgb(20 22 34 / 0.08)",
   },
   motion: { fast: "150ms", base: "200ms", slow: "300ms", in: "cubic-bezier(0.2, 0, 0, 1)", out: "cubic-bezier(0.4, 0, 1, 1)" },
+  tracking: { display: "-0.02em", body: "0", label: "0.04em" },
   measure: "68ch",
 };
 
@@ -255,6 +263,7 @@ const nonColorVars = [
   `  --shadow-raised: ${nonColor.shadow.raised};`,
   `  --shadow-overlay: ${nonColor.shadow.overlay};`,
   ...Object.entries(nonColor.motion).map(([k, v]) => `  --motion-${k}: ${v};`),
+  ...Object.entries(nonColor.tracking).map(([k, v]) => `  --tracking-${k}: ${v};`),
   `  --measure: ${nonColor.measure};`,
 ].join("\n");
 

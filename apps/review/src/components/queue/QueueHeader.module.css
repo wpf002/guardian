@@ -1,10 +1,18 @@
+/*
+ * The header says where you are and how much of your shift is left. It used to
+ * also carry a sentence explaining the ranking formula, a disclosure with the
+ * formula written out, and a note about session persistence. That is three
+ * paragraphs of justification above a list, and it pushed the actual work below
+ * the fold. The explanation moved into a disclosure the reviewer opens once.
+ */
+
 .header {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-5);
-  margin-block-end: var(--space-5);
+  gap: var(--space-6);
+  margin-block-end: var(--space-6);
 }
 
 .main {
@@ -12,73 +20,73 @@
   flex-direction: column;
   gap: var(--space-2);
   min-inline-size: 0;
-  flex: 1 1 auto;
 }
 
 .title {
-  font-size: var(--text-2xl);
-  font-weight: var(--weight-bold);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
 }
 
+/* Counts read as one sentence, with the number carrying the weight. */
 .counts {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-  color: var(--text-muted);
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
+  color: var(--text-muted);
 }
 
-.ranking {
-  max-inline-size: var(--measure);
+.counts strong {
+  font-weight: var(--weight-medium);
   color: var(--text);
-  font-size: var(--text-sm);
 }
 
 .how {
-  font-size: var(--text-xs);
+  margin-block-start: var(--space-1);
+  font-size: var(--text-sm);
 }
 
 .summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--text-muted);
   cursor: pointer;
+}
+
+.summary:hover {
+  color: var(--text);
 }
 
 .howBody {
   max-inline-size: var(--measure);
   margin-block-start: var(--space-2);
   color: var(--text-muted);
-  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
 }
 
 .notice {
-  max-inline-size: var(--measure);
-  padding: var(--space-2) var(--space-3);
-  color: var(--text);
   font-size: var(--text-sm);
-  background: var(--surface);
-  border: 1px solid var(--divider);
-  border-radius: var(--radius-md);
+  color: var(--text);
 }
 
 .aside {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  flex: 0 1 280px;
-}
-
-.asideNote {
-  color: var(--text-subtle);
-  font-size: var(--text-xs);
+  align-items: stretch;
+  min-inline-size: 220px;
 }
 
 @media (max-width: 640px) {
-  .ranking {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
+  .header {
+    gap: var(--space-4);
   }
 
   .aside {
-    flex-basis: 100%;
+    inline-size: 100%;
   }
 }

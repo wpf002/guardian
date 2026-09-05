@@ -133,12 +133,23 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
         <span className={styles.sla}>{slaWords(detail.queue.slaRemainingMinutes)}</span>
       </div>
 
+      {/*
+        The heading is what happened, not the row's primary key. A reviewer
+        arrives here from a queue card that said "Stage 3 to 4 in 19h" and the
+        page used to answer with a hex id, so the one useful sentence was
+        demoted to the inside of a card and the identifier was promoted to
+        display size. The id is still here, in the line underneath, where an
+        identifier belongs.
+      */}
       <div className={styles.identity}>
-        <h1 className={styles.pairId}>Pair {detail.queue.shortId}</h1>
-        <span className={styles.where}>
-          {detail.queue.customerName}
-          {detail.queue.channel ? ` · ${detail.queue.channel}` : ""}
-        </span>
+        <h1 className={styles.headline}>{detail.queue.patternClause}</h1>
+        <p className={styles.where}>
+          <span className={`${styles.pairId} mono`}>Pair {detail.queue.shortId}</span>
+          <span>
+            {detail.queue.customerName}
+            {detail.queue.channel ? ` · ${detail.queue.channel}` : ""}
+          </span>
+        </p>
       </div>
 
       <SeverityStrip queue={detail.queue} deferHref="/cases" />

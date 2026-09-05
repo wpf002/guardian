@@ -30,7 +30,7 @@ export function SeverityStrip({ queue, deferHref }: SeverityStripProps) {
       : null;
 
   return (
-    <Card title="Severity" aside={`scored for ${queue.customerName}`} density="padded">
+    <Card title="What Guardian recorded" aside={`scored for ${queue.customerName}`} density="padded">
       <div className={styles.stripTop}>
         <TierBadge tier={queue.tier} withMeaning criticalSignals={queue.criticalSignals} />
         <span className={styles.criticalWord}>

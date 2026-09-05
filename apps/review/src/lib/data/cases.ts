@@ -28,7 +28,7 @@ import type {
 
 /** Rank order the queue prints above itself, so a reviewer can see why A is above B. */
 export const RANKING_SENTENCE =
-  "Ranked by tier and critical signal, times identifiable-signal count, times actor fan-out, divided by SLA time remaining.";
+  "The most serious cases come first, and among those, the ones with the least time left. A case rises if a critical signal fired, if the younger account is easier to identify, or if the same older account turns up in several conversations. The order describes the queue, not anybody in it.";
 
 const TIER_WEIGHT: Record<Tier, number> = { T0: 0, T1: 1, T2: 2, T3: 3 };
 

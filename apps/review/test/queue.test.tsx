@@ -36,8 +36,8 @@ describe("/queue in mock mode", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Queue" })).toBeTruthy();
     expect(container.textContent).toContain("Northwood Gaming");
-    expect(container.textContent).toContain("in queue");
-    expect(container.textContent).toContain("Ranked by tier and critical signal");
+    expect(container.textContent).toContain("waiting");
+    expect(container.textContent).toContain("The most serious cases come first");
 
     expect(screen.getByRole("navigation", { name: "Queue filters" })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Needs second reviewer/ })).toBeTruthy();
@@ -45,11 +45,13 @@ describe("/queue in mock mode", () => {
     const cards = screen.getAllByRole("listitem");
     expect(cards.length).toBeGreaterThan(1);
 
-    // Line one names the pair and the critical signal in words, never a person.
+    // The card names the pair and the critical signal in words, never a person.
     expect(container.textContent).toContain("Pair 4f2a");
-    expect(container.textContent).toContain("critical: threat template match");
-    expect(container.textContent).toContain("critical: none");
-    // Line two is the pattern and the bands with their provenance.
+    expect(container.textContent).toContain("threat template match");
+    // A card with no critical signal says nothing about it. The tier badge
+    // already carries the diamond when one fired, so absence needs no words.
+    expect(container.textContent).not.toContain("critical: none");
+    // The headline is the pattern; the bands and provenance sit under it.
     expect(container.textContent).toContain("Stage 3 to 4 in 19h");
     expect(container.textContent).toContain("bands 16-17 to 9-12");
     // Line three is claim state and the SLA, with T1 stating the absence.

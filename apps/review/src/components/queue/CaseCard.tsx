@@ -29,8 +29,12 @@ export interface CaseCardProps {
 }
 
 /**
- * One queue row. Three lines, never four (DESIGN-UI 6). Line one is identity
- * and routing, line two the pattern, line three time and actor context.
+ * One queue row: a tier, a sentence, and a quiet line of context.
+ *
+ * The sentence is the card. It is the largest thing on it and the only thing at
+ * full ink, because the decision a reviewer makes here is only ever "is this
+ * worth opening", and that is answered by what happened, not by the pair id or
+ * the claim state.
  *
  * Not on this card, deliberately: the fused score, the actor skew value, any
  * percentage, any handle, any avatar, any excerpt. A queue you can read without
@@ -50,6 +54,13 @@ export function CaseCard({
   const atBreachRisk = remaining !== null && remaining <= BREACH_RISK_MINUTES;
   const claimedElsewhere = item.claim.state === "other";
   const support = item.suggestedPosture === "support";
+
+  // The badge already says a critical signal fired, and the headline often names
+  // the same one. Printing it again is noise, so it appears only when it adds
+  // something the headline did not already say.
+  const critical = criticalClause(item.criticalSignals);
+  const criticalAddsSomething =
+    critical !== null && !item.patternClause.toLowerCase().includes(critical.toLowerCase());
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     // Shift+Enter opens without claiming. Enter alone is the button's own click.
@@ -75,29 +86,23 @@ export function CaseCard({
         onClick={(event) => onOpen(event.shiftKey ? "read_only" : "claim")}
       >
         <span className={styles.tierCell}>
-          <TierBadge tier={item.tier} variant="bar" criticalSignals={item.criticalSignals} />
+          <TierBadge tier={item.tier} criticalSignals={item.criticalSignals} />
         </span>
 
-        <span className={styles.lineOne}>
-          <span className={`${styles.pairId} mono`}>Pair {item.shortId}</span>
-          <span className={styles.critical}>{criticalClause(item.criticalSignals)}</span>
+        <span className={styles.headline}>{item.patternClause}</span>
+
+        <span className={`${styles.timeCell} tabular`}>
+          <span>{slaClause(remaining)}</span>
+          {atBreachRisk ? <span className={styles.breach}>breach risk</span> : null}
+        </span>
+
+        <span className={styles.meta}>
+          <span>{bandsClause(item.actorBand, item.targetBand)}</span>
+          {criticalAddsSomething ? <span>{critical}</span> : null}
           {support ? <span className={styles.posture}>{SUPPORT_POSTURE_CHIP}</span> : null}
-          <span className={styles.claim}>
-            {pending ? "opening" : claimClause(item.claim)}
-          </span>
-        </span>
-
-        <span className={styles.lineTwo}>
-          <span className={styles.pattern}>{item.patternClause}</span>
-          <span className={styles.bands}>{bandsClause(item.actorBand, item.targetBand)}</span>
-        </span>
-
-        <span className={styles.lineThree}>
           <span>{support ? SUPPORT_POSTURE_NOTE : item.actorContext}</span>
-          <span className={`${styles.sla} tabular`}>
-            {slaClause(remaining)}
-            {atBreachRisk ? <span className={styles.breach}>at breach risk</span> : null}
-          </span>
+          <span className={styles.pairId}>Pair <span className="mono">{item.shortId}</span></span>
+          <span className={styles.claim}>{pending ? "opening" : claimClause(item.claim)}</span>
         </span>
       </button>
     </li>

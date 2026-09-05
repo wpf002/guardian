@@ -12,8 +12,19 @@
   line-height: var(--leading-tight);
 }
 
+/*
+ * The inline badge is the tier's real presence on screen. It was 12px in a
+ * hairline box, which read as a footnote next to the thing it was labelling.
+ * It is now a fixed-width block with the tier word set solid, so a column of
+ * cards scans down the tier first and the sentence second.
+ */
 .inline {
-  padding: var(--space-1) var(--space-2);
+  justify-content: center;
+  min-inline-size: 44px;
+  padding: 6px var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
   border: 1px solid var(--tier-border);
   border-radius: var(--radius-sm);
   background: var(--tier-bg);
@@ -32,7 +43,7 @@
 .t3 { --tier-border: var(--tier-t3-border); --tier-bg: var(--tier-t3-bg); --tier-fg: var(--tier-t3-fg); }
 
 .word {
-  font-weight: var(--weight-medium);
+  font-weight: inherit;
 }
 
 .meaning {

@@ -39,7 +39,10 @@ describe("the case detail at /cases/[id]", () => {
   it("renders the pattern above the fold, the evidence below it, and the version triple", async () => {
     await renderCase("pair_4f2a");
 
-    expect(screen.getByRole("heading", { name: "Pair 4f2a" })).toBeTruthy();
+    // The heading is what happened. The pair id is present but demoted, because
+    // a reviewer arriving from the queue needs the sentence, not the key.
+    expect(screen.getByRole("heading", { level: 1, name: "Stage 3 to 4 in 19h" })).toBeTruthy();
+    expect(screen.getByText(/Pair 4f2a/)).toBeTruthy();
     expect(screen.getAllByText(/asked who supervises the younger account/).length).toBeGreaterThan(0);
 
     // The tier is a word plus a meaning, and the critical signal is named.

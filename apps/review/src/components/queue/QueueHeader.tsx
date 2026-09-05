@@ -14,8 +14,10 @@ export interface QueueHeaderProps {
 }
 
 /**
- * Above the fold: partition, counts, the ranking rule and the session budget.
- * No charts, no trend, no welcome.
+ * Above the fold: where you are, how many are waiting, how much shift is left.
+ * No charts, no trend, no welcome, and no paragraph explaining the ranking. The
+ * ranking sentence moved into a disclosure a reviewer opens once and never
+ * again, because it was three lines of justification sitting on top of the work.
  *
  * The budget sits here rather than in settings because exposure held to a few
  * hours a day is the finding that drives reviewer outcomes, and making the
@@ -33,22 +35,18 @@ export function QueueHeader({
         <h1 className={styles.title}>Queue</h1>
         <p className={`${styles.counts} tabular`} role="status">
           <span>{summary.partitionName}</span>
-          <span aria-hidden="true">&middot;</span>
-          <span>{summary.total} in queue</span>
-          <span aria-hidden="true">&middot;</span>
-          <span>live</span>
-          <span aria-hidden="true">&middot;</span>
-          <span>{summary.breachRiskCount} at breach risk</span>
+          <span>
+            <strong>{summary.total}</strong> waiting
+          </span>
+          {summary.breachRiskCount > 0 ? (
+            <span>
+              <strong>{summary.breachRiskCount}</strong> running out of time
+            </span>
+          ) : null}
         </p>
-        <p className={styles.ranking}>{rankingSentence}</p>
         <details className={styles.how}>
-          <summary className={styles.summary}>How ranking works</summary>
-          <p className={styles.howBody}>
-            Severity comes first: the tier, and whether a critical signal fired. That is multiplied
-            by how identifiable the younger band is and by how many pairs the same account appears
-            in, then divided by the SLA time left, so a case with less time rises. The order is a
-            property of the queue. It is not a statement about anybody.
-          </p>
+          <summary className={styles.summary}>Why this order</summary>
+          <p className={styles.howBody}>{rankingSentence}</p>
         </details>
         {notice ? (
           <p className={styles.notice} role="status">
@@ -58,9 +56,6 @@ export function QueueHeader({
       </div>
       <div className={styles.aside}>
         <SessionTimer startedAt={sessionStartedAt} />
-        <p className={styles.asideNote}>
-          Your session budget is not persisted yet, so it counts from the moment you signed in.
-        </p>
       </div>
     </header>
   );

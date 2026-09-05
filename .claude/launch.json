@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "review",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@guardian/review", "run", "dev:mock"],
+      "port": 3100
+    }
+  ]
+}

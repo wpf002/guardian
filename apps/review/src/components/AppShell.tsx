@@ -93,9 +93,15 @@ export function AppShell({ session, nav, railFoot, mock = false, children }: App
       <div className={styles.content}>
         <div className={styles.topline}>
           {mock ? (
-            <span className={styles.fixtures}>
-              Running on fixtures. No database is attached, every seat is the same demo seat, and
-              nothing on screen is real traffic.
+            <span
+              className={styles.fixtures}
+              title="Running on fixtures. No database is attached, every seat is the same demo seat, and nothing on screen is real traffic."
+            >
+              Demo data
+              <span className="sr-only">
+                . Running on fixtures. No database is attached, every seat is the same demo seat,
+                and nothing on screen is real traffic.
+              </span>
             </span>
           ) : null}
           <span className={styles.who}>
