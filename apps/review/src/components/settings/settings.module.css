@@ -21,15 +21,22 @@
 /* Definition rows: a label, a value, and a plain sentence under it. */
 .rows {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
+/*
+ * Label, value, and a note that explains the value. The note used to sit on its
+ * own full-width row under both, which put three stacked text sizes on every
+ * line and made a settings list read like a form with footnotes. It now sits in
+ * the value column under its own value, so the label column stays a clean
+ * vertical edge and the note is visibly attached to what it describes.
+ */
 .row {
   display: grid;
-  grid-template-columns: minmax(9rem, 14rem) 1fr;
-  gap: var(--space-2) var(--space-4);
+  grid-template-columns: minmax(9rem, 13rem) 1fr;
+  gap: var(--space-2) var(--space-5);
   align-items: baseline;
-  padding-block-end: var(--space-3);
+  padding-block-end: var(--space-4);
   border-block-end: 1px solid var(--divider);
 }
 
@@ -45,19 +52,25 @@
 
 .rowValue {
   font-size: var(--text-sm);
+  color: var(--text);
 }
 
 .rowNote {
-  grid-column: 1 / -1;
+  grid-column: 2;
   margin: 0;
   color: var(--text-subtle);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   max-width: var(--measure);
 }
 
 @media (max-width: 640px) {
   .row {
     grid-template-columns: 1fr;
+  }
+
+  .rowNote {
+    grid-column: 1;
   }
 }
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AUDIT_KINDS } from "@guardian/audit";
-import { Button, EmptyState, Select, Stat } from "@/components";
+import { Button, EmptyState, PageHeader, Select, Stat } from "@/components";
 import { AuditEntries, ChainTools, MAX_RANGE, seqLabel } from "@/components/audit";
 import { requireSession, roleAllows } from "@/lib/auth";
 import { compose } from "@/lib/compose";
@@ -85,17 +85,29 @@ export default async function AuditPage({
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1 className={styles.title}>Audit chain</h1>
-        <p className={styles.lede}>
-          Every score, every reviewer action and every export is appended here and hashed against
-          the entry before it. The chain carries hashes, tiers, model and lexicon versions,
-          identifiers and decisions. It carries no message text.
-        </p>
-        <p className={styles.scope}>
-          Scoped to {customerName}. Entries recorded under another customer are not readable from
-          this seat, and sequence numbers are assigned across all of them, so this list can have
-          gaps.
-        </p>
+        <PageHeader
+          title="Audit chain"
+          meta={
+            <>
+              <span>{customerName}</span>
+              <span>append only</span>
+            </>
+          }
+          about={
+            <>
+              <p>
+                Every score, every reviewer action and every export is appended here and hashed
+                against the entry before it. The chain carries hashes, tiers, model and lexicon
+                versions, identifiers and decisions. It carries no message text.
+              </p>
+              <p>
+                Entries recorded under another customer are not readable from this seat, and
+                sequence numbers are assigned across all of them, so this list can have gaps.
+              </p>
+            </>
+          }
+          aboutLabel="What the chain holds"
+        />
       </header>
 
       <section className={styles.head} aria-label="Chain head">

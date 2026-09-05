@@ -32,7 +32,7 @@ describe("operator dashboard", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Health" })).toBeTruthy();
     expect(screen.getByText("Open at T2")).toBeTruthy();
-    expect(screen.getByText("Oldest open T2, time in queue")).toBeTruthy();
+    expect(screen.getByText("Oldest open T2")).toBeTruthy();
     expect(screen.getByText("Reviewer minutes per 1,000 users per day")).toBeTruthy();
     expect(screen.getByText("T2 target predictive value")).toBeTruthy();
     expect(screen.getByText("40% or better")).toBeTruthy();

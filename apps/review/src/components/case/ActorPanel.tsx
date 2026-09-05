@@ -73,7 +73,7 @@ export function ActorPanel({ actor, priorCases }: ActorPanelProps) {
         </p>
       ) : null}
 
-      <h3 className={styles.signalName}>Prior cases on this actor</h3>
+      <h3 className={styles.subHeading}>Prior cases on this actor</h3>
       {priorCases.length === 0 ? (
         <p className={styles.note}>
           First case for this actor. Nothing earlier has been decided here.

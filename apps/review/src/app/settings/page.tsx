@@ -3,6 +3,7 @@ import { RETENTION_MS } from "@guardian/schema";
 import { Card } from "@/components/Card";
 import { ErrorState } from "@/components/ErrorState";
 import { KeyboardHelp } from "@/components/KeyboardHelp";
+import { PageHeader } from "@/components/PageHeader";
 import {
   LexiconEditor,
   RetentionTable,
@@ -77,11 +78,16 @@ export default async function SettingsPage() {
 
   return (
     <div className={`container ${styles.page}`}>
-      <h1>Settings</h1>
-      <p className={styles.lede}>
-        Your seat and the limits you work under, then the configuration behind them. Everything an
-        operator changes here is written to the audit chain.
-      </p>
+      <PageHeader
+        title="Settings"
+        meta="Your seat, then the configuration behind it"
+        about={
+          <p>
+            Everything an operator changes here is written to the audit chain, with who changed it
+            and when.
+          </p>
+        }
+      />
 
       <div className={styles.sections}>
         <Card title="Your seat">

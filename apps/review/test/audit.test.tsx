@@ -25,7 +25,7 @@ describe("the audit view", () => {
     await renderAuditPage();
 
     expect(screen.getByRole("heading", { name: "Audit chain", level: 1 })).toBeTruthy();
-    expect(screen.getByText(/Scoped to Northwood Gaming/)).toBeTruthy();
+    expect(screen.getByText(/Northwood Gaming/)).toBeTruthy();
     expect(screen.getByText("Chain entries, newest first, page 1.")).toBeTruthy();
 
     const head = within(screen.getByRole("region", { name: "Chain head" }));

@@ -1,4 +1,4 @@
-import { EmptyState } from "@/components";
+import { EmptyState, PageHeader } from "@/components";
 import { GuildTable, guildCopy, isGuildReady, type GuildRow } from "@/components/guilds";
 import { requireRole } from "@/lib/auth";
 import { listGuildConfigs } from "@/lib/data/guilds";
@@ -28,10 +28,12 @@ export default async function GuildsPage() {
 
   return (
     <div className={`container ${styles.page}`}>
-      <header className={styles.pageHead}>
-        <h1 className={styles.pageTitle}>{guildCopy.PAGE.listTitle}</h1>
-        <p className={styles.intro}>{guildCopy.PAGE.listIntro}</p>
-      </header>
+      <PageHeader
+        title={guildCopy.PAGE.listTitle}
+        meta={`${rows.length} ${rows.length === 1 ? "server" : "servers"}`}
+        about={<p>{guildCopy.PAGE.listIntro}</p>}
+        aboutLabel="How a server starts scoring"
+      />
 
       {rows.length === 0 ? (
         <EmptyState

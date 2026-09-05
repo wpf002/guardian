@@ -10,6 +10,7 @@ export { ErrorState, type ErrorStateProps } from "./ErrorState";
 export { Field, fieldDescribedBy, type FieldProps } from "./Field";
 export { KeyboardHelp, type KeyboardHelpProps } from "./KeyboardHelp";
 export { LoadingState, SkeletonRows, type LoadingStateProps } from "./LoadingState";
+export { PageHeader, type PageHeaderProps } from "./PageHeader";
 export { Select, type SelectOption, type SelectProps } from "./Select";
 export {
   SessionTimer,

@@ -1,7 +1,7 @@
 /* The case list. Three lines a row, and colour spent only on the tier bar. */
 
 .title {
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   font-weight: var(--weight-bold);
 }
 

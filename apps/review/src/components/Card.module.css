@@ -22,14 +22,22 @@
   margin-block-end: var(--space-3);
 }
 
+/*
+ * A card title was the same 17px as the body inside it, so a page of seven
+ * cards had no section rhythm at all: the eye could not find where one thing
+ * ended and the next began. At lg the scale finally reads as a scale, 30 for
+ * the page, 22 for a section, 17 for what you read, 15 beside a value.
+ */
 .title {
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
   font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
 }
 
 .aside {
   color: var(--text-muted);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 
 .footer {

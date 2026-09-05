@@ -11,9 +11,12 @@
   padding: var(--space-4);
 }
 
+/* The decision is the point of the page, so it is a section heading. */
 .title {
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
   font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
 }
 
 .lead {

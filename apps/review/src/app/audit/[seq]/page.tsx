@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Card } from "@/components";
+import { Card, PageHeader } from "@/components";
 import { PayloadList, formatUtc, seqLabel } from "@/components/audit";
 import { requireSession } from "@/lib/auth";
 import { getAuditEntry } from "@/lib/data/audit";
@@ -39,12 +39,23 @@ export default async function AuditEntryPage({
         <p className={styles.back}>
           <Link href="/audit">Back to the chain</Link>
         </p>
-        <h1 className={styles.title}>Chain entry {seqLabel(entry.seq)}</h1>
-        <p className={styles.lede}>
-          Recorded {formatUtc(entry.ts)} under {entry.customerId}. This entry is read only. Nothing
-          in this app edits or removes a chain entry, and a correction is a new entry that points
-          at this one.
-        </p>
+        <PageHeader
+          title={`Chain entry ${seqLabel(entry.seq)}`}
+          meta={
+            <>
+              <span>recorded {formatUtc(entry.ts)}</span>
+              <span>{entry.customerId}</span>
+              <span>read only</span>
+            </>
+          }
+          about={
+            <p>
+              Nothing in this app edits or removes a chain entry. A correction is a new entry that
+              points at this one.
+            </p>
+          }
+          aboutLabel="Why this cannot be edited"
+        />
       </header>
 
       <Card title="Entry" density="padded">

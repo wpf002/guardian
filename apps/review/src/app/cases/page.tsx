@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { EmptyState, TierBadge } from "@/components";
+import { EmptyState, PageHeader, TierBadge } from "@/components";
 import { requireSession } from "@/lib/auth";
 import { listQueue, RANKING_SENTENCE } from "@/lib/data/cases";
 import styles from "./cases.module.css";
@@ -21,12 +21,22 @@ export default async function CasesPage() {
 
   return (
     <div className={`container ${caseStyles.routeState}`}>
-      <h1 className={styles.title}>Cases</h1>
-      <p className={styles.ranking}>{RANKING_SENTENCE}</p>
-      <p className={styles.count}>
-        {page.summary.total} open in {page.summary.partitionName}, {page.summary.criticalCount}{" "}
-        carrying a critical signal.
-      </p>
+      <PageHeader
+        title="Cases"
+        meta={
+          <>
+            <span>{page.summary.partitionName}</span>
+            <span>
+              <strong>{page.summary.total}</strong> open
+            </span>
+            <span>
+              <strong>{page.summary.criticalCount}</strong> carrying a critical signal
+            </span>
+          </>
+        }
+        about={<p>{RANKING_SENTENCE}</p>}
+        aboutLabel="Why this order"
+      />
 
       {page.cases.length === 0 ? (
         <EmptyState

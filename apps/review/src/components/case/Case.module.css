@@ -257,9 +257,28 @@
   padding-block-end: 0;
 }
 
+/*
+ * Used both for a signal row label and, wrongly, for two section headings, so
+ * "Evidence timeline" rendered two points below the text underneath it. As a
+ * row label sm is right; the headings now use .sectionHeading.
+ */
 .signalName {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
+}
+
+/* A heading nested inside a card: above body, below the card's own title. */
+.subHeading {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
+}
+
+.sectionHeading {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
 }
 
 .signalMeta,

@@ -40,10 +40,16 @@ h4 {
   letter-spacing: -0.01em;
 }
 
-h1 { font-size: var(--text-2xl); }
-h2 { font-size: var(--text-xl); }
-h3 { font-size: var(--text-lg); }
-h4 { font-size: var(--text-md); }
+/*
+ * A page heading is xl. 2xl exists for a genuine display moment and no screen
+ * in this app has one; setting h1 to it meant every page opened with a 44px
+ * word and then dropped straight to 15px body, which reads as a template
+ * rather than a hierarchy.
+ */
+h1 { font-size: var(--text-xl); letter-spacing: var(--tracking-display); }
+h2 { font-size: var(--text-lg); }
+h3 { font-size: var(--text-md); }
+h4 { font-size: var(--text-sm); }
 
 p,
 ul,

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { EmptyState } from "@/components";
+import { EmptyState, PageHeader } from "@/components";
 import { BotBoundaries, GuildEditor, guildCopy, toGuildView } from "@/components/guilds";
 import { requireRole } from "@/lib/auth";
 import { getGuildConfig } from "@/lib/data/guilds";
@@ -37,9 +37,12 @@ export default async function GuildPage({
         <Link className={styles.crumb} href="/guilds">
           {guildCopy.PAGE.backToList}
         </Link>
-        <h1 className={styles.pageTitle}>{guildCopy.PAGE.detailTitle}</h1>
-        {config ? <p className={styles.mono}>{config.guildId}</p> : null}
-        <p className={styles.intro}>{guildCopy.PAGE.detailIntro}</p>
+        <PageHeader
+          title={guildCopy.PAGE.detailTitle}
+          meta={config ? <span className="mono">{config.guildId}</span> : null}
+          about={<p>{guildCopy.PAGE.detailIntro}</p>}
+          aboutLabel="What these settings do"
+        />
       </header>
 
       {config ? (

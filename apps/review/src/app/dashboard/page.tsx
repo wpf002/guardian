@@ -1,4 +1,4 @@
-import { Card, EmptyState, Stat } from "@/components";
+import { Card, EmptyState, PageHeader, Stat } from "@/components";
 import { AuditChainPanel, BarChart, TargetMeter, type BarDatum } from "@/components/dashboard";
 import { requireRole } from "@/lib/auth";
 import { assertCopy } from "@/lib/compose";
@@ -114,14 +114,18 @@ export function DashboardView({ metrics, verify }: DashboardViewProps) {
 
   return (
     <div className={`container ${styles.page}`}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>Health</h1>
-        <p className={styles.lede}>{LEDE}</p>
-        <p className={styles.stamp}>
-          {metrics.customerName} · {countWords(metrics.activeSeats, "seat", "seats")} · read{" "}
-          {stampUtc(metrics.generatedAt)}
-        </p>
-      </header>
+      <PageHeader
+        title="Health"
+        meta={
+          <>
+            <span>{metrics.customerName}</span>
+            <span>{countWords(metrics.activeSeats, "seat", "seats")}</span>
+            <span>read {stampUtc(metrics.generatedAt)}</span>
+          </>
+        }
+        about={<p>{LEDE}</p>}
+        aboutLabel="What is on this page"
+      />
 
       {metrics.isEmpty ? (
         <EmptyState
@@ -136,20 +140,20 @@ export function DashboardView({ metrics, verify }: DashboardViewProps) {
               <Stat label="Open at T2" value={queue.openT2} />
               <Stat label="Open at T1" value={queue.openT1} />
               <Stat
-                label="Open T2 with under an hour left"
+                label="Under an hour left"
                 value={queue.breachRiskCount}
-                target="a breach forecast, not a breach count"
+                target="a forecast, not a count"
               />
               <Stat
                 label="Unclaimed"
                 value={queue.unclaimedCount}
-                target="claim state is not persisted yet"
+                target="not persisted yet"
               />
             </div>
 
             <div className={`${styles.stats} ${styles.factsSpaced}`}>
               <TargetMeter
-                label="Oldest open T2, time in queue"
+                label="Oldest open T2"
                 value={queue.oldestT2AgeMinutes}
                 display={minutesWords(queue.oldestT2AgeMinutes)}
                 unavailableNote="no T2 is open"
@@ -163,7 +167,7 @@ export function DashboardView({ metrics, verify }: DashboardViewProps) {
                 }
               />
               <Stat
-                label="Median time from score to decision"
+                label="Median score to decision"
                 value={
                   queue.medianMinutesToDecision === null
                     ? null

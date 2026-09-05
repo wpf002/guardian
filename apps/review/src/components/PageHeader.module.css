@@ -1,0 +1,88 @@
+/*
+ * One header shape for every page, so a reviewer moving between them lands in
+ * the same place each time and the heading size stops drifting per route.
+ */
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-block-end: var(--space-6);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
+}
+
+/* Facts, in one line. Numbers carry the weight; the words around them do not. */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.meta strong {
+  font-weight: var(--weight-medium);
+  color: var(--text);
+}
+
+.about {
+  margin-block-start: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.summary:hover {
+  color: var(--text);
+}
+
+.aboutBody {
+  max-inline-size: var(--measure);
+  margin-block-start: var(--space-2);
+  color: var(--text-muted);
+  line-height: var(--leading-normal);
+}
+
+.aboutBody > * + * {
+  margin-block-start: var(--space-2);
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 220px;
+}
+
+@media (max-width: 640px) {
+  .header {
+    gap: var(--space-4);
+    margin-block-end: var(--space-5);
+  }
+
+  .aside {
+    inline-size: 100%;
+  }
+}

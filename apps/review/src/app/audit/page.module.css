@@ -13,7 +13,7 @@
 
 /* The page title is the one place this app uses the bold weight. */
 .title {
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   font-weight: var(--weight-bold);
 }
 
@@ -29,21 +29,41 @@
   font-size: var(--text-xs);
 }
 
+/*
+ * The head sits on its own ground rather than loose above the tools, so the two
+ * counts and the hash read as one fact about the chain instead of three
+ * unrelated figures.
+ */
 .head {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-6);
+  align-items: flex-start;
+  gap: var(--space-6) var(--space-7);
+  padding: var(--space-5);
+  margin-block-end: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
 }
 
+/*
+ * A 64 character hash is a value, not a paragraph. It breaks on its own line at
+ * a size that stays scannable, with the label above it like the stats beside it
+ * so the three read as one row rather than two shapes.
+ */
 .headHash {
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   gap: var(--space-1);
+  min-inline-size: 0;
+  flex: 1 1 24ch;
 }
 
 .headHashValue {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
