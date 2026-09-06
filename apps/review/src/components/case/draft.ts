@@ -78,24 +78,40 @@ export function buildReportDraft(input: ReportDraftInput): string {
     ),
   );
   out.push("");
-  out.push("ACCOUNTS, AS AGE BANDS");
+  out.push("THE TWO ACCOUNTS");
+  // Neutrally labelled, and both ids printed. The draft used to name one of
+  // them "Older-band account" and print only "Hashed actor id", which made
+  // Guardian's own choice about which side the detectors scored read as a
+  // designation. The CyberTipline form asks the filer who the report is about;
+  // that is their answer to give, not Guardian's (CLAUDE.md rule 5).
+  const subject = detail.reportedSubjectUid;
+  const label = (uid: string, fallback: string): string =>
+    subject === null ? fallback : uid === subject ? `${fallback} (you named this one)` : fallback;
+
   out.push(
     line(
-      "Older-band account",
-      `${bandWord(q.actorBand.band)}, provenance ${q.actorBand.provenance}, confidence ${
+      label(detail.accounts.actorUid, "First account"),
+      `${bandWord(q.actorBand.band)} band, provenance ${q.actorBand.provenance}, confidence ${
         q.actorBand.confidence === null ? "not published" : q.actorBand.confidence.toFixed(2)
       }`,
     ),
   );
+  out.push(line("  hashed id", detail.accounts.actorUid));
   out.push(
     line(
-      "Younger-band account",
-      `${bandWord(q.targetBand.band)}, provenance ${q.targetBand.provenance}, confidence ${
+      label(detail.accounts.targetUid, "Second account"),
+      `${bandWord(q.targetBand.band)} band, provenance ${q.targetBand.provenance}, confidence ${
         q.targetBand.confidence === null ? "not published" : q.targetBand.confidence.toFixed(2)
       }`,
     ),
   );
-  out.push(line("Hashed actor id", detail.actor.hashedUid));
+  out.push(line("  hashed id", detail.accounts.targetUid));
+  out.push("");
+  out.push(
+    subject === null
+      ? "WHO THIS REPORT IS ABOUT: not yet decided. Guardian does not decide it. The CyberTipline asks who is being reported, and the answer is yours to give from the conversation below, not from which account Guardian scored. Note that Guardian's detectors fire on accounts in a younger band on purpose, so the account it scored is sometimes the child."
+      : `WHO THIS REPORT IS ABOUT: the account marked above. You designated it; Guardian did not.`,
+  );
   out.push("Guardian stores age bands and never birthdates, and hashes ids per customer.");
   out.push("");
   out.push("WHAT WAS RECORDED");

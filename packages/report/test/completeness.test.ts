@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isAccusatory } from "@guardian/schema";
 import { buildReport } from "../src/builder.js";
 import { scoreReportCompleteness } from "../src/completeness.js";
-import { MEDIA_HASH, bundle, customer, reviewer, row } from "./fixtures.js";
+import { MEDIA_HASH, accountsFor, bundle, customer, reviewer, row } from "./fixtures.js";
 
 const full = () => buildReport(bundle(), customer(), reviewer());
 
@@ -17,8 +17,7 @@ describe("jurisdiction determinability", () => {
     const report = buildReport(
       bundle({ jurisdiction: null }),
       customer({
-        reportedAccount: { espIdentifier: "user-88213", ipCaptureEvent: [] },
-        victimAccount: { espIdentifier: "user-44190" },
+        accounts: accountsFor({ espIdentifier: "user-88213", ipCaptureEvent: [] }, { espIdentifier: "user-44190" }),
       }),
       reviewer(),
     );
@@ -37,7 +36,7 @@ describe("jurisdiction determinability", () => {
     const report = buildReport(
       bundle(),
       customer({
-        reportedAccount: { espIdentifier: "user-88213", ipCaptureEvent: [] },
+        accounts: accountsFor({ espIdentifier: "user-88213", ipCaptureEvent: [] }),
       }),
       reviewer(),
     );
@@ -50,11 +49,11 @@ describe("jurisdiction determinability", () => {
     const report = buildReport(
       bundle(),
       customer({
-        reportedAccount: {
+        accounts: accountsFor({
           espIdentifier: "user-88213",
           ipCaptureEvent: [],
           estimatedLocation: { city: "Austin", region: "TX", countryCode: "US" },
-        },
+        }),
       }),
       reviewer(),
     );
@@ -67,13 +66,13 @@ describe("jurisdiction determinability", () => {
     const report = buildReport(
       bundle(),
       customer({
-        reportedAccount: {
+        accounts: accountsFor({
           espIdentifier: "user-88213",
           ipCaptureEvent: [
             { ipAddress: "203.0.113.24", eventName: "Login", dateTime: "2026-08-01T12:15:00-05:00" },
             { ipAddress: "203.0.113.99", eventName: "Login" },
           ],
-        },
+        }),
       }),
       reviewer(),
     );
@@ -85,7 +84,7 @@ describe("jurisdiction determinability", () => {
 
 describe("the other things NCMEC and Stanford call out", () => {
   it("treats a salted hash as no identifier at all", () => {
-    const report = buildReport(bundle(), customer({ reportedAccount: undefined }), reviewer());
+    const report = buildReport(bundle(), customer({ accounts: accountsFor(undefined) }), reviewer());
     const result = scoreReportCompleteness(report);
     const finding = result.blocking.find((m) => m.field === "personOrUserReported.espIdentifier");
     expect(finding).toBeDefined();
@@ -166,7 +165,7 @@ describe("the score itself", () => {
     const bad = scoreReportCompleteness(
       buildReport(
         bundle({ jurisdiction: null }),
-        customer({ reportedAccount: { ipCaptureEvent: [] }, victimAccount: {} }),
+        customer({ accounts: accountsFor({ ipCaptureEvent: [] }) }),
         reviewer(),
       ),
     ).score;
@@ -180,8 +179,7 @@ describe("the score itself", () => {
         bundle({ jurisdiction: null, auditHead: "" }),
         customer({
           reportingPerson: {},
-          reportedAccount: { ipCaptureEvent: [] },
-          victimAccount: {},
+          accounts: accountsFor({ ipCaptureEvent: [] }, {}),
         }),
         reviewer({ notes: null, concurringReviewerId: null }),
       ),
@@ -201,7 +199,7 @@ describe("the score itself", () => {
     const result = scoreReportCompleteness(
       buildReport(
         bundle({ jurisdiction: null }),
-        customer({ reportingPerson: {}, reportedAccount: { ipCaptureEvent: [] }, victimAccount: {} }),
+        customer({ reportingPerson: {}, accounts: accountsFor({ ipCaptureEvent: [] }) }),
         reviewer({ notes: null, concurringReviewerId: null }),
       ),
     );

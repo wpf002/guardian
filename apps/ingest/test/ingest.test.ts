@@ -667,3 +667,201 @@ describe("retention sweep", () => {
     });
   });
 });
+
+/**
+ * Rule 1 named image and video, and the guard was written to that wording. A
+ * Discord voice message is an audio attachment and a recording of a video call
+ * is a media file whatever container it arrives in, so a guard that refused
+ * image/png and accepted audio/ogg refused the easy case and accepted the one
+ * somebody would use to get around it.
+ */
+describe("audio is media", () => {
+  let ctx: ReturnType<typeof setup>;
+  beforeEach(() => {
+    ctx = setup();
+  });
+
+  it("refuses an audio content type and records the violation", async () => {
+    for (const type of ["audio/ogg", "audio/mpeg", "audio/webm; codecs=opus"]) {
+      const res = await post(ctx.app, validEvent, { "content-type": type });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().violations[0].reason).toBe("binary_content_type");
+    }
+    const entries = await ctx.store.read();
+    expect(entries.every((e) => e.kind === "customer.violation")).toBe(true);
+  });
+
+  it("refuses an audio data URI in the text", async () => {
+    const res = await post(ctx.app, {
+      ...validEvent,
+      text: "listen: data:audio/ogg;base64,T2dnUwACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    });
+    expect(res.statusCode).toBe(422);
+  });
+
+  it("refuses a link to an audio file the customer wants fetched", async () => {
+    for (const url of [
+      "https://cdn.example.com/clip.ogg",
+      "https://cdn.example.com/vn.m4a",
+      "https://cdn.example.com/call.opus?ex=1",
+    ]) {
+      const res = await post(ctx.app, { ...validEvent, text: `here ${url}` });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().violations[0].reason).toBe("media_url");
+    }
+  });
+
+  it("refuses a field named for audio bytes", async () => {
+    const res = await post(ctx.app, { ...validEvent, voiceNote: "anything" });
+    expect(res.statusCode).toBe(422);
+  });
+
+  /**
+   * The guard is about bytes, not about the word. A conversation that mentions
+   * a voice call is exactly the migration signal Guardian is built to catch,
+   * and refusing it would blind the detector to close the hole.
+   */
+  it("accepts a message that talks about a voice call", async () => {
+    const res = await post(ctx.app, {
+      ...validEvent,
+      text: "hop on vc, i sent you a voice message about the recording",
+    });
+    expect(res.statusCode).toBe(202);
+  });
+});
+
+/**
+ * Rule 1 is a shape test, not a label test, and the shapes the guard used to
+ * miss were the ones anybody would actually reach for.
+ */
+describe("byte encodings that used to walk past the guard", () => {
+  let ctx: ReturnType<typeof setup>;
+  beforeEach(() => {
+    ctx = setup();
+  });
+
+  function jpegBytes(): Buffer {
+    const b = Buffer.alloc(4004);
+    Buffer.from([0xff, 0xd8, 0xff, 0xe0]).copy(b, 0);
+    for (let i = 4; i < b.length; i += 1) b[i] = (i * 37) % 256;
+    return b;
+  }
+
+  /**
+   * `base64 photo.jpg` wraps at 76 columns by default on macOS and Linux. A
+   * newline every 76 characters took the longest unbroken run of base64
+   * characters below any threshold worth setting, so a whole JPEG went through
+   * with a 202 and was written to Postgres by the scorer.
+   */
+  it("refuses line-wrapped base64, and every other separator that decodes the same", async () => {
+    const b64 = jpegBytes().toString("base64");
+    const wrapped: Record<string, string> = {
+      newline: b64.match(/.{1,76}/g)!.join("\n"),
+      crlf: b64.match(/.{1,64}/g)!.join("\r\n"),
+      space: b64.match(/.{1,70}/g)!.join(" "),
+      dot: b64.match(/.{1,60}/g)!.join("."),
+    };
+    for (const [name, text] of Object.entries(wrapped)) {
+      const res = await post(ctx.app, { ...validEvent, externalId: name, text });
+      expect(res.statusCode).toBe(422);
+    }
+    expect(ctx.queue.published).toHaveLength(0);
+  });
+
+  /** base64url swaps - for + and _ for /, breaking every run at about 16 chars. */
+  it("refuses base64url", async () => {
+    const res = await post(ctx.app, {
+      ...validEvent,
+      text: jpegBytes().toString("base64url").slice(0, 7900),
+    });
+    expect(res.statusCode).toBe(422);
+  });
+
+  /**
+   * The media type used to be an alternation over image, video, audio and
+   * octet-stream, which is a blocklist over a label the sender picks.
+   */
+  it("refuses a data URI whatever it calls itself", async () => {
+    const payload = jpegBytes().toString("base64").slice(0, 400);
+    for (const type of ["font/woff2", "model/gltf-binary", "application/zip", "text/plain"]) {
+      const res = await post(ctx.app, { ...validEvent, text: `look data:${type};base64,${payload}` });
+      expect(res.statusCode).toBe(422);
+    }
+  });
+
+  it("refuses a data URI with a parameter before the base64 marker", async () => {
+    const payload = jpegBytes().toString("base64").slice(0, 400);
+    const res = await post(ctx.app, {
+      ...validEvent,
+      text: `look data:image/png;charset=utf-8;base64,${payload}`,
+    });
+    expect(res.statusCode).toBe(422);
+  });
+
+  /** The old anchor only matched a URL that ended the string or hit ? or #. */
+  it("refuses a media link in the middle of a sentence", async () => {
+    const res = await post(ctx.app, {
+      ...validEvent,
+      text: "check https://cdn.example.com/a.png out lol",
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().violations[0].reason).toBe("media_url");
+  });
+
+  it("still accepts prose and hashes, which is what the density test is for", async () => {
+    for (const text of [
+      "This is an ordinary reviewer note about a case. ".repeat(30),
+      `the file hash is ${"a".repeat(64)}`,
+      "hop on vc, i sent you a voice message about the recording",
+    ]) {
+      const res = await post(ctx.app, { ...validEvent, externalId: text.slice(0, 8), text });
+      expect(res.statusCode).toBe(202);
+    }
+  });
+});
+
+/**
+ * A batch is up to 500 events. One media link in one of them used to refuse all
+ * 500, so a customer whose users paste image links had unrelated grooming
+ * messages dropped by a guard meant to protect them. The offending event is
+ * still refused and the violation is still recorded; the rest get scored.
+ */
+describe("a media violation inside a batch", () => {
+  let ctx: ReturnType<typeof setup>;
+  beforeEach(() => {
+    ctx = setup();
+  });
+
+  it("rejects the one event and scores the others", async () => {
+    const events = [
+      { ...validEvent, externalId: "a" },
+      { ...validEvent, externalId: "b", text: "look https://cdn.example.com/x.png" },
+      { ...validEvent, externalId: "c" },
+    ];
+    const res = await post(ctx.app, { events });
+
+    expect(res.statusCode).toBe(207);
+    expect(res.json().accepted).toBe(2);
+    expect(res.json().rejected).toHaveLength(1);
+    expect(res.json().rejected[0].index).toBe(1);
+    expect(res.json().rejected[0].error).toMatch(/media bytes are never accepted/);
+    expect(ctx.queue.published.map((p) => p.event.externalId).sort()).toEqual(["a", "c"]);
+  });
+
+  it("records the violation against the customer even though the request stood", async () => {
+    await post(ctx.app, {
+      events: [{ ...validEvent, text: "look https://cdn.example.com/x.png" }],
+    });
+    const entries = await ctx.store.read();
+    expect(entries.some((e) => e.kind === "customer.violation")).toBe(true);
+  });
+
+  it("still refuses the whole request when the bytes are outside the events array", async () => {
+    const res = await post(ctx.app, {
+      events: [{ ...validEvent }],
+      note: `data:image/png;base64,${"A".repeat(400)}`,
+    });
+    expect(res.statusCode).toBe(422);
+    expect(ctx.queue.published).toHaveLength(0);
+  });
+});

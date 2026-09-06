@@ -36,6 +36,12 @@ export interface CaseConsoleProps {
   incidentTypeDerived: boolean;
   /** What would stop this report being routed. Null for anyone but an owner. */
   readiness: FilingReadiness | null;
+  /** Both accounts on the pair, so a reviewer can designate one as the subject. */
+  accounts: { actorUid: string; targetUid: string };
+  actorBandLabel: string;
+  targetBandLabel: string;
+  reportedSubjectUid: string | null;
+  onDesignateSubject: (pairId: string, uid: string) => Promise<{ draft: string }>;
   /** Set when somebody else holds the claim. The view is read only then. */
   claimedBy?: { who: string; sinceMinutes: number } | null;
   leaveHref: string;
@@ -70,6 +76,11 @@ export function CaseConsole({
   derivedIncidentType,
   incidentTypeDerived,
   readiness,
+  accounts,
+  actorBandLabel,
+  targetBandLabel,
+  reportedSubjectUid,
+  onDesignateSubject,
   claimedBy = null,
   leaveHref,
   onSubmit,
@@ -117,7 +128,12 @@ export function CaseConsole({
           derivedIncidentType={derivedIncidentType}
           incidentTypeDerived={incidentTypeDerived}
           readiness={readiness}
+          accounts={accounts}
+          actorBandLabel={actorBandLabel}
+          targetBandLabel={targetBandLabel}
+          reportedSubjectUid={reportedSubjectUid}
           onExport={onExportDraft}
+          onDesignateSubject={onDesignateSubject}
           onIncidentType={onIncidentType}
         />
       ) : null}

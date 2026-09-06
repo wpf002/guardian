@@ -62,6 +62,19 @@ export function filingReadiness(input: FilingReadinessInput): FilingReadiness {
     });
   }
 
+  // NCMEC displays the reported account as the suspect. Guardian never picks
+  // it, and a filing sent before somebody does is a filing where a model's
+  // choice about which side of a pair to score became a suspect designation
+  // (CLAUDE.md rule 5).
+  if (detail.reportedSubjectUid === null) {
+    gaps.push({
+      severity: "blocking",
+      what: "Nobody has said which account this report is about",
+      gather:
+        "Name the account from the conversation. Guardian scored one side of this pair and that is not a designation: the detectors fire on accounts in a younger band on purpose, so the account it scored is sometimes the child.",
+    });
+  }
+
   if (incident.source === "default") {
     gaps.push({
       severity: "blocking",

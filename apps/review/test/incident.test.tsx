@@ -102,7 +102,12 @@ describe("the incident type control", () => {
       blockingCount: 0,
       readyToFile: true,
     },
+    accounts: { actorUid: "a".repeat(64), targetUid: "b".repeat(64) },
+    actorBandLabel: "21 and over",
+    targetBandLabel: "13 to 15",
+    reportedSubjectUid: "a".repeat(64),
     onExport: async () => ({ ok: true }),
+    onDesignateSubject: async () => ({ draft: "REDESIGNATED DRAFT" }),
   };
 
   it("offers all eight types and rebuilds the draft on the server when one is chosen", async () => {

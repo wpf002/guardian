@@ -661,6 +661,15 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
         notes,
         viewedExcerptCount: marked.length,
         concurringReviewerId: reviewerA.reviewerId,
+        // NCMEC displays personOrUserReported as the suspect, so the second
+        // reviewer names the account rather than the builder inferring it from
+        // whichever side the detectors scored (rule 5). The builder refuses
+        // without this.
+        reportedSubject: {
+          uid: draft.actorUid,
+          designatedByReviewerId: reviewerB.reviewerId,
+          designatedAt: upheld.review.createdAt,
+        },
       };
 
       // The per-excerpt read flags come back off the stored bundle, not off a
@@ -698,22 +707,35 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
         },
         contactPerson: { firstName: "Dana", lastName: "Okafor", email: "legal@example.test" },
         // The customer's own account ids, mapped back from the salted hashes
-        // Guardian holds. A hash NCMEC cannot resolve is the same as no
-        // identifier at all, which is why the completeness scorer blocks on it.
-        reportedAccount: {
-          espIdentifier: adultUid,
-          screenName: adultUid,
-          espService: "Integration run chat",
-          ipCaptureEvent: [
-            {
-              ipAddress: "203.0.113.24",
-              eventName: "Message Sent",
-              dateTime: "2026-09-02T07:18:00-05:00",
-            },
-          ],
-          estimatedLocation: { city: "Austin", region: "TX", countryCode: "US" },
+        // Guardian holds, and keyed by those hashes. A hash NCMEC cannot
+        // resolve is the same as no identifier at all, which is why the
+        // completeness scorer blocks on it. Keying by uid rather than by role
+        // is what makes the reviewer's designation decide which of these two
+        // lands under the suspect heading.
+        accounts: {
+          // Keyed by the salted hashes, which is what the bundle and the
+          // designation carry. Keying by the raw ids would silently miss and
+          // the report would go out with no routable identifier, which is
+          // exactly what the role-keyed shape used to hide.
+          [hashUid(adultUid, idSalt)]: {
+            espIdentifier: adultUid,
+            screenName: adultUid,
+            espService: "Integration run chat",
+            ipCaptureEvent: [
+              {
+                ipAddress: "203.0.113.24",
+                eventName: "Message Sent",
+                dateTime: "2026-09-02T07:18:00-05:00",
+              },
+            ],
+            estimatedLocation: { city: "Austin", region: "TX", countryCode: "US" },
+          },
+          [hashUid(childUid, idSalt)]: {
+            espIdentifier: childUid,
+            screenName: childUid,
+            person: { age: 11 },
+          },
         },
-        victimAccount: { espIdentifier: childUid, screenName: childUid, person: { age: 11 } },
         mediaScanner: "PhotoDNA run by the provider",
         bytesHeldByOperator: true,
         environment: "test",

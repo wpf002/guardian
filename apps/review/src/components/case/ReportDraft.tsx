@@ -21,6 +21,14 @@ export interface ReportDraftProps {
   incidentTypeDerived: boolean;
   /** What would stop this report being routed and acted on. */
   readiness: FilingReadiness;
+  /** The two accounts on the pair, as salted hashes, and the band of each. */
+  accounts: { actorUid: string; targetUid: string };
+  actorBandLabel: string;
+  targetBandLabel: string;
+  /** The account a reviewer has designated, or null while nobody has. */
+  reportedSubjectUid: string | null;
+  /** Records the designation and rebuilds the draft under it, on the server. */
+  onDesignateSubject: (pairId: string, uid: string) => Promise<{ draft: string }>;
   /** Records the export on the hash chain. Guardian still submits nothing. */
   onExport: (pairId: string, method: "copy" | "download") => Promise<{ ok: boolean }>;
   /**
@@ -43,12 +51,19 @@ export function ReportDraft({
   derivedIncidentType,
   incidentTypeDerived,
   readiness,
+  accounts,
+  actorBandLabel,
+  targetBandLabel,
+  reportedSubjectUid,
   onExport,
   onIncidentType,
+  onDesignateSubject,
 }: ReportDraftProps) {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState<"copy" | "download" | null>(null);
   const [incidentType, setIncidentType] = useState<NcmecIncidentType>(derivedIncidentType);
+  const [subject, setSubject] = useState<string | null>(reportedSubjectUid);
+  const [designating, setDesignating] = useState(false);
   const [text, setText] = useState(draft);
   const [redrafting, setRedrafting] = useState(false);
   const chosen = incidentType !== derivedIncidentType;
@@ -110,6 +125,22 @@ export function ReportDraft({
     }
   }
 
+  async function designate(uid: string) {
+    setDesignating(true);
+    try {
+      const { draft: rebuilt } = await onDesignateSubject(pairId, uid);
+      setSubject(uid);
+      setText(rebuilt);
+      setStatus(null);
+    } catch {
+      setStatus(
+        "The designation was not recorded. Nothing changed, and the draft still says nobody has named an account.",
+      );
+    } finally {
+      setDesignating(false);
+    }
+  }
+
   return (
     <Card
       title="Report draft, for filing at the CyberTipline"
@@ -124,6 +155,41 @@ export function ReportDraft({
         </a>
         . This goes to NCMEC, not to the police.
       </p>
+
+      <fieldset className={styles.subject} disabled={designating}>
+        <legend>Who is this report about?</legend>
+        <p className={styles.note}>
+          The CyberTipline displays this account as the person being reported. Guardian does not
+          choose it, and it is not the account Guardian scored: the detectors fire on accounts in a
+          younger band on purpose, because people who do this were often victims themselves, so the
+          account Guardian scored is sometimes the child. Read the conversation and decide.
+        </p>
+        {(
+          [
+            { uid: accounts.actorUid, band: actorBandLabel, which: "First account" },
+            { uid: accounts.targetUid, band: targetBandLabel, which: "Second account" },
+          ] as const
+        ).map((option) => (
+          <label key={option.uid} className={styles.subjectOption}>
+            <input
+              type="radio"
+              name={`subject-${pairId}`}
+              value={option.uid}
+              checked={subject === option.uid}
+              onChange={() => void designate(option.uid)}
+            />
+            <span>
+              {option.which}, {option.band} band
+              <span className={styles.subjectId}> {option.uid.slice(0, 12)}…</span>
+            </span>
+          </label>
+        ))}
+        {subject === null ? (
+          <p className={styles.note} role="status">
+            Nothing is designated. The draft says so, and it will keep saying so until you choose.
+          </p>
+        ) : null}
+      </fieldset>
 
       <div className={styles.readiness} data-ready={readiness.readyToFile ? "yes" : "no"}>
         <p className={styles.readinessHeadline}>{filingHeadline(readiness)}</p>

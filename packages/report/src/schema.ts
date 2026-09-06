@@ -449,6 +449,24 @@ export const guardianProvenanceSchema = z
      * enforcement request. US v. Rosenow (9th Cir. 2022) is the reason.
      */
     lawEnforcementRequested: z.boolean().default(false),
+    /**
+     * Which side of the pair the reviewer designated as the subject.
+     *
+     * Everything else in the envelope that distinguishes the two accounts is
+     * written on the actor axis, because that is the axis the detectors scored
+     * on: excerpt direction is actor_to_target or target_to_actor and nothing
+     * else knows which of those is the reported account. When a reviewer
+     * designates the target as the subject, every one of those labels inverts,
+     * and a transcript that labels the child's messages as the reported
+     * account's is worse than one with no labels at all.
+     *
+     * So the axis travels with the report and the serialiser reads it rather
+     * than assuming actor. Set by the builder from the reviewer's designation;
+     * there is no default, because a default is the bug this exists to stop.
+     */
+    subjectSide: z.enum(["actor", "target"]),
+    /** Who designated it, so the transcript's labels are attributable. */
+    subjectDesignatedByReviewerId: z.string(),
   })
   .strict();
 export type GuardianProvenance = z.infer<typeof guardianProvenanceSchema>;

@@ -3,7 +3,7 @@ import { EspClient, toReportXml } from "../src/client.js";
 import { ReportRefused, buildReport } from "../src/builder.js";
 import { scoreReportCompleteness } from "../src/completeness.js";
 import { signalsToIncidentType } from "../src/schema.js";
-import { bundle, customer, reviewer } from "./fixtures.js";
+import { ACTOR_UID, accountsFor, bundle, customer, reviewer } from "./fixtures.js";
 
 /**
  * The guards an adversarial review of the reporting path found missing. Each
@@ -123,7 +123,7 @@ describe("no media bytes reach the filing (rule 1)", () => {
       buildReport(
         bundle(),
         customer({
-          reportedAccount: { ...customer().reportedAccount, profileBio: BASE64_RUN },
+          accounts: accountsFor({ ...customer().accounts?.[ACTOR_UID], profileBio: BASE64_RUN }),
         }),
         reviewer(),
       ),

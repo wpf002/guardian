@@ -499,6 +499,35 @@ export const reviewerContextSchema = z.object({
   viewedExcerptCount: z.number().int().min(0).nullish(),
   /** The second reviewer on a concurrence. T3 exists only where there is one. */
   concurringReviewerId: z.string().nullish(),
+  /**
+   * Which account is being reported, and who decided that.
+   *
+   * NCMEC displays `personOrUserReported` as the suspect. Deriving it from the
+   * bundle's actor side would turn Guardian's own choice about which account to
+   * call the actor into a suspect designation that no person made, which is
+   * exactly what CLAUDE.md rule 5 forbids: Guardian emits tiers and evidence,
+   * and never labels a person.
+   *
+   * It matters concretely and not only as a principle. The fan-out and threat
+   * detectors fire on accounts in a minor band, because perpetrators are
+   * disproportionately former victims (ROADMAP S4), so the account Guardian
+   * called the actor is sometimes the child. A reviewer has to be able to say
+   * that the other account is the subject, and the two must not be swapped by a
+   * model's idea of who was speaking.
+   *
+   * Nullish because a bundle carries a reviewer block from the moment a
+   * decision is recorded and a designation is made later, at filing. The report
+   * builder refuses without it.
+   */
+  reportedSubject: z
+    .object({
+      /** Salted hash. Has to be one of the two accounts on the pair. */
+      uid: z.string().min(1),
+      /** The reviewer who designated it. Has to be one of the reviewers on the decision. */
+      designatedByReviewerId: z.string().min(1),
+      designatedAt: z.coerce.date(),
+    })
+    .nullish(),
 });
 export type ReviewerContext = z.infer<typeof reviewerContextSchema>;
 

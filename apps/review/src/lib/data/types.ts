@@ -212,6 +212,19 @@ export interface CaseDetail {
   stagePath: StagePoint[];
   velocityWindow: string | null;
   actor: ActorContext;
+  /**
+   * Both accounts on the pair, as salted hashes.
+   *
+   * The console used to carry only the actor's, which meant every surface that
+   * had to name an account named that one. NCMEC displays the reported account
+   * as the suspect, and the actor is whichever side the detectors scored, so a
+   * draft built from the actor alone was Guardian designating a suspect
+   * (CLAUDE.md rule 5). ROADMAP S4 is the reason it matters: the detectors fire
+   * on minor-band accounts on purpose, so the actor is sometimes the child.
+   */
+  accounts: { actorUid: string; targetUid: string };
+  /** The account a reviewer designated as the subject of a report, if any. */
+  reportedSubjectUid: string | null;
   priorCases: PriorCase[];
   policy: OperatorPolicy;
   versions: Versions;

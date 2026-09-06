@@ -387,6 +387,11 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
     // on the scorer being reachable, and the events the window was computed
     // from are deleted by the retention sweep before a reviewer opens the case.
     velocityWindow: row.velocityWindow,
+    accounts: { actorUid: row.actorUid, targetUid: row.targetUid },
+    // No column yet: the designation is made at filing and nothing has filed.
+    // Null rather than the actor, because the actor is exactly the wrong
+    // default and defaulting to it is the bug this field exists to close.
+    reportedSubjectUid: null,
     actor: {
       hashedUid: row.actorUid,
       band: queue.actorBand,

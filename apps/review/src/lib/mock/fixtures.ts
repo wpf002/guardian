@@ -693,6 +693,13 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
     features: spec.features,
     stagePath: buildStagePath(spec, start),
     velocityWindow: spec.velocityWindow,
+    accounts: {
+      actorUid: hashUid(spec.actorUid, MOCK_SALT),
+      targetUid: hashUid(spec.targetUid, MOCK_SALT),
+    },
+    // Nothing has been designated: a designation is made at filing, and the
+    // actor is the one value this must never default to.
+    reportedSubjectUid: null,
     actor: {
       hashedUid: hashUid(spec.actorUid, MOCK_SALT),
       band: spec.actorBand,

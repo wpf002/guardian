@@ -166,3 +166,86 @@ describe("channel visibility", () => {
     expect(withoutIt).toContain("channel visibility not stated");
   });
 });
+
+/**
+ * CLAUDE.md rule 5 on the phase-1 path. The drafted bundle is what a Discord
+ * owner actually files at the public form, and it used to print "Hashed actor
+ * id" and label one account "Older-band account" with nobody having decided
+ * anything. NCMEC displays the reported account as the suspect, and the actor
+ * is whichever side the detectors scored.
+ *
+ * ROADMAP S4 is why that is not a technicality: the fan-out and threat
+ * detectors fire on accounts in a minor band on purpose, because people who do
+ * this were disproportionately victims themselves. The account Guardian scored
+ * is sometimes the child.
+ */
+describe("who the drafted report is about", () => {
+  it("blocks a filing until somebody says", async () => {
+    const result = await readiness("pair_4f2a");
+    const gap = result.gaps.find(
+      (g) => g.what === "Nobody has said which account this report is about",
+    );
+    expect(gap?.severity).toBe("blocking");
+    expect(gap?.gather).toMatch(/sometimes the child/);
+  });
+
+  it("prints both accounts neutrally and names neither, until one is designated", async () => {
+    const session = mockSession();
+    const detail = await getCase(session, "pair_4f2a");
+    const timeline = await getTimeline(session, "pair_4f2a");
+    const draft = buildReportDraft({
+      detail: detail!,
+      timeline,
+      reviewerName: "A. Rivera",
+      jurisdiction: "US TX",
+      generatedAt: new Date("2026-09-04T09:14:00Z"),
+    });
+
+    expect(draft).toContain("First account");
+    expect(draft).toContain("Second account");
+    expect(draft).toContain("WHO THIS REPORT IS ABOUT: not yet decided");
+    expect(draft).toMatch(/Guardian does not decide it/);
+    // The old wording named one side. Neither label may come back.
+    expect(draft).not.toContain("Hashed actor id");
+    expect(draft).not.toContain("Older-band account");
+    // Both ids are present, so a filer can tell the two apart.
+    expect(draft).toContain(detail!.accounts.actorUid);
+    expect(draft).toContain(detail!.accounts.targetUid);
+  });
+
+  it("marks the designated account, and says the filer named it", async () => {
+    const session = mockSession();
+    const detail = await getCase(session, "pair_4f2a");
+    const timeline = await getTimeline(session, "pair_4f2a");
+
+    // The reviewer names the second account, which is what a support-posture
+    // case looks like: the account Guardian scored is not the subject.
+    const draft = buildReportDraft({
+      detail: { ...detail!, reportedSubjectUid: detail!.accounts.targetUid },
+      timeline,
+      reviewerName: "A. Rivera",
+      jurisdiction: "US TX",
+      generatedAt: new Date("2026-09-04T09:14:00Z"),
+    });
+
+    expect(draft).toContain("Second account (you named this one)");
+    expect(draft).not.toContain("First account (you named this one)");
+    expect(draft).toContain("You designated it; Guardian did not");
+  });
+
+  it("stops blocking once an account is designated", async () => {
+    const session = mockSession();
+    const detail = await getCase(session, "pair_4f2a");
+    const timeline = await getTimeline(session, "pair_4f2a");
+    const settings = await getCustomerSettings(session);
+    const result = filingReadiness({
+      detail: { ...detail!, reportedSubjectUid: detail!.accounts.actorUid },
+      timeline,
+      settings,
+      incident: { incidentType: ENTICEMENT, source: "signals", drivenBy: ["threat_template"] },
+    });
+    expect(
+      result.gaps.some((g) => g.what === "Nobody has said which account this report is about"),
+    ).toBe(false);
+  });
+});

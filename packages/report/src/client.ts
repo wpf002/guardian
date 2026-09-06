@@ -459,8 +459,14 @@ function additionalInfo(report: CyberTiplineReport): string {
 
   if (report.excerpts.length > 0) {
     lines.push("", "Conversation excerpts, in order, with timezone-explicit timestamps");
+    // The labels follow the reviewer's designation, not the axis the detectors
+    // scored on. With subjectSide "target", actor_to_target is the receiving
+    // account speaking, and labelling those lines "reported account" would put
+    // the child's words under the suspect's heading on a federal report.
+    const subjectIsActor = report.guardian.subjectSide === "actor";
     for (const e of report.excerpts) {
-      const who = e.direction === "actor_to_target" ? "reported account" : "receiving account";
+      const fromActor = e.direction === "actor_to_target";
+      const who = fromActor === subjectIsActor ? "reported account" : "receiving account";
       lines.push(
         `[${e.ts}] [${e.channel}] [${who}] [read by a person: ${e.viewedByHuman ? "yes" : "no"}] ${e.text ?? (e.mediaSha256 ? `media event, sha256 ${e.mediaSha256}` : "no text retained")}`,
       );

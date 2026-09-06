@@ -73,7 +73,11 @@ export class ReportRefused extends Error {
       | "no_reporter_identity"
       | "customer_mismatch"
       | "media_bytes_in_text"
-      | "accusatory_language",
+      | "accusatory_language"
+      | "no_reported_subject"
+      | "subject_not_on_pair"
+      | "subject_not_designated_by_reviewer"
+      | "pair_is_one_account",
     message: string,
   ) {
     super(message);
@@ -105,9 +109,19 @@ export interface ReportCustomer {
    * Identifiers and IP captures the customer holds and Guardian does not.
    * Guardian stores salted hashes (rule 8) and no IP addresses at all, so the
    * routable identifiers can only come from here.
+   *
+   * Keyed by the account's salted hash, so the reviewer's designation decides
+   * which one lands in `personOrUserReported` and the caller cannot get it
+   * backwards.
+   *
+   * It used to be two role-keyed fields, `reportedAccount` and `victimAccount`,
+   * and that quietly undid the designation: the caller filled them from the
+   * bundle's actor and target, the supplied `espIdentifier` overrides Guardian's
+   * hash, and so on any report a customer could actually file, the screen name
+   * under the suspect heading was still the account the detectors scored. The
+   * builder could not detect it, because both are opaque strings.
    */
-  reportedAccount?: Partial<ReportedAccount>;
-  victimAccount?: Partial<ReportedAccount>;
+  accounts?: Record<string, Partial<ReportedAccount>>;
   /** Which scanner produced the operator's media verdicts, where named. */
   mediaScanner?: string;
   /** True where the operator holds the bytes and can upload them themselves. */
@@ -177,6 +191,69 @@ function assertReviewerConfirmedT3(
       "Report refused: the bundle records a different reviewer than the decision handed in. The report has to name one, so it names neither.",
     );
   }
+}
+
+/**
+ * Which account the report names as its subject, and the refusal when nobody
+ * said.
+ *
+ * NCMEC displays `personOrUserReported` as the suspect. This used to be
+ * `bundle.actorUid`, which meant Guardian's own decision about which side of a
+ * pair to call the actor became a suspect designation with no person behind it.
+ * That is CLAUDE.md rule 5: Guardian emits tiers and evidence bundles for human
+ * review, and never labels a person.
+ *
+ * The failure was not hypothetical. The pair's actor is whoever the detectors
+ * scored, and ROADMAP S4 exists because those detectors fire on accounts in a
+ * minor band: perpetrators are disproportionately former victims, so the
+ * account Guardian called the actor is sometimes the child. Filing that
+ * automatically would have named a child as the suspect on a federal report.
+ *
+ * Three checks, and each one is a different way the designation can be absent
+ * rather than wrong. Nobody designated. Somebody designated an account that is
+ * not on this pair. Somebody who is not a reviewer on this decision designated
+ * it. The report is refused in all three, because there is no safe default: the
+ * old default is the bug.
+ */
+function reportedSubjectFor(
+  bundle: EvidenceBundle,
+  reviewerDecision: ReviewerContext,
+): { subjectUid: string; otherUid: string } {
+  const subject = reviewerDecision.reportedSubject ?? null;
+  if (subject === null) {
+    throw new ReportRefused(
+      "no_reported_subject",
+      "Report refused: no reviewer designated which account is being reported. NCMEC displays personOrUserReported as the suspect, and Guardian does not decide that from a score (CLAUDE.md rule 5). A reviewer sets reportedSubject at filing.",
+    );
+  }
+  if (bundle.actorUid === bundle.targetUid) {
+    throw new ReportRefused(
+      "pair_is_one_account",
+      "Report refused: both sides of this pair are the same account. A report names a subject and a victim, and one account cannot be both.",
+    );
+  }
+  if (subject.uid !== bundle.actorUid && subject.uid !== bundle.targetUid) {
+    throw new ReportRefused(
+      "subject_not_on_pair",
+      "Report refused: the designated subject is not one of the two accounts on this pair. A report names an account this bundle is evidence about, or it names none.",
+    );
+  }
+  const reviewers = [reviewerDecision.reviewerId, reviewerDecision.concurringReviewerId].filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
+  if (!reviewers.includes(subject.designatedByReviewerId)) {
+    throw new ReportRefused(
+      "subject_not_designated_by_reviewer",
+      "Report refused: the subject was designated by somebody who is not a reviewer on this decision. The report asserts that a named person made this call, so the designation and the decision have to be the same people.",
+    );
+  }
+  return {
+    subjectUid: subject.uid,
+    // The other side of the pair. Derived rather than designated separately:
+    // there are two accounts, the reviewer named one, and naming the second
+    // would be a second chance to get it backwards.
+    otherUid: subject.uid === bundle.actorUid ? bundle.targetUid : bundle.actorUid,
+  };
 }
 
 /**
@@ -407,6 +484,7 @@ export function buildReport(
   options: BuildReportOptions = {},
 ): CyberTiplineReport {
   assertReviewerConfirmedT3(bundle, reviewerDecision);
+  const subject = reportedSubjectFor(bundle, reviewerDecision);
   assertOneCustomer(bundle, customer);
   assertEveryMediaRowHashed(bundle);
 
@@ -480,8 +558,10 @@ export function buildReport(
         : "No messages retained; the timestamp is the bundle generation time.",
     },
     incidentChannel: customer.incidentChannel ?? "chatImIncident",
-    personOrUserReported: account(bundle.actorUid, customer.reportedAccount),
-    victim: account(bundle.targetUid, customer.victimAccount),
+    // Both sides come from the reviewer's designation, never from which side
+    // the detectors happened to score (rule 5). See reportedSubjectFor.
+    personOrUserReported: account(subject.subjectUid, customer.accounts?.[subject.subjectUid]),
+    victim: account(subject.otherUid, customer.accounts?.[subject.otherUid]),
     narrative: narrative(bundle, reviewerDecision, media),
     excerpts: toExcerpts(bundle, maxExcerpt),
     mediaHashes: media,
@@ -507,6 +587,8 @@ export function buildReport(
       incidentTypeDrivenBy: incidentTypeSource === "signals" ? [...new Set(derivedIncident.drivenBy)] : [],
       soleAutomatedBasis: false,
       lawEnforcementRequested: false,
+      subjectSide: subject.subjectUid === bundle.actorUid ? "actor" : "target",
+      subjectDesignatedByReviewerId: reviewerDecision.reportedSubject!.designatedByReviewerId,
     },
     ...(bundle.jurisdiction
       ? {

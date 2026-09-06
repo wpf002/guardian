@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isAccusatory } from "@guardian/schema";
 import { ReportRefused, buildReport } from "../src/builder.js";
 import { signalsToIncidentType } from "../src/schema.js";
-import { MEDIA_HASH, bundle, customer, reviewer, row } from "./fixtures.js";
+import { MEDIA_HASH, accountsFor, bundle, customer, reviewer, row } from "./fixtures.js";
 
 describe("buildReport, rule 6", () => {
   it("refuses to build from a bundle that is not T3", () => {
@@ -264,5 +264,147 @@ describe("signalsToIncidentType", () => {
     expect(
       buildReport(b, customer(), reviewer()).incidentSummary.reportAnnotations,
     ).not.toContain("minorToMinorInteraction");
+  });
+});
+
+/**
+ * Rule 5, on the one field where breaking it is a federal filing.
+ *
+ * NCMEC displays personOrUserReported as the suspect. The builder used to fill
+ * it from `bundle.actorUid`, which meant Guardian's own choice about which side
+ * of a pair to call the actor became a suspect designation nobody made.
+ *
+ * The failure was not hypothetical. The fan-out and threat detectors fire on
+ * accounts in a minor band on purpose (ROADMAP S4: perpetrators are
+ * disproportionately former victims), so the account Guardian calls the actor
+ * is sometimes the child in the conversation.
+ */
+describe("who the report names", () => {
+  const ACTOR = "b".repeat(64);
+  const TARGET = "c".repeat(64);
+
+  it("names the account the reviewer designated, not the account the model scored", () => {
+    // A customer that supplies no identifiers of its own, so Guardian's hashes
+    // show through and the swap is visible. reportedAccount and victimAccount
+    // are role-keyed and the caller resolves them against this same
+    // designation, which is why they are not exercised here.
+    const anonymous = customer({ accounts: accountsFor(undefined) });
+    const report = buildReport(bundle(), anonymous, reviewer({
+      reportedSubject: {
+        uid: TARGET,
+        designatedByReviewerId: "rev_alice",
+        designatedAt: new Date("2026-08-02T08:30:00.000Z"),
+      },
+    }));
+
+    expect(report.personOrUserReported.espIdentifier).toBe(TARGET);
+    expect(report.victim?.espIdentifier).toBe(ACTOR);
+  });
+
+  it("refuses when nobody designated anybody", () => {
+    expect(() =>
+      buildReport(bundle(), customer(), reviewer({ reportedSubject: null })),
+    ).toThrow(ReportRefused);
+
+    try {
+      buildReport(bundle(), customer(), reviewer({ reportedSubject: undefined }));
+      throw new Error("should have refused");
+    } catch (err) {
+      expect((err as ReportRefused).code).toBe("no_reported_subject");
+      expect((err as ReportRefused).message).toMatch(/rule 5/);
+    }
+  });
+
+  it("refuses an account that is not on this pair", () => {
+    try {
+      buildReport(bundle(), customer(), reviewer({
+          reportedSubject: {
+            uid: "d".repeat(64),
+            designatedByReviewerId: "rev_alice",
+            designatedAt: new Date("2026-08-02T08:30:00.000Z"),
+          },
+        }));
+      throw new Error("should have refused");
+    } catch (err) {
+      expect((err as ReportRefused).code).toBe("subject_not_on_pair");
+    }
+  });
+
+  /**
+   * The report asserts that a named person made this call, so the designation
+   * and the decision have to be the same people. A designation carried over
+   * from somewhere else is a designation nobody on this decision made.
+   */
+  it("refuses a designation from somebody who is not a reviewer on this decision", () => {
+    try {
+      buildReport(bundle(), customer(), reviewer({
+          reportedSubject: {
+            uid: ACTOR,
+            designatedByReviewerId: "rev_carol",
+            designatedAt: new Date("2026-08-02T08:30:00.000Z"),
+          },
+        }));
+      throw new Error("should have refused");
+    } catch (err) {
+      expect((err as ReportRefused).code).toBe("subject_not_designated_by_reviewer");
+    }
+  });
+
+  it("accepts a designation from the concurring reviewer", () => {
+    const anonymous = customer({ accounts: accountsFor(undefined) });
+    const report = buildReport(bundle(), anonymous, reviewer({
+      reportedSubject: {
+        uid: ACTOR,
+        designatedByReviewerId: "rev_bob",
+        designatedAt: new Date("2026-08-02T08:30:00.000Z"),
+      },
+    }));
+    expect(report.personOrUserReported.espIdentifier).toBe(ACTOR);
+  });
+});
+
+/**
+ * The transcript labels follow the designation too. Everything else in the
+ * envelope that distinguishes the two accounts is written on the actor axis,
+ * because that is the axis the detectors scored on. When a reviewer designates
+ * the target, every one of those labels inverts, and a transcript that files
+ * the child's messages under the suspect heading is worse than one with no
+ * labels at all.
+ */
+describe("the transcript's labels", () => {
+  const TARGET = "c".repeat(64);
+
+  it("records the axis the reviewer designated", () => {
+    const onActor = buildReport(bundle(), customer(), reviewer());
+    expect(onActor.guardian.subjectSide).toBe("actor");
+    expect(onActor.guardian.subjectDesignatedByReviewerId).toBe("rev_alice");
+
+    const onTarget = buildReport(bundle(), customer(), reviewer({
+      reportedSubject: {
+        uid: TARGET,
+        designatedByReviewerId: "rev_alice",
+        designatedAt: new Date("2026-08-02T08:30:00.000Z"),
+      },
+    }));
+    expect(onTarget.guardian.subjectSide).toBe("target");
+  });
+
+  it("refuses a pair where both accounts are the same, rather than naming one twice", () => {
+    try {
+      buildReport(
+        bundle({ actorUid: TARGET, targetUid: TARGET }),
+        customer(),
+        reviewer({
+          reportedSubject: {
+            uid: TARGET,
+            designatedByReviewerId: "rev_alice",
+            designatedAt: new Date("2026-08-02T08:30:00.000Z"),
+          },
+        }),
+      );
+      throw new Error("should have refused");
+    } catch (err) {
+      expect((err as ReportRefused).code).toBe("pair_is_one_account");
+    }
   });
 });

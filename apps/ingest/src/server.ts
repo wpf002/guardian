@@ -272,16 +272,30 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       return reply.code(400).send({ error: "body is not valid json" });
     }
 
-    // Rule 1. Runs on the parsed shape before validation, so a payload that is
-    // otherwise well formed but carries bytes is still refused.
-    const violations = scanForMedia(parsed);
+    const isBatch = Array.isArray((parsed as { events?: unknown }).events);
+    const batch = isBatch ? (parsed as { events: unknown[] }).events : [parsed];
+
+    // Rule 1, at two scopes.
+    //
+    // The envelope is refused whole: a data URI in a field outside the events
+    // array is not attributable to any one event, so there is nothing to reject
+    // per item. On a single-event post the envelope IS the event, and refusing
+    // the request and rejecting the one item are the same thing.
+    //
+    // Inside a batch it is per item. A batch is up to 500 events and one link
+    // in one of them used to refuse all 500, so a customer whose users paste
+    // image links would have had unrelated grooming messages dropped by a guard
+    // meant to protect them. Rule 1 is not weakened by this: the offending
+    // event is still refused, its bytes still never reach the queue, and the
+    // customer-side violation is still recorded. What changes is that the other
+    // 499 get scored.
+    const envelope = isBatch
+      ? Object.fromEntries(Object.entries(parsed as object).filter(([k]) => k !== "events"))
+      : parsed;
+    const violations = scanForMedia(envelope);
     if (violations.length > 0) {
       return refuse(reply, deps, customer, violations);
     }
-
-    const batch = Array.isArray((parsed as { events?: unknown }).events)
-      ? (parsed as { events: unknown[] }).events
-      : [parsed];
 
     if (batch.length > 500) {
       return reply.code(413).send({ error: "at most 500 events per request" });
@@ -300,7 +314,18 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const accepted: string[] = [];
     const rejected: Array<{ index: number; error: string }> = [];
 
+    const itemViolations: ReturnType<typeof scanForMedia> = [];
+
     for (const [index, item] of batch.entries()) {
+      const carried = scanForMedia(item);
+      if (carried.length > 0) {
+        itemViolations.push(...carried);
+        rejected.push({
+          index,
+          error: `media bytes are never accepted: ${carried[0]!.detail}. Guardian stores a sha256 and your own scanner's verdict, never bytes.`,
+        });
+        continue;
+      }
       const result = inboundEventSchema.safeParse(item);
       if (!result.success) {
         rejected.push({ index, error: result.error.issues.map(issueText).join("; ") });
@@ -309,6 +334,24 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       const event = minimize(result.data, customer);
       await deps.queue.publish(customer.id, event);
       accepted.push(event.externalId);
+    }
+
+    // Recorded against the customer, not the user, and recorded even though the
+    // request was not refused whole. A customer sending bytes is a customer
+    // integration problem whether it was one event or the whole batch.
+    if (itemViolations.length > 0) {
+      const redacted = redactViolations(itemViolations);
+      try {
+        await deps.audit.append({
+          kind: "customer.violation",
+          customerId: customer.id,
+          payload: { violations: redacted, rejectedEvents: itemViolations.length },
+        });
+        if (deps.violations) await deps.violations.record(customer.id, redacted);
+      } catch {
+        counters.auditAppendFailures += 1;
+        app.log.warn({ customerId: customer.id }, "customer.violation append failed");
+      }
     }
 
     // The events are on the stream by now. A chain append that fails here is

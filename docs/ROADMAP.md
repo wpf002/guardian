@@ -96,6 +96,43 @@ Everything the four owners deliberately left out, plus what integration turned u
 | F-10 | ~~Only `apps/scorer` and `packages/report` typecheck their own test files~~ | every workspace | **done**, and it found five real defects: a fetch mock typed as a zero-argument thunk while the test read its second argument, an audit export row narrowed to the wrong union member, two retention delegates missing `webhookDelivery`, and a discord.js emit argument typed as `Message` when the event narrows it. |
 | F-11 | ~~No hard-negative class exercises the coercion detector~~ | scripts/eval | **done**. `coercion controls` is a required test with a fandom class and a self-harm-support class, both full of the vocabulary the detector keys on, plus a positive control so a detector broken closed fails here rather than passing quietly. The support class carries a disclosure of somebody else's instruction, which is the case that must never tier a child. |
 
+## Two rule violations found by an adversarial review, 2026-09-05
+
+Both were live. Neither was found by a test, because the tests asserted the
+behaviour the code had.
+
+**Rule 1: the byte guard could be walked past four ways.** The run-length
+detector required 512 unbroken base64 characters, so `base64 photo.jpg` with its
+default 76-column wrapping went through with a 202, and the scorer wrote the
+image into Postgres for thirty days. So did base64url, whose `-` and `_` broke
+every run at about sixteen characters. The data-URI patterns matched an
+alternation over image, video, audio and octet-stream, which is a blocklist over
+a label the sender chooses, so `data:font/woff2` was invisible; a `;charset=`
+parameter before the base64 marker also defeated them. And the media-URL pattern
+was anchored to the end of the string, so a link inside a sentence, which is
+where links are, was missed.
+
+The guard is a shape test now: separators are collapsed before the run is
+measured, the alphabet covers base64url, any data URI carrying a payload is
+bytes whatever it declares, and the URL match ends at a non-URL character. Audio
+is media, which the rule's wording naming image and video did not make safe to
+omit: a Discord voice message is an audio attachment.
+
+**Rule 5: Guardian was naming a suspect.** `personOrUserReported` is displayed by
+NCMEC as the suspect and was filled from `bundle.actorUid`. The actor is
+whichever side the detectors scored, and ROADMAP S4 exists precisely because
+those detectors fire on accounts in a minor band on purpose. Guardian would have
+named a child as the suspect on a federal report.
+
+A reviewer designates the account now and the builder refuses four ways without
+it. The designation carries an axis into the envelope, because every other label
+that distinguishes the two accounts was written on the actor axis and would have
+inverted silently. The customer's identifiers moved from role-keyed to uid-keyed,
+because role-keyed ones overrode the designation and made it decide nothing. And
+the drafted bundle, which is the only path anybody will actually use in phase 1,
+prints both accounts neutrally, names neither, and blocks filing until a person
+says which one the report is about.
+
 ## What is open, and what is blocking it
 
 Everything in phases 1 to 3 that needed nothing outside this repository is now

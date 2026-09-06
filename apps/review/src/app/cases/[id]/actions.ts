@@ -234,3 +234,62 @@ export async function redraftForIncidentTypeAction(
 
   return { draft };
 }
+
+/**
+ * Record which account a report is about, and rebuild the draft under it.
+ *
+ * NCMEC displays the reported account as the suspect. Guardian must not choose
+ * it (CLAUDE.md rule 5), and the account it scored is exactly the wrong default:
+ * ROADMAP S4 exists because the fan-out and threat detectors fire on accounts in
+ * a minor band on purpose, since people who do this were disproportionately
+ * victims themselves. Filing the scored account automatically would sometimes
+ * have named a child as the suspect on a federal report.
+ *
+ * So it is a person's decision, it goes on the hash chain like every other
+ * reviewer act, and the drafted text is rebuilt on the server rather than
+ * patched in the browser: a text the browser edited is a text nobody can vouch
+ * for.
+ */
+export async function designateReportSubjectAction(
+  pairId: string,
+  uid: string,
+): Promise<{ draft: string }> {
+  const session = await requireRole("owner");
+
+  const detail = await getCase(session, pairId);
+  if (!detail) throw new Error("No such case on this partition.");
+  if (uid !== detail.accounts.actorUid && uid !== detail.accounts.targetUid) {
+    throw new Error("That account is not on this pair.");
+  }
+
+  const timeline = await getTimeline(session, pairId);
+  const settings = await getCustomerSettings(session);
+  const jurisdiction = settings?.jurisdictionCountry
+    ? settings.jurisdictionSubdivision
+      ? `${settings.jurisdictionCountry}-${settings.jurisdictionSubdivision}`
+      : settings.jurisdictionCountry
+    : null;
+
+  // Which of the two, rather than the value itself: the chain is read by more
+  // people than the case is, and a hashed uid on it is an identifier travelling
+  // somewhere it does not need to go.
+  const side = uid === detail.accounts.actorUid ? "first" : "second";
+  await appendAudit(session, {
+    kind: "review.decision",
+    payload: {
+      pairId,
+      reviewerId: session.reviewerId,
+      action: "report_subject_designated",
+      side,
+    },
+  });
+
+  const draft = buildReportDraft({
+    detail: { ...detail, reportedSubjectUid: uid },
+    timeline,
+    reviewerName: session.displayName,
+    jurisdiction,
+    generatedAt: new Date(),
+  });
+  return { draft };
+}

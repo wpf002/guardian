@@ -4,6 +4,7 @@ import { requireSession, roleAllows } from "@/lib/auth";
 import { getCase, getTimeline } from "@/lib/data/cases";
 import { getReportTrail } from "@/lib/data/reports";
 import { getCustomerSettings } from "@/lib/data/settings";
+import { bandWord } from "@/lib/mock/fixtures";
 import type { CustomerSettings, TimelineState } from "@/lib/data/types";
 import {
   ActorPanel,
@@ -26,6 +27,7 @@ import { StagePath } from "@/components";
 import { Card } from "@/components";
 import {
   markExcerptsViewedAction,
+  designateReportSubjectAction,
   recordDraftExportAction,
   redraftForIncidentTypeAction,
   submitDecisionAction,
@@ -218,6 +220,11 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
         derivedIncidentType={incident.incidentType}
         incidentTypeDerived={incident.source === "signals"}
         readiness={readiness}
+        accounts={detail.accounts}
+        actorBandLabel={bandWord(detail.queue.actorBand.band)}
+        targetBandLabel={bandWord(detail.queue.targetBand.band)}
+        reportedSubjectUid={detail.reportedSubjectUid}
+        onDesignateSubject={designateReportSubjectAction}
         claimedBy={claimedBy}
         leaveHref="/cases"
         onSubmit={submitDecisionAction}

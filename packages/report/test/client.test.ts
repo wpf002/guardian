@@ -212,3 +212,41 @@ describe("toReportXml", () => {
     expect(out).toContain("A &amp; B &lt;chat&gt;");
   });
 });
+
+describe("transcript labels follow the designation", () => {
+  const TARGET = "c".repeat(64);
+
+  function labelsFor(subjectUid: string): string {
+    const report = buildReport(bundle(), customer(), reviewer({
+      reportedSubject: {
+        uid: subjectUid,
+        designatedByReviewerId: "rev_alice",
+        designatedAt: new Date("2026-08-02T08:30:00.000Z"),
+      },
+    }));
+    return toReportXml(report);
+  }
+
+  /**
+   * The same conversation, filed under each designation. A line the older-band
+   * account sent has to read as the reported account's in one and the receiving
+   * account's in the other, or the labels are an assertion Guardian made.
+   */
+  it("inverts every excerpt label when the reviewer names the other account", () => {
+    const onActor = labelsFor("b".repeat(64));
+    const onTarget = labelsFor(TARGET);
+
+    expect(onActor).toContain("[reported account]");
+    expect(onActor).toContain("[receiving account]");
+    expect(onTarget).toContain("[reported account]");
+    expect(onTarget).toContain("[receiving account]");
+
+    // The counts swap, which is what proves the labels moved rather than the
+    // excerpts being reordered.
+    const count = (xml: string, label: string): number =>
+      xml.split(`[${label}]`).length - 1;
+    expect(count(onActor, "reported account")).toBe(count(onTarget, "receiving account"));
+    expect(count(onActor, "receiving account")).toBe(count(onTarget, "reported account"));
+    expect(count(onActor, "reported account")).not.toBe(count(onActor, "receiving account"));
+  });
+});

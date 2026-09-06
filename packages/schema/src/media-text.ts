@@ -2,7 +2,7 @@
  * Media bytes hiding in free text.
  *
  * Rule 1 is 18 USC 2252/2252A: no code path may accept, store, download, fetch
- * or log image or video bytes. `apps/ingest/src/media-guard.ts` enforces that on
+ * or log media bytes. `apps/ingest/src/media-guard.ts` enforces that on
  * customer-submitted events at the edge, but the edge is not the only way a
  * string enters Guardian. A reviewer types notes into the console, and those
  * notes travel into the CyberTipline filing. Nothing at the edge ever sees them.
@@ -15,21 +15,98 @@
  * does: a silent rewrite hides the fact that some path is carrying bytes.
  */
 
-/** A data URI carrying media. The prefix is enough; the payload is never read. */
-export const MEDIA_DATA_URI = /^data:(image|video|application\/octet-stream)/i;
+/**
+ * A data URI carrying a base64 payload, anchored, for a field whose whole value
+ * is the URI.
+ *
+ * The media type is deliberately NOT matched. It used to be an alternation over
+ * image, video, audio and application/octet-stream, which is a blocklist, and a
+ * blocklist over an attacker-chosen label is not a control: `data:font/woff2`
+ * and `data:model/gltf-binary` carry bytes exactly as well as `data:image/png`
+ * does, and the sender picks the label. So the rule is now the shape rather
+ * than the claim. Anything declaring base64 and carrying a payload is bytes,
+ * whatever it calls itself.
+ *
+ * Parameters before the marker are allowed, because `;charset=utf-8;base64,`
+ * is legal and used to walk straight past this.
+ */
+const DATA_URI_BODY = String.raw`data:[\w.+-]+\/[\w.+-]+(?:;[\w.+-]+=[^;,\s]*)*;base64,[A-Za-z0-9+/_-]{32,}`;
+
+/**
+ * Anchored, for a field whose entire value is the URI. No payload length and no
+ * base64 marker required: `data:image/png,%89PNG...` is percent-encoded bytes
+ * with no base64 anywhere, and a short payload is still a payload. A field whose
+ * whole value is a data URI is not a field Guardian has any use for, so the
+ * shape alone is enough here and the embedded variant below carries the
+ * stricter test that free text needs.
+ */
+export const MEDIA_DATA_URI = /^data:[\w.+-]*\/?[\w.+-]*[;,]/i;
 
 /**
  * The same thing partway through a longer string, which is what a pasted URI
- * inside a sentence looks like. Anchoring is right for a field whose whole
- * value is the URI and wrong for free text, so this one requires the base64
- * marker and a payload behind it: prose can mention a data URI, and nothing a
- * person writes by hand carries thirty-two characters of base64 after it.
+ * inside a sentence looks like. It requires the base64 marker and a payload
+ * behind it: prose can mention a data URI, and nothing a person writes by hand
+ * carries thirty-two characters of base64 after one.
  */
-export const MEDIA_DATA_URI_EMBEDDED =
-  /data:(image|video|application\/octet-stream)\/?[\w.+-]*;base64,[A-Za-z0-9+/]{32,}/i;
+export const MEDIA_DATA_URI_EMBEDDED = new RegExp(DATA_URI_BODY, "i");
 
-/** A long run of base64 characters is a payload, whatever field it is hiding in. */
-export const MEDIA_BASE64_RUN = /[A-Za-z0-9+/]{512,}={0,2}/;
+/**
+ * A long run of base64 characters is a payload, whatever field it is hiding in.
+ *
+ * The class covers base64url as well as standard base64. It has to: base64url
+ * substitutes `-` for `+` and `_` for `/`, both of which appear about once in
+ * sixteen characters of arbitrary binary, so under the old `[A-Za-z0-9+/]` the
+ * longest unbroken run in a base64url-encoded image was around 160 characters
+ * against a 512 threshold. A whole JPEG went through the edge and into Postgres
+ * with a 202.
+ *
+ * Exported for callers that want the raw pattern. Prefer `carriesBase64Payload`,
+ * which collapses separators first.
+ */
+export const MEDIA_BASE64_RUN = /[A-Za-z0-9+/_-]{512,}={0,2}/;
+
+/** How long a collapsed run has to be before it is treated as a payload. */
+export const BASE64_RUN_THRESHOLD = 512;
+
+/**
+ * Separators that break a run without changing what it decodes to.
+ *
+ * `base64` on macOS and Linux wraps at 76 columns by default, and a newline
+ * every 76 characters took the longest unbroken run below any threshold worth
+ * setting. The same trick works with a space, a CRLF, or a period every sixty
+ * characters, and the receiving end strips them before decoding. So the run
+ * test collapses them first and measures what a decoder would actually see.
+ */
+const BASE64_SEPARATORS = /[\s.\-_]+/g;
+
+/**
+ * True when the string carries a base64 payload, separators or no separators.
+ *
+ * Two conditions, and both are needed. The collapsed run has to be long enough
+ * to be a payload rather than a token, and the region has to be dense in base64
+ * characters, which is what keeps a long stretch of ordinary punctuation-light
+ * prose out. Collapsing alone would fire on a paragraph; density alone would
+ * fire on a short hash.
+ */
+export function carriesBase64Payload(value: string): boolean {
+  if (value.length < BASE64_RUN_THRESHOLD) return false;
+  if (MEDIA_BASE64_RUN.test(value)) return true;
+
+  // Collapse the separators a decoder would ignore, then look again. `-` and
+  // `_` are both separators here and base64url characters, so the collapsed
+  // form is tested against the standard class: a base64url payload broken up
+  // with dashes collapses into an unbroken standard-class run either way.
+  const collapsed = value.replace(BASE64_SEPARATORS, "");
+  if (collapsed.length < BASE64_RUN_THRESHOLD) return false;
+  const run = /[A-Za-z0-9+/]{512,}={0,2}/.exec(collapsed);
+  if (!run) return false;
+
+  // Density over the original region, so a document that happens to concatenate
+  // many short alphanumeric tokens is not read as a payload. A real encoding is
+  // almost entirely in-class before collapsing; prose is not.
+  const inClass = (value.match(/[A-Za-z0-9+/_=-]/g) ?? []).length;
+  return inClass / value.length > 0.9;
+}
 
 /** True when the string looks like it is carrying media bytes. */
 export function looksLikeMediaBytes(value: string): boolean {
@@ -37,7 +114,7 @@ export function looksLikeMediaBytes(value: string): boolean {
   return (
     MEDIA_DATA_URI.test(trimmed) ||
     MEDIA_DATA_URI_EMBEDDED.test(value) ||
-    MEDIA_BASE64_RUN.test(value)
+    carriesBase64Payload(value)
   );
 }
 
@@ -68,7 +145,7 @@ export function findMediaBytesInText(value: unknown, maxDepth = 12): MediaTextFi
         out.push({ at: path, reason: "data_uri", detail: "carries a data URI holding media" });
         return;
       }
-      if (MEDIA_BASE64_RUN.test(node)) {
+      if (carriesBase64Payload(node)) {
         out.push({
           at: path,
           reason: "base64_run",

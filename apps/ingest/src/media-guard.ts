@@ -1,15 +1,26 @@
 /**
  * Rule 1 is 18 USC 2252/2252A. There is no detection or research exception, so
- * no code path may accept, store, download, fetch, or log image or video bytes.
- * The edge drops any request carrying them and records a customer-side
- * violation (CLAUDE.md rule 1, DESIGN.md 2).
+ * no code path may accept, store, download, fetch, or log media bytes. The edge
+ * drops any request carrying them and records a customer-side violation
+ * (CLAUDE.md rule 1, DESIGN.md 2).
+ *
+ * Audio counts, and the rule's wording naming image and video did not make it
+ * safe to omit. Discord voice messages are audio attachments, a recording of a
+ * video call is a media file whatever container it arrives in, and the statute
+ * turns on the visual depiction rather than on the MIME type a customer chose.
+ * A guard that blocks image/png and passes audio/ogg is a guard that refuses
+ * the easy case and accepts the one somebody would actually use to get around
+ * it. Refusing audio costs a customer nothing, because Guardian has no audio
+ * pipeline to feed and never will (ROADMAP: voice and video are declared a
+ * known false negative rather than a roadmap item, because third-party capture
+ * of a call Guardian is not party to is interception under rule 3).
  *
  * This runs before schema validation, because a payload that carries bytes must
  * be refused whether or not it is otherwise well formed, and the bytes must
  * never reach a logger.
  */
 
-import { MEDIA_BASE64_RUN, MEDIA_DATA_URI, MEDIA_DATA_URI_EMBEDDED } from "@guardian/schema";
+import { carriesBase64Payload, MEDIA_DATA_URI, MEDIA_DATA_URI_EMBEDDED } from "@guardian/schema";
 
 export interface MediaViolation {
   reason:
@@ -35,6 +46,11 @@ const BYTE_FIELD_NAMES = [
   "imagebase64",
   "videodata",
   "videobytes",
+  "audiodata",
+  "audiobytes",
+  "voicedata",
+  "voicenote",
+  "recording",
   "filedata",
   "filecontent",
   "content_base64",
@@ -49,6 +65,7 @@ const BINARY_CONTENT_TYPES = [
   "multipart/form-data",
   "image/",
   "video/",
+  "audio/",
   "application/octet-stream",
 ];
 
@@ -59,8 +76,18 @@ const BINARY_CONTENT_TYPES = [
  * customer asking Guardian to fetch a file, which only happens at the edge.
  */
 const DATA_URI = MEDIA_DATA_URI;
-const BASE64_BLOB = MEDIA_BASE64_RUN;
-const MEDIA_URL = /https?:\/\/\S+\.(jpe?g|png|gif|webp|bmp|heic|mp4|mov|webm|avi|mkv)(\?|#|$)/i;
+/**
+ * A link to a file the customer wants Guardian to fetch.
+ *
+ * The extension has to be followed by a non-URL character rather than by the
+ * end of the string. The old anchor was `(\?|#|$)`, which meant "photo.png"
+ * inside a sentence was invisible while the same link alone in a field was
+ * caught, and a link is almost always inside a sentence. The path class is
+ * bounded rather than `\S+` so the match cannot run past the URL into the next
+ * word and take its punctuation with it.
+ */
+const MEDIA_URL =
+  /https?:\/\/[^\s<>"']+\.(jpe?g|png|gif|webp|bmp|heic|heif|avif|tiff?|svg|mp4|mov|webm|avi|mkv|m4v|mpe?g|3gp|mp3|wav|ogg|oga|opus|m4a|aac|flac|amr|weba|caf|aiff?|wma|mid|spx)(?![A-Za-z0-9])/i;
 
 export function checkContentType(contentType: string | undefined): MediaViolation | null {
   if (!contentType) return null;
@@ -108,7 +135,11 @@ export function scanForMedia(body: unknown, maxDepth = 8): MediaViolation[] {
         });
         return;
       }
-      if (BASE64_BLOB.test(node)) {
+      // carriesBase64Payload rather than the raw run pattern: it collapses the
+      // separators a decoder would ignore before measuring, which is what stops
+      // a newline every 76 characters from hiding a whole JPEG, and it covers
+      // the base64url alphabet.
+      if (carriesBase64Payload(node)) {
         out.push({
           reason: "base64_blob",
           at: path,
