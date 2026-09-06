@@ -14,7 +14,8 @@
 
 import { bandWord } from "@/lib/mock/fixtures";
 import type { CaseDetail, TimelineState } from "@/lib/data/types";
-import { derivedIncident, incidentSourceLine, type IncidentChoice } from "./incident";
+import { derivedIncident } from "./incident";
+import { incidentSourceLine, type IncidentChoice } from "./incident-types";
 import { buildSignalList } from "./signals";
 
 export { CYBERTIPLINE_URL } from "./cybertipline";
@@ -131,7 +132,15 @@ export function buildReportDraft(input: ReportDraftInput): string {
     out.push("No excerpts are attached to this case.");
   }
   for (const row of excerpts) {
-    const head = `[${row.speaker}] ${stamp(row.at)} ${row.bandLabel}`;
+    // Where it was said. A line in an open channel and the same line in a DM
+    // are different facts on a filing, and Regulation (EU) 2026/1881 treats
+    // the two differently. An unstated visibility is reported as unstated
+    // rather than assumed either way (ROADMAP P-9).
+    const where =
+      row.channelVisibility === null
+        ? " channel visibility not stated"
+        : ` ${row.channelVisibility} channel`;
+    const head = `[${row.speaker}] ${stamp(row.at)} ${row.bandLabel}${where}`;
     const stage =
       row.stage && row.confidence !== null
         ? `  stage ${row.stage}, confidence ${row.confidence.toFixed(2)}`

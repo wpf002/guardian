@@ -25,7 +25,7 @@ export interface NormalizedText {
   replacements: Array<{ from: string; to: string; kind: "emoji" | "leet" | "confusable" }>;
 }
 
-const ZERO_WIDTH = /[​-‏‪-‮⁠-⁯﻿­]/;
+const ZERO_WIDTH = /[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\u00ad]/;
 
 /**
  * Variation selectors choose an emoji's text or emoji presentation and carry no
@@ -265,4 +265,143 @@ export function excerptFromCompact(
   const lo = Math.max(0, from - pad);
   const hi = Math.min(n.original.length, to + pad);
   return n.original.slice(lo, Math.min(hi, lo + max));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Reversed text                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Reverse the characters of each whitespace-delimited token, keeping the tokens
+ * where they are. Exported for the tests that pin the index arithmetic.
+ *
+ * Index-exact: reversing within a token is a permutation of that token's
+ * positions, so an offset map built alongside it still points at the original
+ * characters and an excerpt still quotes what was actually written.
+ */
+export function reverseTokens(text: string, map?: readonly number[]): {
+  text: string;
+  map: number[];
+} {
+  return rewriteTokens(text, map, () => true);
+}
+
+/** Reverse only the tokens `shouldReverse` selects, by their stripped form. */
+function rewriteTokens(
+  text: string,
+  map: readonly number[] | undefined,
+  shouldReverse: (reversedAndStripped: string) => boolean,
+): { text: string; map: number[] } {
+  const out: string[] = [];
+  const outMap: number[] = [];
+  let token: string[] = [];
+  let tokenMap: number[] = [];
+
+  const flush = (): void => {
+    const raw = token.join("");
+    // Only the alphanumeric core is reversed, and the punctuation around it
+    // stays where it was written. "margelet," is a word somebody typed and then
+    // a comma, so the reading is "telegram," and not ",telegram": a leading
+    // comma would sit inside a phrase match that expects a word boundary.
+    let start = 0;
+    let end = raw.length;
+    while (start < end && !/[a-z0-9]/.test(raw[start]!)) start += 1;
+    while (end > start && !/[a-z0-9]/.test(raw[end - 1]!)) end -= 1;
+    const core = raw.slice(start, end);
+
+    if (core.length > 0 && shouldReverse(reverseString(core))) {
+      for (let i = 0; i < start; i++) push(i);
+      for (let i = end - 1; i >= start; i--) push(i);
+      for (let i = end; i < raw.length; i++) push(i);
+    } else {
+      for (let i = 0; i < raw.length; i++) push(i);
+    }
+    token = [];
+    tokenMap = [];
+  };
+
+  function push(i: number): void {
+    out.push(token[i]!);
+    outMap.push(tokenMap[i] ?? -1);
+  }
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    const at = map?.[i] ?? i;
+    if (/\s/.test(ch)) {
+      flush();
+      out.push(ch);
+      outMap.push(at);
+    } else {
+      token.push(ch);
+      tokenMap.push(at);
+    }
+  }
+  flush();
+  return { text: out.join(""), map: outMap };
+}
+
+function reverseString(value: string): string {
+  return [...value].reverse().join("");
+}
+
+/**
+ * A reversed reading of an already-normalized message, or null when reversing
+ * surfaces nothing the forward reading did not.
+ *
+ * Only the tokens that need reversing are reversed, and a token needs reversing
+ * only when it is a platform name backwards and is not one forwards. That is
+ * what the evasion actually looks like: "add me on drocsid", "margelet, add me
+ * there", one word written backwards inside a sentence that still reads left to
+ * right, because it has to stay readable by the person it is aimed at. Reversing
+ * the rest of the sentence with it would destroy the phrase the detectors match
+ * on, which is the difference between reading "telegram, add me there" and
+ * reading "telegram, dda em ereht".
+ *
+ * The gate is deliberately narrow. Reversing every message and running the full
+ * detector over both readings would double the work on ordinary traffic and
+ * would eventually match something by accident, and an accidental match here is
+ * a case in a reviewer's queue. Palindromes like "kik" need no reversal and
+ * return null: the forward reading already matched.
+ */
+export function reversedReading(
+  n: NormalizedText,
+  platforms: readonly string[],
+): NormalizedText | null {
+  const names = new Set(platforms.map((p) => p.toLowerCase()));
+  const forwardTokens = new Set(n.normalized.split(/\s+/).map(stripEdges).filter(Boolean));
+
+  let surfaced = false;
+  const rewritten = rewriteTokens(n.normalized, n.normalizedMap, (reversedStripped) => {
+    if (reversedStripped.length < 3 || !names.has(reversedStripped)) return false;
+    // That name is already in the message the right way round, so this token is
+    // a palindrome of it and the forward reading has it covered.
+    if (forwardTokens.has(reversedStripped)) return false;
+    surfaced = true;
+    return true;
+  });
+  if (!surfaced) return null;
+
+  const compact: Buffered = { out: "", map: [] };
+  for (let i = 0; i < rewritten.text.length; i++) {
+    const ch = rewritten.text[i]!;
+    if (!/[a-z0-9]/.test(ch)) continue;
+    compact.out += ch;
+    compact.map.push(rewritten.map[i]!);
+  }
+
+  return {
+    original: n.original,
+    normalized: rewritten.text,
+    compact: compact.out,
+    normalizedMap: rewritten.map,
+    compactMap: compact.map,
+    // The replacements belong to the forward reading. A reader of this one is
+    // told it was reversed, which is the rewrite that matters here.
+    replacements: n.replacements,
+  };
+}
+
+function stripEdges(token: string): string {
+  return token.replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "");
 }

@@ -102,7 +102,7 @@ export async function addLexiconPhrasesAction(
 ): Promise<LexiconState> {
   const session = await requireRole("operator");
 
-  const field = String(formData.get("field") ?? "");
+  const field = formString(formData, "field");
   if (!isPhraseField(field)) {
     return {
       error: "Pick one of the phrase lists before saving.",
@@ -126,7 +126,7 @@ export async function addLexiconPhrasesAction(
     [...base[field], ...(existing[field] ?? [])].map((phrase) => phrase.toLowerCase()),
   );
 
-  const raw = String(formData.get("phrases") ?? "");
+  const raw = formString(formData, "phrases");
   const candidates: string[] = [];
   for (const line of raw.split("\n")) {
     const phrase = line.trim().replace(/\s+/g, " ");
@@ -143,7 +143,7 @@ export async function addLexiconPhrasesAction(
     // they pass the wording guard at write time (DESIGN-UI 5.8).
     const findings = findAccusations(phrase);
     if (findings.length > 0) {
-      const first = findings[0]!;
+      const first = findings[0];
       return {
         error: `"${phrase}" was refused: it ${first.why}. Guardian never labels a person.`,
         offendingFragment: first.match,
@@ -227,8 +227,8 @@ export async function removeLexiconPhraseAction(
   formData: FormData,
 ): Promise<LexiconState> {
   const session = await requireRole("operator");
-  const field = String(formData.get("field") ?? "");
-  const phrase = String(formData.get("phrase") ?? "");
+  const field = formString(formData, "field");
+  const phrase = formString(formData, "phrase");
   if (!isPhraseField(field) || phrase.length === 0) {
     return {
       error: "That phrase is no longer on the list.",
@@ -283,7 +283,7 @@ export async function updateWebhookUrlAction(
   formData: FormData,
 ): Promise<WebhookState> {
   const session = await requireRole("operator");
-  const raw = String(formData.get("url") ?? "").trim();
+  const raw = formString(formData, "url").trim();
 
   if (raw.length === 0) {
     await setWebhookUrl(session, null);
@@ -320,9 +320,7 @@ export async function updateWebhookUrlAction(
 // useActionState hands every action a previous state and a form. This one reads
 // neither: the button carries no fields, and the outcome is built fresh.
 export async function sendTestDeliveryAction(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _previous: TestDeliveryState,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _formData: FormData,
 ): Promise<TestDeliveryState> {
   const session = await requireRole("operator");
@@ -356,4 +354,17 @@ export async function sendTestDeliveryAction(
     sample: outcome.sample,
     attempted: true,
   };
+}
+
+/**
+ * A form field, as a string.
+ *
+ * FormData.get returns a string or a File, and String(file) is
+ * "[object File]": a filename-shaped value that passes every length check and
+ * means nothing. A field that arrived as a file is not a field the caller
+ * asked for, so it reads as absent.
+ */
+function formString(form: FormData, name: string): string {
+  const value = form.get(name);
+  return typeof value === "string" ? value : "";
 }

@@ -70,7 +70,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     token = typeof body.token === "string" ? body.token : "";
   } else {
     const form = await request.formData();
-    token = String(form.get("token") ?? "");
+    token = formString(form, "token");
   }
   return sign(token);
+}
+
+/**
+ * A form field, as a string.
+ *
+ * FormData.get returns a string or a File, and String(file) is
+ * "[object File]": a filename-shaped value that passes every length check and
+ * means nothing. A field that arrived as a file is not a field the caller
+ * asked for, so it reads as absent.
+ */
+function formString(form: FormData, name: string): string {
+  const value = form.get(name);
+  return typeof value === "string" ? value : "";
 }

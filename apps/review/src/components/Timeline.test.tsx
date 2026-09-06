@@ -31,6 +31,7 @@ const ready: TimelineState = {
       signals: ["off_platform_migration"],
       media: null,
       viewedByHuman: false,
+      channelVisibility: "public" as const,
       gapHoursBefore: null,
     },
     {
@@ -47,6 +48,7 @@ const ready: TimelineState = {
       signals: ["threat_template"],
       media: null,
       viewedByHuman: false,
+      channelVisibility: "public" as const,
       gapHoursBefore: 3,
     },
     {
@@ -68,6 +70,7 @@ const ready: TimelineState = {
         viewedByOperatorHuman: false,
       },
       viewedByHuman: false,
+      channelVisibility: "public" as const,
       gapHoursBefore: null,
     },
   ],

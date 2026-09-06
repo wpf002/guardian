@@ -107,7 +107,7 @@ export class Kernel {
     const lexicon = this.lexiconFor?.(event.customerId) ?? this.lexicon;
     const text = event.text ?? "";
 
-    const { normalized, detections } =
+    const { detections } =
       text.length > 0
         ? detectMessage(text, {
             lexicon,
@@ -115,7 +115,7 @@ export class Kernel {
             actorBand: event.actorBand,
             targetBand: event.targetBand,
           })
-        : { normalized: null, detections: [] as Detection[] };
+        : { detections: [] as Detection[] };
 
     const isQuestion = /\?/.test(text) || /^(are|do|does|did|who|what|when|where|why|how|can|is)\b/i.test(text.trim());
 

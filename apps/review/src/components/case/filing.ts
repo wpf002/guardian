@@ -20,7 +20,7 @@
  */
 
 import type { CaseDetail, CustomerSettings, TimelineState } from "@/lib/data/types";
-import type { IncidentChoice } from "./incident";
+import type { IncidentChoice } from "./incident-types";
 
 export type FilingSeverity = "blocking" | "degrading" | "enriching";
 

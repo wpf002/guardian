@@ -101,12 +101,13 @@ const SEXUALIZE = [
   "send pics",
   "ill send mine first",
 ];
-const COERCE = [
-  "i will ruin your life if you dont answer",
-  "send to your school if you dont pay",
-  "you have 24 hours",
-  "ill pick you up after school, whats your address",
-];
+/*
+ * There is no COERCE pool here on purpose. grooming() walks contact to
+ * sexualize and stops; the coerce stage in a positive comes from sextortion()
+ * and trafficking(), which carry their own threat, payment and meetup lines.
+ * A pool nobody drew from used to sit here and made the coverage look wider
+ * than it was.
+ */
 
 const TEEN_ROMANCE = [
   "hey you were funny in vc",
@@ -322,12 +323,57 @@ const ADULT_CHAT = [
   "whats your snap, ill send the screenshot",
 ];
 
+/**
+ * Fandom talk. "Fansign" and "cutsign" are the marker nouns the non-financial
+ * coercion detector keys on (ROADMAP S3), and both are ordinary words in a
+ * fandom: a fansign is a signed photo and an event people queue for. The
+ * detector needs a possessive qualifier or a compliance demand beside the noun,
+ * and this class is what checks that it does. Without it the required suite
+ * passed without ever calling findCoercionDirective (ROADMAP F-11).
+ */
+const FANDOM_TALK = [
+  "did you see the fansign photos from saturday",
+  "im going to the fansign event next month",
+  "the fansign tickets sold out in like a minute",
+  "she posted a fansign on her story",
+  "our group made a banner for the fansign",
+  "i queued four hours for that fansign",
+  "the fansign was at the mall not the arena",
+  "he signed my album at the fansign",
+];
+
+/**
+ * Somebody disclosing self-harm, and somebody supporting them. The coercion
+ * detector fires on a directed imperative to hurt yourself and prove it; this
+ * is the same vocabulary with none of the direction, which is the error that
+ * would time out a child for saying they are struggling.
+ *
+ * "he told me to cut deeper and send proof" is in here on purpose. It is
+ * reported speech about a directive, spoken by the person it was aimed at, and
+ * tiering it would put the disclosure in a queue as though the child gave the
+ * instruction.
+ */
+const SELFHARM_SUPPORT = [
+  "are you ok, you havent said anything all day",
+  "please dont hurt yourself, im here",
+  "i had a really bad night and i cut again",
+  "he told me to cut deeper and send proof",
+  "i didnt do it this time, i called my sister instead",
+  "you dont have to prove anything to anyone",
+  "please dont starve yourself",
+  "i think you should talk to someone about this",
+  "im proud of you for telling me",
+  "text 988 if it gets bad again, ill stay on with you",
+];
+
 export type HardNegativeKind =
   | "peer_handle_swap"
   | "giveaway"
   | "family_talk"
   | "friend_plans"
-  | "adult_to_adult";
+  | "adult_to_adult"
+  | "fandom_talk"
+  | "selfharm_support";
 
 export function hardNegative(id: string, rng: Rng, kind?: HardNegativeKind): Conversation {
   const chosen =
@@ -338,6 +384,8 @@ export function hardNegative(id: string, rng: Rng, kind?: HardNegativeKind): Con
       "family_talk",
       "friend_plans",
       "adult_to_adult",
+      "fandom_talk",
+      "selfharm_support",
     ] as const);
 
   const pools: Record<HardNegativeKind, readonly string[]> = {
@@ -346,6 +394,8 @@ export function hardNegative(id: string, rng: Rng, kind?: HardNegativeKind): Con
     family_talk: FAMILY_TALK,
     friend_plans: FRIEND_PLANS,
     adult_to_adult: ADULT_CHAT,
+    fandom_talk: FANDOM_TALK,
+    selfharm_support: SELFHARM_SUPPORT,
   };
 
   const turns: Turn[] = [];
@@ -359,7 +409,10 @@ export function hardNegative(id: string, rng: Rng, kind?: HardNegativeKind): Con
     });
   }
 
-  // Bands are the whole point of these cases. Peers are peers; adults are adults.
+  // Bands are the whole point of these cases. Peers are peers; adults are
+  // adults. The two coercion classes are peers on purpose: a support
+  // conversation between two minors is the one this must never tier, because
+  // the account it would tier is a child disclosing something.
   const band =
     chosen === "adult_to_adult"
       ? rng.pick(["A18_20", "A21_PLUS"] as const)
@@ -400,4 +453,45 @@ export function adultToMinorBenign(id: string, rng: Rng): Conversation {
     turns,
     positive: false,
   };
+}
+
+/**
+ * The same grooming conversation with its stages in a different order.
+ *
+ * ROADMAP F-8. Guardian's pair score pays double for two specific transitions,
+ * probe to migrate and sexualize to coerce, on the theory that the order of the
+ * ladder carries information the presence of its rungs does not. Four papers in
+ * RESEARCH 7.4 find that real grooming overlaps, compresses and reorders the
+ * stages, so the doubling is a constant nobody has measured.
+ *
+ * This is the instrument for measuring it here. The permutation keeps every
+ * stage and every message and moves only when each one happens, so a recall
+ * difference between the ordered and permuted arms is attributable to order and
+ * to nothing else. External validation still needs PANC or PJZ, which are decoy
+ * transcripts Guardian does not hold; what this answers is the narrower and
+ * still useful question of how much of the tier rests on the ordering.
+ */
+export function reorderStages(conversation: Conversation, rng: Rng): Conversation {
+  // Actor turns carry the stage vocabulary; target turns are responses and stay
+  // where they are, so the conversation still reads as a conversation.
+  const actorIndexes: number[] = [];
+  conversation.turns.forEach((turn, i) => {
+    if (turn.from === "actor") actorIndexes.push(i);
+  });
+  if (actorIndexes.length < 2) return { ...conversation, id: `${conversation.id}-reordered` };
+
+  const texts = actorIndexes.map((i) => conversation.turns[i]!.text);
+  for (let i = texts.length - 1; i > 0; i--) {
+    const j = rng.int(0, i);
+    const swap = texts[i]!;
+    texts[i] = texts[j]!;
+    texts[j] = swap;
+  }
+
+  const turns = conversation.turns.map((turn) => ({ ...turn }));
+  actorIndexes.forEach((at, k) => {
+    turns[at]!.text = texts[k]!;
+  });
+
+  return { ...conversation, id: `${conversation.id}-reordered`, turns };
 }

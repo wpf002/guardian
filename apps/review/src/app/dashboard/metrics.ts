@@ -217,7 +217,7 @@ function median(values: number[]): number | null {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   const value =
-    sorted.length % 2 === 0 ? (sorted[middle - 1]! + sorted[middle]!) / 2 : sorted[middle]!;
+    sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
   return Math.round(value);
 }
 
@@ -282,7 +282,7 @@ async function retentionStatus(session: Session, now: Date): Promise<RetentionSt
       _min: { expiresAt: true },
     });
     for (const row of grouped) {
-      const cls = row.retention as RetentionClass;
+      const cls = row.retention;
       if (cls in counts) counts[cls] = row._count._all;
       const min = row._min.expiresAt;
       if (min && (!earliestExpiryAt || min < earliestExpiryAt)) earliestExpiryAt = min;
@@ -438,7 +438,7 @@ export async function getDashboardMetrics(
     [shortSummary, shortWindowDays],
     [longSummary, longWindowDays],
   ] as const) {
-    const total = (Object.values(summary.pairsByTier) as number[]).reduce((a, b) => a + b, 0);
+    const total = (Object.values(summary.pairsByTier)).reduce((a, b) => a + b, 0);
     for (const tier of ["T1", "T2", "T3"] as Tier[]) {
       tierRates.push({
         tier,
@@ -475,9 +475,9 @@ export async function getDashboardMetrics(
       }
     }
     const versions: Versions = {
-      modelVersion: String(entry.payload.modelVersion ?? "unknown"),
-      lexiconVersion: String(entry.payload.lexiconVersion ?? "unknown"),
-      fusionVersion: String(entry.payload.fusionVersion ?? "unknown"),
+      modelVersion: versionString(entry.payload.modelVersion),
+      lexiconVersion: versionString(entry.payload.lexiconVersion),
+      fusionVersion: versionString(entry.payload.fusionVersion),
     };
     const key = versionKey(versions);
     const seen = versionSightings.get(key);
@@ -561,4 +561,14 @@ export async function buildChainExport(
     keyCustodian:
       "The chain key is held by the operator and delivered out of band. It is not in this file.",
   });
+}
+
+/**
+ * A version off an audit payload. The payload is a Record of unknown, so a
+ * String() over it renders an object as "[object Object]" into a column a
+ * reader treats as provenance. Anything that is not a string reads as unknown,
+ * which is the honest answer and the one the rest of this page handles.
+ */
+function versionString(value: unknown): string {
+  return typeof value === "string" && value !== "" ? value : "unknown";
 }

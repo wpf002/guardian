@@ -30,7 +30,7 @@ function tokensIn(selector: string): Record<string, string> {
   const body = themeCss.slice(open, end);
   const out: Record<string, string> = {};
   for (const match of body.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)) {
-    out[match[1]!] = match[2]!.trim();
+    out[match[1]] = match[2].trim();
   }
   return out;
 }
@@ -66,7 +66,7 @@ describe("text tokens clear body contrast on every surface they sit on", () => {
     for (const token of ["text", "text-muted", "text-subtle"] as const) {
       for (const ground of GROUNDS) {
         it(`${themeName}: --${token} on --${ground}`, () => {
-          expect(contrast(tokens[token]!, tokens[ground]!)).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(tokens[token], tokens[ground])).toBeGreaterThanOrEqual(4.5);
         });
       }
     }
@@ -80,12 +80,12 @@ describe("boundary tokens clear the 3:1 non-text minimum", () => {
   ] as const) {
     for (const ground of GROUNDS) {
       it(`${themeName}: --border on --${ground}`, () => {
-        expect(contrast(tokens.border!, tokens[ground]!)).toBeGreaterThanOrEqual(3);
+        expect(contrast(tokens.border, tokens[ground])).toBeGreaterThanOrEqual(3);
       });
     }
     it(`${themeName}: --border-strong stays above --border, so hover still reads`, () => {
-      expect(contrast(tokens["border-strong"]!, tokens.surface!)).toBeGreaterThan(
-        contrast(tokens.border!, tokens.surface!),
+      expect(contrast(tokens["border-strong"], tokens.surface)).toBeGreaterThan(
+        contrast(tokens.border, tokens.surface),
       );
     });
   }
@@ -105,7 +105,7 @@ describe("the accent is a link colour and an active-state colour, so it is body 
   ] as const) {
     for (const ground of [...GROUNDS, "accent-soft"] as const) {
       it(`${themeName}: --accent on --${ground}`, () => {
-        expect(contrast(tokens.accent!, tokens[ground]!)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(tokens.accent, tokens[ground])).toBeGreaterThanOrEqual(4.5);
       });
     }
   }

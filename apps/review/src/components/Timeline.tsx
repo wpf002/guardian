@@ -208,6 +208,20 @@ function TimelineRowView({
           <div className={styles.meta}>
             <span>{formatTime(row.at)}</span>
             <span>{row.bandLabel}</span>
+            {/* Only when it is not an open channel. A line said in a server
+                everyone can read is the ordinary case and needs no label; a
+                line said in a DM is a different fact, and Regulation (EU)
+                2026/1881 treats the two differently. An unstated visibility
+                reads as private, which is the cautious way round. */}
+            {row.channelVisibility !== "public" ? (
+              <span className={styles.visibility}>
+                {row.channelVisibility === "group"
+                  ? "group message"
+                  : row.channelVisibility === "private"
+                    ? "private message"
+                    : "channel not stated, read as private"}
+              </span>
+            ) : null}
             {row.stage ? (
               <span className={row.lowConfidence ? styles.low : styles.stage}>
                 stage {row.stage}

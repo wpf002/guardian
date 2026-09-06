@@ -14,7 +14,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AGE_BANDS } from "@guardian/schema";
 import { requireRole } from "@/lib/auth";
-import { updateGuildConfig, type GuildConfigPatch } from "@/lib/data/guilds";
+import { updateGuildConfig } from "@/lib/data/guilds";
 import { guildCopy, type SaveResult } from "@/components/guilds";
 
 const snowflake = z.string().regex(/^\d{17,20}$/);
@@ -53,7 +53,7 @@ export async function saveGuildSettings(
     return { ok: false, message: guildCopy.SAVE.failed };
   }
 
-  const updated = await updateGuildConfig(session, guildId, parsed.data as GuildConfigPatch);
+  const updated = await updateGuildConfig(session, guildId, parsed.data);
   if (!updated) {
     return { ok: false, message: guildCopy.SAVE.noRow };
   }

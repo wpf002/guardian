@@ -84,6 +84,7 @@ interface LineSpec {
   signals?: string[];
   normalizations?: TimelineRow["normalizations"];
   viewedByHuman?: boolean;
+  visibility?: TimelineRow["channelVisibility"];
 }
 
 interface PairSpec {
@@ -609,6 +610,10 @@ function buildTimeline(spec: PairSpec, start: Date): TimelineState {
       signals: line.signals ?? [],
       media: line.media ?? null,
       viewedByHuman: line.viewedByHuman ?? false,
+      // Public unless the line says otherwise. A guild's open channels are
+      // where the bot reads, and a fixture that claimed everything was a DM
+      // would render a state the Discord surface does not produce.
+      channelVisibility: line.visibility ?? "public",
       gapHoursBefore: gapHours !== null && gapHours >= 2 ? Math.round(gapHours) : null,
     });
     previousAt = at.getTime();

@@ -12,7 +12,6 @@ import {
   retentionForTier,
   textRetainedForTier,
   reportingIdentityFrom,
-  type AgeBand,
   type CustomerReportingIdentity,
   type Event,
   type EvidenceBundle,

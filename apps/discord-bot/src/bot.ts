@@ -5,7 +5,6 @@ import {
   newCustomerSalt,
   reportingIdentityFrom,
   reportingIdentityGaps,
-  type AgeBand,
 } from "@guardian/schema";
 import { createPrismaClient } from "@guardian/schema/db";
 import {

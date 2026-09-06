@@ -323,7 +323,7 @@ export function assertExtensionMerges(
 ): string {
   const merged = mergeLexicon(
     baseLexicon(),
-    extension as unknown as Partial<Lexicon>,
+    extension,
     mergeLabel(session),
   );
   return merged.version;

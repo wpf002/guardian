@@ -61,6 +61,13 @@
   color: var(--text-muted);
 }
 
+/* Shown only when the channel was not open. The ordinary case says nothing,
+   so this label always means something changed. */
+.visibility {
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+}
+
 .low {
   color: var(--text-subtle);
 }

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { isAccusatory } from "@guardian/schema";
 
-const { filingHeadline, filingReadiness } = await import("@/components/case");
+const { buildReportDraft, filingHeadline, filingReadiness } = await import("@/components/case");
 const { getCase, getTimeline } = await import("@/lib/data/cases");
 const { getCustomerSettings } = await import("@/lib/data/settings");
 const { mockSession } = await import("@/lib/auth");
@@ -119,5 +119,50 @@ describe("filingReadiness", () => {
         expect(isAccusatory(`${gap.what}. ${gap.gather}`)).toBe(false);
       }
     }
+  });
+});
+
+/**
+ * ROADMAP P-9. The kernel has carried channelVisibility since the compliance
+ * provenance work and nothing read it. It is on the timeline and on the filing
+ * now, because a line said in an open channel and the same line said in a DM
+ * are different facts, and Regulation (EU) 2026/1881 treats them differently.
+ */
+describe("channel visibility", () => {
+  it("reaches the console timeline", async () => {
+    const timeline = await getTimeline(mockSession(), "pair_4f2a");
+    expect(timeline.state).toBe("ready");
+    if (timeline.state !== "ready") return;
+    for (const row of timeline.rows) {
+      expect(["public", "private", "group", null]).toContain(row.channelVisibility);
+    }
+  });
+
+  it("is on every excerpt in the filing, and says so when it was not stated", async () => {
+    const session = mockSession();
+    const detail = await getCase(session, "pair_4f2a");
+    const timeline = await getTimeline(session, "pair_4f2a");
+    const draft = buildReportDraft({
+      detail: detail!,
+      timeline,
+      reviewerName: "A. Rivera",
+      jurisdiction: "US TX",
+      generatedAt: new Date("2026-09-04T09:14:00Z"),
+    });
+    expect(draft).toContain("public channel");
+
+    if (timeline.state !== "ready") return;
+    const unstated = {
+      ...timeline,
+      rows: timeline.rows.map((row) => ({ ...row, channelVisibility: null })),
+    };
+    const withoutIt = buildReportDraft({
+      detail: detail!,
+      timeline: unstated,
+      reviewerName: "A. Rivera",
+      jurisdiction: "US TX",
+      generatedAt: new Date("2026-09-04T09:14:00Z"),
+    });
+    expect(withoutIt).toContain("channel visibility not stated");
   });
 });

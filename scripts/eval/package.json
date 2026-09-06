@@ -11,7 +11,7 @@
     "json": "tsx src/cli.ts --json",
     "test": "EVAL_QUICK=1 tsx src/cli.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@guardian/schema": "workspace:*",

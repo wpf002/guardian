@@ -1,12 +1,13 @@
 import { AuditLog, MemoryAuditStore } from "@guardian/audit";
-import { Kernel, MemoryKernelStore, ScriptIndex } from "@guardian/scorer";
-import { loadScriptCorpus } from "@guardian/schema";
+import { findCoercionDirective, Kernel, MemoryKernelStore, ScriptIndex } from "@guardian/scorer";
+import { loadLexicon, loadScriptCorpus, normalize } from "@guardian/schema";
 import {
   adultToMinorBenign,
   benign,
   evade,
   grooming,
   hardNegative,
+  reorderStages,
   Rng,
   sextortion,
   teenRomance,
@@ -71,6 +72,8 @@ const TESTS: Array<{ name: string; run: (seed: number) => Promise<TestResult> }>
   { name: "audit chain tamper", run: () => auditChainTamper() },
   { name: "actor fan-out", run: () => fanOutDetection() },
   { name: "false-positive traps", run: falsePositiveTraps },
+  { name: "coercion controls", run: coercionControls },
+  { name: "stage order adherence", run: orderAdherence },
   { name: "model never emits T3", run: modelNeverEmitsT3 },
 ];
 
@@ -436,3 +439,207 @@ async function modelNeverEmitsT3(seed: number): Promise<TestResult> {
 function round(value: number): number {
   return Number(value.toFixed(5));
 }
+
+/**
+ * The non-financial coercion detector, against the two conversations it must
+ * never mark (ROADMAP F-11).
+ *
+ * Until this existed the required suite passed without ever calling
+ * findCoercionDirective: generators.ts produced nothing that reached it, so a
+ * detector that fired on every message and a detector that fired on none would
+ * have looked the same from here.
+ *
+ * Three things are asserted, and the middle one is the reason the test exists.
+ *
+ * A real directed imperative still fires, so a detector broken open in the safe
+ * direction fails here rather than passing quietly. Fandom talk and self-harm
+ * support do not fire, though both are full of the vocabulary the detector keys
+ * on, which is what makes them a test of the gates rather than of the absence
+ * of words. And neither class reaches T2 through the whole kernel, because a
+ * detector that refuses and a fusion that tiers anyway is the same outcome for
+ * the child in the conversation.
+ *
+ * The self-harm class carries a disclosure of somebody else's instruction ("he
+ * told me to cut deeper and send proof"), spoken by the person it was aimed at.
+ * Tiering that would put a child's disclosure in a queue as though the child
+ * gave the instruction.
+ */
+async function coercionControls(seed: number): Promise<TestResult> {
+  const rng = new Rng(seed + 9);
+  const lexicon = loadLexicon();
+  const failures: string[] = [];
+  const metrics: Record<string, number | string | null> = {};
+
+  // A directed imperative plus a proof demand. This has to fire, or nothing
+  // below means anything.
+  // Each one is a phrase from the documented directive lists in a sentence
+  // somebody would actually send. Not invented wording: a positive control that
+  // fails because the lexicon never claimed to catch it would tell us nothing
+  // about the gates.
+  const positives = [
+    "cut my name into your arm and send me a photo of it",
+    "carve my initials into your leg tonight, prove it or i post everything",
+    "cut deeper next time and record yourself doing it",
+    "starve yourself today and send me proof",
+  ];
+  const firedPositives = positives.filter(
+    (text) => findCoercionDirective(normalize(text, lexicon), lexicon) !== null,
+  ).length;
+  metrics.directive_positives = firedPositives;
+  if (firedPositives < positives.length) {
+    failures.push(
+      `only ${firedPositives} of ${positives.length} directed imperatives fired, so the detector is closed and the controls below prove nothing`,
+    );
+  }
+
+  const perClass = scale(300);
+  for (const kind of ["fandom_talk", "selfharm_support"] as const) {
+    const conversations = Array.from({ length: perClass }, (_, i) =>
+      hardNegative(`cc-${kind}-${i}`, rng, kind),
+    );
+
+    // Every line in these classes, through the detector itself. The kernel path
+    // below can hide a firing detector behind a gate; this cannot.
+    let reached = 0;
+    let marked = 0;
+    for (const conversation of conversations) {
+      for (const turn of conversation.turns) {
+        const n = normalize(turn.text, lexicon);
+        if (mentionsCoercionVocabulary(turn.text)) reached += 1;
+        if (findCoercionDirective(n, lexicon) !== null) marked += 1;
+      }
+    }
+    metrics[`${kind}_lines_with_vocabulary`] = reached;
+    metrics[`${kind}_lines_marked`] = marked;
+
+    if (reached === 0) {
+      failures.push(
+        `${kind} contains none of the vocabulary the detector keys on, so it never reaches findCoercionDirective`,
+      );
+    }
+    if (marked > 0) {
+      failures.push(`${kind} marked ${marked} lines as a coercion directive`);
+    }
+
+    const outcomes = await runConversations(conversations);
+    const t2 = outcomes.filter((o) => tierRank(o.peakTier) >= 2).length;
+    metrics[`${kind}_t2`] = t2;
+    if (t2 > 0) failures.push(`${kind} put ${t2} conversations in the review queue`);
+  }
+
+  return {
+    name: "coercion controls",
+    required: true,
+    pass: failures.length === 0,
+    detail:
+      failures.length === 0
+        ? "a directed imperative fires; fandom talk and self-harm support reach the detector, are refused, and stay out of the queue"
+        : failures.join("; "),
+    metrics,
+  };
+}
+
+/**
+ * Whether a line carries any of the words the coercion detector keys on. Used
+ * only to prove the control classes reach the detector rather than passing by
+ * saying nothing.
+ */
+function mentionsCoercionVocabulary(text: string): boolean {
+  return /\b(cut|carve|starve|burn|fansign|cutsign|proof|prove|hurt yourself)\b/i.test(text);
+}
+
+/**
+ * How much of a tier rests on the order of the stages rather than on their
+ * presence (ROADMAP F-8).
+ *
+ * The pair score pays double for probe to migrate and for sexualize to coerce.
+ * That doubling is a constant somebody chose, and RESEARCH 7.4 collects four
+ * papers finding that real grooming overlaps, compresses and reorders the
+ * ladder. This measures what the doubling is worth: the same conversations, the
+ * same messages, the same bands, with only the order of the actor's turns
+ * permuted.
+ *
+ * The measured answer is 54 points, and it is the most important number in this
+ * suite. T2 recall is 100% when the ladder is walked in order and 46% when the
+ * same messages arrive in a different order, while every conversation in both
+ * arms still reaches the late stages. More than half of what puts a case in
+ * front of a reviewer is the order, not the content. Against four papers saying
+ * real grooming reorders, that is a product finding and not a tuning detail:
+ * the ordered progression cannot be marketed as the differentiator until it is
+ * validated against transcripts, and a customer running Guardian today is
+ * getting a detector that is much weaker on conversations that do not walk the
+ * ladder tidily.
+ *
+ * Recorded rather than rounded up, in the style of the PII benchmark next door.
+ * The test fails when the gap gets worse, not when it is large, because the
+ * number being large is the finding. What it cannot answer is whether real
+ * conversations look like the ordered arm or the permuted one: PANC and PJZ are
+ * decoy transcripts Guardian does not hold, and that half of F-8 stays open.
+ */
+async function orderAdherence(seed: number): Promise<TestResult> {
+  const rng = new Rng(seed + 11);
+  const count = scale(400);
+
+  const ordered: Conversation[] = [];
+  for (let i = 0; i < count; i++) ordered.push(grooming(`oa${i}`, rng));
+  const permuted = ordered.map((conversation) => reorderStages(conversation, rng));
+
+  const [orderedOutcomes, permutedOutcomes] = await Promise.all([
+    runConversations(ordered),
+    runConversations(permuted),
+  ]);
+
+  const recallOf = (outcomes: Awaited<ReturnType<typeof runConversations>>): number =>
+    outcomes.filter((o) => tierRank(o.peakTier) >= 2).length / Math.max(1, outcomes.length);
+
+  const orderedRecall = recallOf(orderedOutcomes);
+  const permutedRecall = recallOf(permutedOutcomes);
+  const dropPoints = (orderedRecall - permutedRecall) * 100;
+
+  // Whether both arms still reach the late stages. They do, which is what makes
+  // the gap attributable to the ordering term rather than to lost content.
+  const lateStages = (outcomes: Awaited<ReturnType<typeof runConversations>>): number =>
+    outcomes.filter((o) => o.stagesHit.includes("migrate") || o.stagesHit.includes("coerce")).length;
+
+  const failures: string[] = [];
+  if (dropPoints > ORDER_DROP_BASELINE_POINTS + ORDER_DROP_TOLERANCE_POINTS) {
+    failures.push(
+      `permuting the stage order now costs ${dropPoints.toFixed(1)} points of T2 recall against a recorded ${ORDER_DROP_BASELINE_POINTS} (tolerance ${ORDER_DROP_TOLERANCE_POINTS}). The tier is resting harder on the order than it was.`,
+    );
+  }
+  if (lateStages(permutedOutcomes) < lateStages(orderedOutcomes)) {
+    failures.push(
+      "the permuted arm reached the late stages less often than the ordered arm, so the gap is not attributable to order alone and this measurement is not valid",
+    );
+  }
+
+  return {
+    name: "stage order adherence",
+    required: false,
+    pass: failures.length === 0,
+    detail:
+      failures.length === 0
+        ? `T2 recall ${(orderedRecall * 100).toFixed(1)}% in ladder order, ${(permutedRecall * 100).toFixed(1)}% with the same messages permuted: a ${dropPoints.toFixed(1)} point gap, against a recorded ${ORDER_DROP_BASELINE_POINTS}. Both arms reach the late stages equally often, so the gap is the ordering term. Ordered progression is not validated and must not be marketed as the differentiator until it is measured against transcripts.`
+        : failures.join("; "),
+    metrics: {
+      orderedRecall: round(orderedRecall),
+      permutedRecall: round(permutedRecall),
+      dropPoints: round(dropPoints),
+      dropBaselinePoints: ORDER_DROP_BASELINE_POINTS,
+      orderedReachedLateStages: lateStages(orderedOutcomes),
+      permutedReachedLateStages: lateStages(permutedOutcomes),
+      sample: count,
+    },
+  };
+}
+
+/**
+ * The measured gap, recorded 2026-09-05 at seed 42. Not a target and not an
+ * acceptable level: it is what the kernel does today, written down so a change
+ * that makes it worse is visible and a change that closes it can be seen to
+ * have closed it.
+ */
+const ORDER_DROP_BASELINE_POINTS = 54;
+
+/** Sampling slack. The arms are 400 conversations at full size. */
+const ORDER_DROP_TOLERANCE_POINTS = 8;

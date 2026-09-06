@@ -19,7 +19,7 @@ describe("the queue", () => {
     const page = await listQueue(session);
     expect(page.cases.length).toBeGreaterThan(0);
     expect(page.cases.every((c) => c.customerId === session.customerId)).toBe(true);
-    expect(page.cases[0]!.tier).toBe("T2");
+    expect(page.cases[0].tier).toBe("T2");
     expect(page.summary.total).toBe(page.cases.length);
   });
 
@@ -81,8 +81,8 @@ describe("the viewedByHuman write", () => {
 
     // The ids it actually wrote, not a count: the caller has to reconcile
     // against them rather than assume its whole request landed.
-    const marked = await markExcerptsViewed(session, "pair_4f2a", [before.rows[0]!.id]);
-    expect(marked).toEqual([before.rows[0]!.id]);
+    const marked = await markExcerptsViewed(session, "pair_4f2a", [before.rows[0].id]);
+    expect(marked).toEqual([before.rows[0].id]);
 
     const after = await getTimeline(session, "pair_4f2a");
     if (after.state !== "ready") throw new Error("expected a ready timeline");
@@ -92,7 +92,7 @@ describe("the viewedByHuman write", () => {
   it("returns nothing the second time, so a repeat cannot inflate a read count", async () => {
     const before = await getTimeline(session, "pair_4f2a");
     if (before.state !== "ready") throw new Error("expected a ready timeline");
-    const id = before.rows[0]!.id;
+    const id = before.rows[0].id;
     expect(await markExcerptsViewed(session, "pair_4f2a", [id])).toEqual([id]);
     expect(await markExcerptsViewed(session, "pair_4f2a", [id])).toEqual([]);
   });
@@ -103,7 +103,7 @@ describe("the viewedByHuman write", () => {
 
     const timeline = await getTimeline(session, "pair_4f2a");
     if (timeline.state !== "ready") throw new Error("expected a ready timeline");
-    await markExcerptsViewed(session, "pair_4f2a", [timeline.rows[0]!.id]);
+    await markExcerptsViewed(session, "pair_4f2a", [timeline.rows[0].id]);
 
     const after = await listQueue(session);
     expect(after.cases.find((row) => row.pairId === "pair_4f2a")?.unread).toBe(false);
@@ -112,13 +112,13 @@ describe("the viewedByHuman write", () => {
   it("puts the read on the audit chain, because it is the private-search claim", async () => {
     const timeline = await getTimeline(session, "pair_4f2a");
     if (timeline.state !== "ready") throw new Error("expected a ready timeline");
-    const id = timeline.rows[0]!.id;
+    const id = timeline.rows[0].id;
     await markExcerptsViewed(session, "pair_4f2a", [id]);
 
     const entries = await listAuditEntries(session, { kind: "evidence.read", limit: 10 });
     expect(entries.length).toBe(1);
-    expect(entries[0]!.payload.pairId).toBe("pair_4f2a");
-    expect(entries[0]!.payload.excerptIds).toEqual([id]);
+    expect(entries[0].payload.pairId).toBe("pair_4f2a");
+    expect(entries[0].payload.excerptIds).toEqual([id]);
   });
 
   it("writes nothing for a case in another partition", async () => {
@@ -196,10 +196,10 @@ describe("guild configuration", () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(await listGuildConfigs(otherCustomer)).toEqual([]);
 
-    const updated = await updateGuildConfig(session, rows[0]!.guildId, { enabled: false });
+    const updated = await updateGuildConfig(session, rows[0].guildId, { enabled: false });
     expect(updated?.enabled).toBe(false);
-    expect(await updateGuildConfig(otherCustomer, rows[0]!.guildId, { enabled: true })).toBeNull();
-    expect((await getGuildConfig(session, rows[0]!.guildId))?.enabled).toBe(false);
+    expect(await updateGuildConfig(otherCustomer, rows[0].guildId, { enabled: true })).toBeNull();
+    expect((await getGuildConfig(session, rows[0].guildId))?.enabled).toBe(false);
   });
 });
 
@@ -218,7 +218,7 @@ describe("the audit chain", () => {
   it("holds a verifiable chain and reads one entry at a time", async () => {
     const entries = await listAuditEntries(session, { limit: 40 });
     expect(entries.length).toBe(40);
-    const first = await getAuditEntry(session, entries[entries.length - 1]!.seq);
+    const first = await getAuditEntry(session, entries[entries.length - 1].seq);
     expect(first?.hash).toMatch(/^[a-f0-9]{64}$/);
     expect(await verifyAuditChain()).toMatchObject({ ok: true });
   });

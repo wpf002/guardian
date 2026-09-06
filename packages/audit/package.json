@@ -5,13 +5,22 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
-    "lint": "eslint src"
+    "lint": "eslint ."
   },
-  "dependencies": { "@guardian/schema": "workspace:*" },
-  "devDependencies": { "tsx": "^4.19.0" }
+  "dependencies": {
+    "@guardian/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
 }

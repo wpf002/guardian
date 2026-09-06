@@ -187,7 +187,7 @@ export function ChainTools({
               : (verifyBlockedReason ??
                 "An operator seat verifies a range of the chain. Yours can read it."))
           }
-          onClick={runVerify}
+          onClick={() => void runVerify()}
         >
           Verify this range
         </Button>
@@ -201,7 +201,7 @@ export function ChainTools({
               : (exportBlockedReason ??
                 "An operator seat exports the chain. Yours can read and verify it."))
           }
-          onClick={runExport}
+          onClick={() => void runExport()}
         >
           Export this range as JSON
         </Button>

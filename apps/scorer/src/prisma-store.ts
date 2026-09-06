@@ -463,7 +463,7 @@ function pairColumns(state: PairState, existing: PairRow | null): PairStateColum
 
 function pairStateFromRow(row: PairRow): PairState {
   const counts: Partial<MessageCounts> = isObject(row.messageCounts)
-    ? (row.messageCounts as Partial<MessageCounts>)
+    ? (row.messageCounts)
     : {};
   return {
     actorBand: counts.actorBand ?? "UNKNOWN",

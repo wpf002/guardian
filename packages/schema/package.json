@@ -29,6 +29,10 @@
     "./webhook-target": {
       "types": "./dist/webhook-target.d.ts",
       "default": "./dist/webhook-target.js"
+    },
+    "./candidates": {
+      "types": "./dist/candidates.d.ts",
+      "default": "./dist/candidates.js"
     }
   },
   "files": [
@@ -41,7 +45,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
-    "lint": "eslint src",
+    "lint": "eslint .",
     "prisma": "prisma",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev"

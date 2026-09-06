@@ -90,7 +90,7 @@ export async function getDashboardSummary(
 
   const pairsByTier = { ...EMPTY_TIERS };
   for (const row of tierCounts) {
-    pairsByTier[row.tier as Tier] = row._count._all;
+    pairsByTier[row.tier] = row._count._all;
   }
   const minutes = reviews.reduce((sum, r) => sum + (r.minutesSpent ?? 0), 0);
   const activeUsers = opts.activeUsers ?? 0;
@@ -107,7 +107,7 @@ export async function getDashboardSummary(
     reviewerMinutesPer1kUsers: perThousandPerDay(minutes, activeUsers, windowDays),
     t2PositivePredictiveValue:
       t2Reviews.length >= MIN_DECISIONS_FOR_RATE
-        ? ratioOfConfirmed(t2Reviews.map((r) => ({ decision: r.decision as string })))
+        ? ratioOfConfirmed(t2Reviews.map((r) => ({ decision: r.decision })))
         : null,
     decisionsSampleSize: t2Reviews.length,
     oldestProposalAgeHours: null,

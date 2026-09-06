@@ -377,7 +377,7 @@ describe("notes that could not be filed are refused at write time", () => {
       session,
       pairId: "pair_aa19",
       decision: "confirm",
-      reasonCode: reasonsFor("confirm")[0]!.code,
+      reasonCode: reasonsFor("confirm")[0].code,
       notes: { timeline: "The migration ask lands ten minutes in.", ...notes },
     });
   }

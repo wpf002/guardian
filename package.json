@@ -17,14 +17,17 @@
     "ml:dev": "cd services/ml && uv run uvicorn main:app --reload",
     "ml:test": "cd services/ml && uv run pytest -q",
     "sdk-py:test": "cd packages/sdk-py && uv run pytest -q",
-    "parity": "node scripts/parity.mjs"
+    "parity": "node scripts/parity.mjs",
+    "docs": "node scripts/docs/build-design-html.mjs",
+    "docs:check": "node scripts/docs/build-design-html.mjs --check"
   },
   "devDependencies": {
-    "turbo": "^2.1.0",
-    "typescript": "^5.6.0",
-    "vitest": "^2.1.0",
     "@types/node": "^20.16.0",
     "eslint": "^9.10.0",
-    "prettier": "^3.3.0"
+    "prettier": "^3.3.0",
+    "turbo": "^2.1.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^2.1.0"
   }
 }

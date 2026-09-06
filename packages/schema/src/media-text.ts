@@ -80,7 +80,7 @@ export function findMediaBytesInText(value: unknown, maxDepth = 12): MediaTextFi
 
     if (node === null || typeof node !== "object") return;
     if (seen.some((s) => s === node)) return;
-    seen.push(node as object);
+    seen.push(node);
 
     if (Array.isArray(node)) {
       node.forEach((child, i) => walk(child, `${path}[${i}]`, depth + 1));

@@ -1,5 +1,4 @@
 import { request as httpsRequest, type RequestOptions } from "node:https";
-import type { LookupAddress } from "node:dns";
 import { isPrivateAddress } from "@guardian/schema/webhook-target";
 
 /**
@@ -80,11 +79,7 @@ export function pinnedRequest(
     servername: parsed.hostname,
     lookup: (_hostname, _opts, callback) => {
       // Signature covers both of node's lookup callback shapes.
-      const cb = callback as unknown as (
-        err: NodeJS.ErrnoException | null,
-        address: string | LookupAddress[],
-        family?: number,
-      ) => void;
+      const cb = callback;
       cb(null, pinned, family);
     },
   };

@@ -11,7 +11,6 @@ import {
   type AttemptDeps,
   type AttemptOutcome,
   type BackoffPolicy,
-  type DeliveryPrismaLike,
   type DeliveryStore,
 } from "./delivery.js";
 
@@ -249,12 +248,12 @@ async function main(): Promise<void> {
       `DELIVERY_TIMEOUT_MS (${timeoutMs}) has to be shorter than DELIVERY_CLAIM_TIMEOUT_MS (${claimTimeoutMs}). A request that outlives its claim is reclaimed mid-flight.`,
     );
   }
-  const store = new PrismaDeliveryStore(db as unknown as DeliveryPrismaLike, claimTimeoutMs);
+  const store = new PrismaDeliveryStore(db, claimTimeoutMs);
   // Only for dropped results. Absent when the deployment has no chain key,
   // which is a quieter operator view and never a stopped worker.
   const chainSecret = process.env.AUDIT_CHAIN_SECRET ?? "";
   const audit = chainSecret
-    ? new AuditLog(new PrismaAuditStore(db as never), chainSecret)
+    ? new AuditLog(new PrismaAuditStore(db), chainSecret)
     : undefined;
   if (!audit) {
     console.warn(

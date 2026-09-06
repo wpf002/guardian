@@ -241,7 +241,6 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
   // Carried from one leg of the run to the next. Vitest runs a file's tests in
   // order, and these are one story rather than three independent ones.
   let pairId = "";
-  let deliveryId = "";
 
   const reviewerA: Session = {
     reviewerId: `rev-a-${run}`,
@@ -793,7 +792,6 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
           scoredAt: new Date(),
         },
       });
-      deliveryId = queued.id;
       expect(queued.status).toBe("pending");
       expect(queued.attempt).toBe(0);
       // A delivery carrying a reviewer-confirmed T3 is under the same

@@ -6,8 +6,14 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./delivery": { "types": "./dist/delivery.d.ts", "default": "./dist/delivery.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./delivery": {
+      "types": "./dist/delivery.d.ts",
+      "default": "./dist/delivery.js"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -17,7 +23,7 @@
     "cli": "tsx src/cli.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
-    "lint": "eslint src"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@guardian/schema": "workspace:*",
@@ -25,5 +31,7 @@
     "fastify": "^5.0.0",
     "ioredis": "^5.4.0"
   },
-  "devDependencies": { "tsx": "^4.19.0" }
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
 }

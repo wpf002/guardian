@@ -9,7 +9,7 @@ import type {
   UndoInput,
 } from "@/app/cases/[id]/actions";
 import type { FilingReadiness } from "./filing";
-import type { NcmecIncidentType } from "./incident";
+import type { NcmecIncidentType } from "./incident-types";
 import { ConsequenceCopy } from "./ConsequenceCopy";
 import { DecisionPanel } from "./DecisionPanel";
 import { ReopenPanel } from "./ReopenPanel";

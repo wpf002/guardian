@@ -185,6 +185,10 @@ interface PairRow {
   lexiconVersion: string | null;
   fusionVersion: string | null;
   lastInboundMediaAt: Date | null;
+  /** Which escalation window carried the pair term (ROADMAP S2, F-9). */
+  velocityWindow: string | null;
+  /** Convergence on the receiving account, as fusion applied it (ROADMAP S1). */
+  fanInSummary: unknown;
 }
 
 function toQueueCase(
@@ -337,7 +341,7 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
   const actors = new Map<string, ActorRow>(actorRows.map((a) => [a.hashedUid, a as ActorRow]));
   const now = new Date();
   const queue = toQueueCase(
-    row as unknown as PairRow,
+    row,
     customer?.name ?? session.customerId,
     actors,
     now,
@@ -379,9 +383,10 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
     whySentence,
     features,
     stagePath,
-    // Not persisted yet (DESIGN-UI 13.2 gap 5). Null rather than recomputed:
-    // the case view must not depend on the scorer being reachable.
-    velocityWindow: null,
+    // Read off the pair rather than recomputed: the case view must not depend
+    // on the scorer being reachable, and the events the window was computed
+    // from are deleted by the retention sweep before a reviewer opens the case.
+    velocityWindow: row.velocityWindow,
     actor: {
       hashedUid: row.actorUid,
       band: queue.actorBand,
@@ -389,7 +394,7 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
       pairsInWindow: actorRow?.fanOut7d ?? 0,
       fanOut7d: actorRow?.fanOut7d ?? 0,
       minorFanOut7d: actorRow?.minorFanOut7d ?? 0,
-      fanIn7d: null,
+      fanIn7d: fanInFrom(row.fanInSummary),
       altClusterSize: actorRow?.hints.length ?? 0,
       elevatedRole:
         actorRow && actorRow.role !== "member" && actorRow.role !== "unknown"
@@ -402,8 +407,8 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
         pairId: r.pairId,
         shortId: r.pairId.slice(-4),
         decidedAt: r.createdAt,
-        decision: r.decision as PriorCase["decision"],
-        resultTier: r.resultTier as Tier,
+        decision: r.decision,
+        resultTier: r.resultTier,
         reasonLabel: r.reason ?? "reason not recorded",
       })),
     // No OperatorPolicy model yet (DESIGN-UI 13.2 gap 6).
@@ -452,7 +457,10 @@ export async function getTimeline(session: Session, pairId: string): Promise<Tim
   let previous: number | null = null;
   asArray(bundle.timeline).forEach((raw, index) => {
     const entry = asRecord(raw);
-    const at = new Date(String(entry.ts ?? ""));
+    // typeof rather than String(): the timeline is a Json column, and an
+    // object there would stringify to "[object Object]", which Date reads as
+    // Invalid Date only by luck.
+    const at = new Date(typeof entry.ts === "string" ? entry.ts : "");
     if (Number.isNaN(at.getTime())) return;
     const gapHours = previous === null ? null : (at.getTime() - previous) / 3_600_000;
     previous = at.getTime();
@@ -482,6 +490,12 @@ export async function getTimeline(session: Session, pairId: string): Promise<Tim
           }
         : null,
       viewedByHuman: entry.viewedByHuman === true,
+      channelVisibility:
+        entry.channelVisibility === "public" ||
+        entry.channelVisibility === "private" ||
+        entry.channelVisibility === "group"
+          ? entry.channelVisibility
+          : null,
       gapHoursBefore: gapHours !== null && gapHours >= 2 ? Math.round(gapHours) : null,
     });
   });
@@ -577,7 +591,7 @@ export async function markExcerptsViewed(
       where: { id: pairId, customerId: session.customerId, humanViewedAt: null },
       data: { humanViewedAt: now },
     });
-    await appendAuditInTransaction(session, tx as never, {
+    await appendAuditInTransaction(session, tx, {
       kind: "evidence.read",
       payload: {
         pairId,
@@ -717,8 +731,19 @@ export async function listPriorCases(
     pairId: row.pairId,
     shortId: row.pairId.slice(-4),
     decidedAt: row.createdAt,
-    decision: row.decision as PriorCase["decision"],
-    resultTier: row.resultTier as Tier,
+    decision: row.decision,
+    resultTier: row.resultTier,
     reasonLabel: row.reason ?? "reason not recorded",
   }));
+}
+
+/**
+ * The converging-source count off the pair row, or null where fusion recorded
+ * no fan-IN. Null and zero are different facts: null is a pair scored before
+ * the column existed, zero is a pair where nothing converged.
+ */
+function fanInFrom(value: unknown): number | null {
+  if (typeof value !== "object" || value === null) return null;
+  const count = (value as { convergingSources?: unknown }).convergingSources;
+  return typeof count === "number" ? count : null;
 }

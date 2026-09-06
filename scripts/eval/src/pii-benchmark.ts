@@ -173,9 +173,12 @@ export const CASES: BenchmarkCase[] = [
   { id: "cd-06", category: "coded_language", type: "bypass", labels: ["DIRECTING_USERS_OFF_PLATFORM"], conversation: [{ speaker: "t", text: "the app with the ghost, add me on there" }] },
   { id: "cd-07", category: "coded_language", type: "bypass", labels: ["DIRECTING_USERS_OFF_PLATFORM"], conversation: [{ speaker: "t", text: "cord instead? go to it" }] },
 
-  // --- reversed text. The normalizer has no reversal pass, so this family is
-  // an open gap rather than a passing row. It is committed anyway: a recorded
-  // low number is what makes the gap visible in every run.
+  // --- reversed text. The normalizer reverses a token when that token is a
+  // platform name backwards and is not one forwards, which is the shape this
+  // evasion takes: one word written backwards inside a sentence that still
+  // reads left to right. rv-04 is the remaining miss and is not a reversal
+  // problem: "kik" is a palindrome, so there is nothing to reverse, and no
+  // move verb sits beside it.
   { id: "rv-01", category: "reversed_text", type: "bypass", labels: ["DIRECTING_USERS_OFF_PLATFORM"], conversation: [{ speaker: "t", text: "add me on drocsid" }] },
   { id: "rv-02", category: "reversed_text", type: "bypass", labels: ["DIRECTING_USERS_OFF_PLATFORM"], conversation: [{ speaker: "t", text: "im on tahcpans, find me" }] },
   { id: "rv-03", category: "reversed_text", type: "bypass", labels: ["DIRECTING_USERS_OFF_PLATFORM"], conversation: [{ speaker: "t", text: "margelet, add me there" }] },
@@ -236,16 +239,18 @@ export const CASES: BenchmarkCase[] = [
  * evasion red-team bar in DESIGN.md section 10. A rise is a reason to re-record
  * the line, never a failure.
  *
- * Overall: 52 of 67 obfuscated handoffs seen, and 3 of 15 hard negatives
+ * Overall: 55 of 67 obfuscated handoffs seen, and 0 of 15 hard negatives
  * flagged. The low rows are recorded rather than rounded up, because a gate
  * that hides its own gaps is worth nothing. What each low row means:
  *
  *   puzzle 0.00           Nothing fires. These need a reasoning step the rule
  *                         kernel does not do, and a lexicon cannot close it.
  *                         The row exists so the gap is visible every run.
- *   reversed_text 0.20    The one hit is the generic "add me on" phrase, not
- *                         the reversed platform name. The normalizer has no
- *                         reversal pass. Cheap to add, packages/schema owns it.
+ *   reversed_text 0.80    Was 0.20. reversedReading in packages/schema reverses
+ *                         a token when it is a platform name backwards and not
+ *                         one forwards, leaving the rest of the sentence alone.
+ *                         The remaining miss is a palindrome with no move verb
+ *                         beside it, which is a lexicon question, not this one.
  *   phonetic 0.50         "kiiik" collapses to "kiik" and "whatss appp" does
  *                         not compact to "whatsapp". Run collapsing is capped
  *                         at two characters.
@@ -278,7 +283,7 @@ export const BASELINE: Record<EvasionCategory, number> = {
   leet_substitution: 1,
   phonetic: 0.5,
   coded_language: 0.71429,
-  reversed_text: 0.2,
+  reversed_text: 0.8,
   split_across_turns: 1,
   pretextual: 1,
   puzzle: 0,

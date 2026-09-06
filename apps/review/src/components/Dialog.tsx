@@ -52,8 +52,8 @@ export function Dialog({ open, title, onClose, footer, children }: DialogProps) 
       if (event.key !== "Tab") return;
       const items = focusables();
       if (items.length === 0) return;
-      const first = items[0]!;
-      const last = items[items.length - 1]!;
+      const first = items[0];
+      const last = items[items.length - 1];
       const active = document.activeElement;
       if (event.shiftKey && active === first) {
         event.preventDefault();

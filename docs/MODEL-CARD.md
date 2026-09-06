@@ -59,10 +59,12 @@ Run `pnpm eval` to reproduce. Seed 42. The suite is `scripts/eval/`.
 | Evasion red team | T2 recall 100% plain, 100% after emoji, leet and spacing rewrites |
 | Sextortion script match | 100% recall on reworded scripts, 0 false positives in 100,000 benign strings |
 | Actor fan-out | 60 minor-band contacts detected, contributing 2.01 to the actor score |
+| Coercion controls | A directed imperative fires; fandom talk and self-harm support reach the detector, are refused, and stay out of the queue |
+| Stage order adherence | T2 recall 100% in ladder order, 46% with the same messages permuted. See the limitation below |
 
 ### PII and off-platform migration evasion benchmark
 
-This is the only test that produces an uncomfortable number, which is why it is the most useful one here. 82 hand-written cases modelled on the categories in Roblox's published evasion benchmark. The previous column is the run before the three defects below were fixed.
+This is one of the two tests that produce an uncomfortable number, which is why they are the most useful ones here. 82 hand-written cases modelled on the categories in Roblox's published evasion benchmark. The previous column is the run before the reversal pass was added.
 
 | Category | Recall | Previous |
 |---|---|---|
@@ -71,12 +73,12 @@ This is the only test that produces an uncomfortable number, which is why it is 
 | Leet substitution | 100% | 100% |
 | Split across turns | 100% | 100% |
 | Pretextual | 100% | 100% |
-| Letter spacing | 87.5% | 75% |
+| Letter spacing | 87.5% | 87.5% |
+| Reversed text | 80% | 20% |
 | Coded language | 71% | 71% |
-| Phonetic | 50% | 67% |
-| Reversed text | 20% | 20% |
+| Phonetic | 50% | 50% |
 | Puzzle or riddle encoding | 0% | 0% |
-| **Overall** | **77.6%** over 67 obfuscated handoffs | 79.1% |
+| **Overall** | **82.1%** over 67 obfuscated handoffs | 77.6% |
 
 **0 of 15 hard negatives flagged, down from 3.**
 
@@ -98,7 +100,9 @@ Overall recall fell 1.5 points in the process, and that is the honest part of th
 
 **The rule layer is not a model.** Phase 1 detection is rules over a versioned lexicon plus a MinHash script index. The Roblox PII classifier v2 is wired to its exact input contract but runs only when weights are explicitly enabled; the fallback is a rule and reports itself as one in `model_version`. The stage classifier is phase 2 and reports itself unloaded.
 
-**Evasion is an arms race and this is a snapshot.** Puzzle encoding defeats the normalizer completely today. Reversed text mostly does.
+**Evasion is an arms race and this is a snapshot.** Puzzle encoding defeats the normalizer completely today. Reversed text mostly does not any more: the normalizer reverses a token when that token is a platform name backwards and is not one forwards, leaving the rest of the sentence alone, which is the shape this evasion takes. The one remaining miss is a palindrome with no move verb beside it, which is a lexicon question rather than a normalizer one.
+
+**More than half of the tier rests on the order of the stages.** With the same messages permuted, T2 recall falls from 100% to 46%, while both arms still reach the late stages. This is a measurement of the kernel against itself and not against transcripts, but the number is large and four papers in `docs/RESEARCH.md` 7.4 find that real grooming overlaps, compresses and reorders the ladder. Guardian is therefore substantially weaker on conversations that do not walk it tidily, and ordered progression is a design choice with a recorded cost rather than a validated differentiator. The external half needs PANC or PJZ, which are decoy transcripts Guardian does not hold.
 
 ## Fairness and harm
 

@@ -8,7 +8,7 @@ import {
   INCIDENT_TYPE_NOTES,
   NCMEC_INCIDENT_TYPES,
   type NcmecIncidentType,
-} from "./incident";
+} from "./incident-types";
 import styles from "./Case.module.css";
 
 export interface ReportDraftProps {

@@ -182,6 +182,18 @@ export interface TimelineRow {
   signals: string[];
   media: MediaEvent | null;
   viewedByHuman: boolean;
+  /**
+   * Whether this excerpt came from an open channel, a group, or a private
+   * message, as the customer stated it. Null means they did not say, and the
+   * code reads that as private.
+   *
+   * The kernel has carried this since the compliance-provenance work and
+   * nothing read it (ROADMAP P-9). It belongs in front of a reviewer for two
+   * reasons: Regulation (EU) 2026/1881 treats private messaging differently
+   * from an open channel, and a line said in a server everyone can read is a
+   * different fact from the same line said in a DM.
+   */
+  channelVisibility: "public" | "private" | "group" | null;
   /** Hours of silence before this row, when the gap is worth a labelled spacer. */
   gapHoursBefore: number | null;
 }

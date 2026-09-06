@@ -36,7 +36,7 @@ describe("DataTable", () => {
         onSelect={onSelect}
       />,
     );
-    const first = screen.getAllByRole("row")[1]!;
+    const first = screen.getAllByRole("row")[1];
     expect(first.getAttribute("tabindex")).toBe("0");
     fireEvent.keyDown(first, { key: "Enter" });
     expect(onSelect).toHaveBeenCalledWith(rows[0]);

@@ -36,7 +36,7 @@ export async function getAuditLog(): Promise<AuditLog> {
     return data.auditLog;
   }
   const prisma = await getPrisma();
-  return new AuditLog(new PrismaAuditStore(prisma as never), auditSecret());
+  return new AuditLog(new PrismaAuditStore(prisma), auditSecret());
 }
 
 /**
@@ -53,7 +53,7 @@ export async function getAuditStore(): Promise<AuditStore> {
     return data.auditStore;
   }
   const prisma = await getPrisma();
-  return new PrismaAuditStore(prisma as never);
+  return new PrismaAuditStore(prisma);
 }
 
 export interface AppendAuditInput {

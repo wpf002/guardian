@@ -386,11 +386,11 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
   }
   assertExcerptRead(decision, pair.humanViewedAt);
 
-  const modelTier = pair.tier as Tier;
+  const modelTier = pair.tier;
   const { tier: resultTier, state } = resolveResultTier(decision, modelTier, input.concurrence);
   assertT3Allowed(resultTier, decision, input.concurrence, session);
 
-  const currentRetention = pair.retention as RetentionClass;
+  const currentRetention = pair.retention;
   const retention: RetentionClass = escalateRetention(
     currentRetention,
     retentionForTier(resultTier),
@@ -431,7 +431,7 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
         },
       });
     }
-    const audit = await appendAuditInTransaction(session, tx as never, {
+    const audit = await appendAuditInTransaction(session, tx, {
       kind: "review.decision",
       payload: {
         ...auditPayload(input, reason, modelTier, resultTier, state),
@@ -549,7 +549,7 @@ export async function undoDecision(
     where: { id: reviewId, reviewerId: session.reviewerId, pair: { customerId: session.customerId } },
   });
   if (!review) throw new DecisionRefused("not_found", "That decision is not in your log.");
-  const restoreTier = review.modelTier as Tier;
+  const restoreTier = review.modelTier;
   assertUndoAllowed(restoreTier, review.createdAt);
 
   const { seq } = await prisma.$transaction(async (tx) => {
@@ -557,7 +557,7 @@ export async function undoDecision(
       where: { id: review.pairId, customerId: session.customerId },
       data: { tier: restoreTier, resolvedAt: null },
     });
-    return appendAuditInTransaction(session, tx as never, {
+    return appendAuditInTransaction(session, tx, {
       kind: "review.decision",
       payload: { compensates: reviewId, pairId: review.pairId, restoredTier: restoreTier },
     });

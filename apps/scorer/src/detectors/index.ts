@@ -1,5 +1,5 @@
 import type { AgeBand, Lexicon, SignalKind, Stage } from "@guardian/schema";
-import { normalize, type NormalizedText } from "@guardian/schema";
+import { normalize, reversedReading, type NormalizedText } from "@guardian/schema";
 import {
   findCoercionDirective,
   findHandoffs,
@@ -96,7 +96,44 @@ export function detectMessage(text: string, ctx: DetectContext): {
   return { normalized, detections: detectNormalized(normalized, ctx) };
 }
 
+/**
+ * Every detector over one reading of a message, plus a second reading when the
+ * message was written backwards.
+ *
+ * Reversed-text evasion writes one word backwards inside a sentence that still
+ * reads left to right: "add me on drocsid", "im on tahcpans, find me". The
+ * sentence has to stay readable by a person, which is what makes the shape
+ * predictable. reversedReading returns a reading only when a token that means
+ * nothing forwards is a platform name backwards, so ordinary traffic pays one
+ * string reversal and nothing else, and nothing matches by accident.
+ *
+ * The reversed pass runs here rather than in detectMessage because every caller
+ * that holds a normalized message goes through this function, including the
+ * evaluation harness. Behaviour a benchmark cannot see is behaviour nobody can
+ * hold to a number.
+ */
 export function detectNormalized(n: NormalizedText, ctx: DetectContext): Detection[] {
+  const forward = detectForward(n, ctx);
+
+  const reversed = reversedReading(n, ctx.lexicon.platforms);
+  if (!reversed) return forward;
+
+  for (const detection of detectForward(reversed, ctx)) {
+    // Deduplicated against the forward reading: a phrase that matched both ways
+    // is one finding, and the forward one carries the honest excerpt.
+    if (forward.some((d) => d.kind === detection.kind && d.matched === detection.matched)) continue;
+    forward.push({
+      ...detection,
+      // The excerpt quotes what was written, never the reversal of it. A
+      // reviewer reads the message; the flag says how it matched.
+      excerpt: n.original.slice(0, 280),
+      meta: { ...detection.meta, reversed_text: true },
+    });
+  }
+  return forward;
+}
+
+function detectForward(n: NormalizedText, ctx: DetectContext): Detection[] {
   const out: Detection[] = [];
   const lex = ctx.lexicon;
 

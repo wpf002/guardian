@@ -35,7 +35,7 @@ export function RoleBandFields({ value, onChange, disabled = false }: RoleBandFi
   const [draftBand, setDraftBand] = useState<AgeBand>("A13_15");
   const [error, setError] = useState<string | null>(null);
 
-  const entries = Object.entries(value) as [string, AgeBand][];
+  const entries = Object.entries(value);
 
   function add() {
     const trimmed = draftRole.trim();

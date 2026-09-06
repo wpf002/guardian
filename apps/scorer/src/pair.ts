@@ -299,7 +299,7 @@ function gate(d: Detection, state: PairState): { kind: SignalKind; weight: numbe
   const asymmetric = initiatorRatio >= 0.65;
 
   let weight = d.weight;
-  let kind = d.kind;
+  const kind = d.kind;
 
   switch (d.kind) {
     case "supervision_probe":
@@ -560,7 +560,7 @@ interface OrderedStage {
 function orderedStages(state: PairState): OrderedStage[] {
   return Object.entries(state.firstStageAt)
     .filter(([stage]) => stage !== "none")
-    .map(([stage, at]) => ({ stage: stage as Stage, at: new Date(at as string).getTime() }))
+    .map(([stage, at]) => ({ stage: stage as Stage, at: new Date(at).getTime() }))
     .sort((a, b) => a.at - b.at);
 }
 

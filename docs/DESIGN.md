@@ -116,15 +116,35 @@ For each (actor, target) pair, maintain a stage vector over time. The score is n
 
     pair_score(P) =
         w_prog * progression(stage_hits, order_weights)     // did they walk the ladder
-      + w_vel  * velocity(stage_hits, window=24h)           // how fast
+      + w_vel  * velocity(stage_hits, windows=[4h, 24h, 14d]) // how fast
       + w_asym * asymmetry(initiator_ratio, question_ratio) // who's driving
       + w_gap  * age_gap_multiplier(actor_band, target_band)
       + w_econ * economic_bait_events
       + crit_override(threat_template | payment_after_media | meetup_logistics)
 
+    fused_score(P) = pair_score(P) * fan_in_multiplier(target)
+                   + w_actor * actor_score(A)
+
     progression: pairs of consecutive stages hit in order get bonus,
       (3→4) and (5→6) transitions weighted 2x.
+    velocity: three windows, all read as stages per hour so they compare.
+      The 4h frame separates a hyper-sexualised sprint from an intimacy-seeking
+      campaign, and the 14d frame catches the campaign (EOGP, Webster 2012).
+      The window that carried the term is recorded on the pair.
+    fan_in_multiplier: many older-band accounts converging on one minor-band
+      account, gated so a busy account is not tiered for being busy. A
+      multiplier on the pair term only, so a pair with no behaviour multiplies
+      to nothing.
     crit_override: any critical signal sets tier ≥ T2 regardless of sum.
+
+The 2x on the (3→4) and (5→6) transitions is the least evidenced constant in
+this section. `scripts/eval` measures what it is worth: with the same messages
+in a permuted order, T2 recall falls from 100% to 46% while both arms still
+reach the late stages. Four papers in RESEARCH 7.4 find that real grooming
+overlaps, compresses and reorders the ladder, so more than half of what puts a
+case in front of a reviewer rests on an assumption those papers dispute. Until
+that is measured against transcripts, ordered progression is a design choice
+with a recorded cost, not a validated differentiator.
 
 ### 6.3 Per-actor skew score
 
