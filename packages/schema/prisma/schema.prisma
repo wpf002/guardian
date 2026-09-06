@@ -80,6 +80,25 @@ enum ChannelVisibility {
   group
 }
 
+/// Which escalation window carried the velocity term (ROADMAP S2). A four hour
+/// sprint and a two week campaign are different cases for a reviewer, and the
+/// event rows the window was computed from are deleted by the retention sweep
+/// long before the case is read.
+enum VelocityWindow {
+  fast
+  slow
+  standard
+}
+
+/// A lexicon candidate is a proposal, never a merge. Nothing promotes itself:
+/// the lexicon is versioned because score rows reference the version they ran
+/// under, so a phrase reaches production only in a new version a person cut.
+enum LexiconCandidateStatus {
+  proposed
+  accepted
+  rejected
+}
+
 /// Who wrote a piece of feedback that can reach the lexicon mining loop. The
 /// dismissal control on the mod-channel card is a write path open to anyone
 /// with moderator permissions in the guild, so the writer is recorded.
@@ -156,6 +175,31 @@ model Customer {
   jurisdictionSubdivision String?
   /// Null until counsel or the operator agreement settles it.
   legalBasis LegalBasis?
+  /// IANA zone, e.g. "America/Chicago". The CyberTipline incident fields are
+  /// asked in local time, so a bundle built without this reports UTC and says
+  /// it did. Null means the customer never stated one; it is not a default.
+  timezone String?
+  /// The provider's name and identifier as registered with NCMEC. Both stay
+  /// null until registration, and a report built without them reports them
+  /// empty rather than guessing at the operator's legal name.
+  ncmecProviderName String?
+  ncmecEspId        String?
+  /// The named person NCMEC contacts about a report. Always the customer's
+  /// own staff: Guardian is the agent and is never the point of contact.
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  /// The customer's NCMEC credentials, sealed with the deployment key. The
+  /// credentials belong to the customer; Guardian holds ciphertext at rest and
+  /// never the plaintext. The key id names which key sealed it, so a rotation
+  /// reads as a rotation rather than as a decrypt failure.
+  ncmecCredentialCiphertext String?
+  ncmecCredentialKeyId      String?
+  /// True when this customer's traffic is end to end encrypted. Guardian then
+  /// sees only what a client chose to send it, so a gap in a trajectory is
+  /// expected rather than a finding. Read by the reviewer console, which says
+  /// so on the case rather than letting a reader infer silence.
+  endToEndEncrypted Boolean @default(false)
   createdAt DateTime @default(now())
 
   actors  Actor[]
@@ -163,6 +207,7 @@ model Customer {
   pairs   Pair[]
   bundles EvidenceBundle[]
   violations CustomerViolation[]
+  lexiconCandidates LexiconCandidate[]
 
   @@map("customers")
 }
@@ -281,6 +326,14 @@ model Pair {
   /// queue. Stored rather than recomputed because the bands it derives from are
   /// not on this row.
   suggestedPosture SuggestedPosture?
+  /// Which velocity window carried the pair term (ROADMAP S2). Recomputable
+  /// in principle and not in practice: the events it was computed from are
+  /// deleted by the retention sweep before a reviewer opens the case.
+  velocityWindow VelocityWindow?
+  /// Fan-IN as fusion applied it (ROADMAP S1): distinct accounts on the
+  /// receiving side, how many of those converged under the three guards, and
+  /// the multiplier that produced. Shape is fanInSummarySchema.
+  fanInSummary Json?
   /// Per-excerpt human-viewed flags live in the signals json, one per hit.
   /// This is the pair-level anchor: when a person first read anything here.
   humanViewedAt DateTime?
@@ -441,6 +494,11 @@ model WebhookDelivery {
   customerId String
   /// Webhook event kind, e.g. "tier.assigned".
   kind       String
+  /// The caller's own id for the thing being delivered, so a redelivered
+  /// stream entry enqueues nothing. Null on a row enqueued by a path that has
+  /// no such id; the unique index treats distinct nulls as distinct, which is
+  /// the behaviour those callers already had.
+  externalId String?
   /// Target url as configured on the customer when the delivery was queued.
   url        String
   payload    Json
@@ -464,6 +522,10 @@ model WebhookDelivery {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  /// One delivery per (customer, kind, caller id). A stream entry redelivered
+  /// after a consumer crash would otherwise send the customer the same tier
+  /// twice, and a webhook receiver has no way to tell that from two events.
+  @@unique([customerId, kind, externalId])
   /// The claim query: due rows, oldest schedule first.
   @@index([status, nextAttemptAt])
   /// The dead-letter view, per customer.
@@ -479,6 +541,58 @@ model WebhookDelivery {
 /// "system", a pre-auth refusal as "unknown", and a foreign key with ON UPDATE
 /// CASCADE would rewrite a column the hash covers. The unique constraints on
 /// prevHash and hash make a fork of the chain a database error.
+/// A phrase some feedback path proposed for the lexicon. The mining loop
+/// writes candidates; a person reads them and cuts a new lexicon version.
+/// Nothing here reaches scoring on its own, which is the point: every score
+/// row names the lexicon version it ran under, and a version that changed
+/// under it would make those rows unreproducible.
+///
+/// Scoped to one customer under CLAUDE.md rule 8. Promoting a candidate seen
+/// at one operator into the base lexicon every operator loads is a separate
+/// decision, made by a person, not a side effect of one guild's traffic.
+model LexiconCandidate {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  /// The form after the versioned normalizer ran, and the form as it arrived.
+  /// Both, because the normalizer is versioned too and a candidate mined under
+  /// one version has to stay readable under the next.
+  normalized String
+  surface    String
+  /// Which lexicon list this is proposed for, e.g. "migration.platform".
+  proposedList String
+  /// Which normalizer and lexicon version produced the normalized form.
+  lexiconVersion String
+  /// Who wrote the feedback this came from. A moderator dismissal is a write
+  /// path open to anyone with the permission in a guild, so the writer is on
+  /// the row and a promotion decision can weigh it.
+  source     FeedbackSource @default(unknown)
+  /// Times this phrase has been proposed. The mining signal is repetition
+  /// across conversations, not one moderator's opinion of one message.
+  occurrences Int @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  status      LexiconCandidateStatus @default(proposed)
+  /// Set when a person decides. Free text is deliberately absent: a note here
+  /// would be about a conversation, and this table outlives the conversation.
+  decidedAt   DateTime?
+  decidedBy   String?
+  /// Which lexicon version accepted it, so the promotion is traceable both
+  /// ways. Null while proposed and on a rejection.
+  promotedToVersion String?
+  retention  RetentionClass @default(WATCH_30D)
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  /// One row per phrase per list per customer. A second sighting increments
+  /// occurrences rather than adding a row.
+  @@unique([customerId, proposedList, normalized])
+  @@index([customerId, status, lastSeenAt])
+  @@index([expiresAt])
+  @@map("lexicon_candidates")
+}
+
 model AuditEntry {
   seq        Int      @id
   ts         DateTime @default(now())

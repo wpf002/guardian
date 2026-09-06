@@ -282,6 +282,24 @@ export interface CustomerSettings {
   legalBasis: string | null;
   crossCustomerOptIn: boolean;
   lexiconExtension: Record<string, unknown> | null;
+  /**
+   * The reporting identity: who the operator is when a report is filed. All
+   * nullable, because none of it exists before they register with NCMEC, and a
+   * report built without it says so rather than guessing (ROADMAP P-2).
+   */
+  timezone: string | null;
+  ncmecProviderName: string | null;
+  ncmecEspId: string | null;
+  /** Whether a named point of contact is on file. Never the details. */
+  contactOnFile: boolean;
+  /** Whether the operator's own NCMEC credentials are sealed on the row. */
+  credentialsOnFile: boolean;
+  /**
+   * True when this customer's traffic is end to end encrypted, so Guardian sees
+   * only what a client sent it. A gap in a trajectory is then expected rather
+   * than a finding, and the case page says so (ROADMAP F-7).
+   */
+  endToEndEncrypted: boolean;
 }
 
 export interface AuditEntryView {

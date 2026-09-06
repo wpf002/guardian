@@ -435,7 +435,9 @@ export async function scoreAndDispatch(
 
   const target = opts.webhookFor?.(event.customerId);
   if (!target) return;
-  await dispatch(target, toWebhookPayload(result));
+  // The event id is the idempotency key. A redelivered stream entry scores
+  // to the same tier and lands on the same delivery row.
+  await dispatch(target, toWebhookPayload(result), { externalId: event.externalId });
 }
 
 /**

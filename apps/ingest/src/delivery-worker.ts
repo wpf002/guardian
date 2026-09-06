@@ -1,4 +1,5 @@
 import { hostname } from "node:os";
+import { AuditLog, PrismaAuditStore } from "@guardian/audit";
 import { createPrismaClient } from "@guardian/schema/db";
 import {
   attemptDelivery,
@@ -63,6 +64,12 @@ export interface DeliveryWorkerOptions {
   /** Injected so a test can drive the loop without real timers. */
   sleep?: (ms: number) => Promise<void>;
   onOutcome?: (outcome: AttemptOutcome) => void;
+  /**
+   * The hash chain, for dropped results only. Optional because the worker runs
+   * in deployments that have no chain key, and a missing chain must not stop
+   * delivery. The console reads an absent entry as an absent count.
+   */
+  audit?: AuditLog;
 }
 
 export const DELIVERY_WORKER_DEFAULTS = {
@@ -123,6 +130,11 @@ export async function runDeliveryPass(opts: DeliveryWorkerOptions): Promise<Atte
       });
       outcomes.push(outcome);
       opts.onOutcome?.(outcome);
+      // The attempt happened and its result did not land: another worker had
+      // reclaimed the row, so the customer received this tier twice. Recorded
+      // rather than counted in memory, because the number an operator needs is
+      // over weeks and this process restarts.
+      if (!outcome.settled) await noteDroppedResult(opts, row, outcome);
     } catch (err) {
       // The store threw, not the customer. The row stays claimed and its claim
       // timeout brings it back, which is the same path a crashed worker takes.
@@ -151,6 +163,35 @@ export async function runDeliveryWorker(
     const outcomes = await runDeliveryPass(opts);
     if (shouldStop()) break;
     await sleep(outcomes.length >= batchSize ? busyMs : idleMs);
+  }
+}
+
+/**
+ * Append the dropped result to the chain. Deliberately swallows its own
+ * failure: a chain that is unreachable must not stop delivery, and the console
+ * reads an absent entry as an absent count rather than as a zero.
+ */
+async function noteDroppedResult(
+  opts: DeliveryWorkerOptions,
+  row: { id: string; customerId: string; kind: string; tier: string },
+  outcome: AttemptOutcome,
+): Promise<void> {
+  console.warn(`delivery ${row.id} result dropped: the claim had been reclaimed`);
+  if (!opts.audit) return;
+  try {
+    await opts.audit.append({
+      kind: "delivery.result_dropped",
+      customerId: row.customerId,
+      payload: {
+        deliveryId: row.id,
+        deliveryKind: row.kind,
+        tier: row.tier,
+        attempt: outcome.attempt,
+        statusCode: outcome.statusCode,
+      },
+    });
+  } catch (err) {
+    console.error(`could not record a dropped delivery result (${describeDeliveryError(err)})`);
   }
 }
 
@@ -209,6 +250,17 @@ async function main(): Promise<void> {
     );
   }
   const store = new PrismaDeliveryStore(db as unknown as DeliveryPrismaLike, claimTimeoutMs);
+  // Only for dropped results. Absent when the deployment has no chain key,
+  // which is a quieter operator view and never a stopped worker.
+  const chainSecret = process.env.AUDIT_CHAIN_SECRET ?? "";
+  const audit = chainSecret
+    ? new AuditLog(new PrismaAuditStore(db as never), chainSecret)
+    : undefined;
+  if (!audit) {
+    console.warn(
+      "AUDIT_CHAIN_SECRET is not set, so dropped delivery results will be logged and not recorded.",
+    );
+  }
   const secretFor = customerSecretResolver(
     (db as unknown as { customer: SecretDelegate }).customer,
   );
@@ -230,6 +282,7 @@ async function main(): Promise<void> {
         store,
         secretFor,
         workerName,
+        ...(audit ? { audit } : {}),
         batchSize: Number(process.env.DELIVERY_BATCH_SIZE ?? DELIVERY_WORKER_DEFAULTS.batchSize),
         idleMs: Number(process.env.DELIVERY_IDLE_MS ?? DELIVERY_WORKER_DEFAULTS.idleMs),
         timeoutMs,

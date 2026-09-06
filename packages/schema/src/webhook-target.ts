@@ -31,7 +31,14 @@ export interface TargetRefusal {
   reason: string;
 }
 
-export type TargetCheck = { ok: true } | TargetRefusal;
+/**
+ * A passed check carries the addresses it passed on, so a caller can connect to
+ * one of them rather than re-resolving the name. Between the check and the
+ * connect the name can change what it answers, and re-resolving is what makes
+ * that window exploitable. Empty on a check that did no resolution of its own,
+ * which is what a literal address or an injected checker gives.
+ */
+export type TargetCheck = { ok: true; addresses?: readonly string[] } | TargetRefusal;
 
 const BLOCKED_HOST_SUFFIXES = [".localhost", ".internal", ".local", ".home.arpa"];
 const BLOCKED_HOSTS = new Set(["localhost", "ip6-localhost", "ip6-loopback"]);
@@ -138,5 +145,7 @@ export async function checkWebhookTarget(url: URL): Promise<TargetCheck> {
   if (addresses.some((address) => isPrivateAddress(address))) {
     return { ok: false, reason: REFUSAL };
   }
-  return { ok: true };
+  // Every address this name answered with, all of them public. The caller
+  // connects to one of these rather than asking the resolver again.
+  return { ok: true, addresses };
 }

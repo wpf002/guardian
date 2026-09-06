@@ -908,6 +908,15 @@ async function build(): Promise<MockData> {
         version: "northwood-1",
         migration: ["hop on vc", "add my alt"],
       },
+      // A guild owner who has done the local work and none of the NCMEC
+      // registration, which is the ordinary state and the one worth rendering:
+      // the console has to be readable when the report side is empty.
+      timezone: "America/Chicago",
+      ncmecProviderName: null,
+      ncmecEspId: null,
+      contactOnFile: false,
+      credentialsOnFile: false,
+      endToEndEncrypted: false,
     },
     pairs,
     reviews: buildReviews(now, seqByPair),

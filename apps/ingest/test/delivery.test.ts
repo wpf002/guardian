@@ -570,3 +570,67 @@ describe("the worker loop", () => {
     expect((await store.claimDue(new Date(clock.now()), 10, "w"))).toHaveLength(1);
   });
 });
+
+/**
+ * P-4. A Redis stream entry that was never acknowledged is redelivered after a
+ * consumer crash, the scorer rescores it, and dispatch enqueues again. Without
+ * a key on the row the customer gets the same tier twice and their webhook
+ * receiver has no way to tell that from two events.
+ */
+describe("idempotent enqueue", () => {
+  it("returns the row that already exists rather than queueing a second one", async () => {
+    const store = new MemoryDeliveryStore();
+    const input = {
+      customerId: "cus_1",
+      kind: "tier.assigned" as const,
+      url: URL,
+      payload: payload(),
+      externalId: "msg-77",
+    };
+
+    const first = await enqueueDelivery(store, input, new Date(T0_MS));
+    const second = await enqueueDelivery(store, input, new Date(T0_MS + 5_000));
+
+    expect(second.id).toBe(first.id);
+    expect(store.rows.size).toBe(1);
+    expect(first.externalId).toBe("msg-77");
+  });
+
+  it("scopes the key to the customer and the kind", async () => {
+    const store = new MemoryDeliveryStore();
+    const base = { kind: "tier.assigned" as const, url: URL, externalId: "msg-77" };
+    await enqueueDelivery(store, { ...base, customerId: "cus_1", payload: payload() });
+    await enqueueDelivery(store, {
+      ...base,
+      customerId: "cus_2",
+      payload: payload({ customerId: "cus_2" }),
+    });
+    expect(store.rows.size).toBe(2);
+  });
+
+  /**
+   * Null is not a key. Two deliveries from a caller with no id of its own are
+   * two deliveries, which is also what the Postgres unique index does with
+   * distinct nulls.
+   */
+  it("queues every delivery when no external id is supplied", async () => {
+    const store = new MemoryDeliveryStore();
+    const input = { customerId: "cus_1", kind: "tier.assigned" as const, url: URL, payload: payload() };
+    await enqueueDelivery(store, input);
+    await enqueueDelivery(store, input);
+    expect(store.rows.size).toBe(2);
+  });
+
+  it("refuses an empty external id rather than treating it as absent", async () => {
+    const store = new MemoryDeliveryStore();
+    await expect(
+      enqueueDelivery(store, {
+        customerId: "cus_1",
+        kind: "tier.assigned",
+        url: URL,
+        payload: payload(),
+        externalId: "",
+      }),
+    ).rejects.toThrow();
+  });
+});

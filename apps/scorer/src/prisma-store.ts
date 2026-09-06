@@ -5,6 +5,7 @@ import {
   signalHitSchema,
   textRetainedForTier,
   type AgeBand,
+  type FanInSummary,
   type RetentionClass,
   type SignalHit,
   type SignalKind,
@@ -12,8 +13,9 @@ import {
   type SuggestedPosture,
   type Tier,
   type TierResult,
+  type VelocityWindow,
 } from "@guardian/schema";
-import type { PrismaClient } from "@guardian/schema/db";
+import { DB_NULL, type PrismaClient } from "@guardian/schema/db";
 import type { ActorState, InboundContact } from "./actor.js";
 import type { PairState } from "./pair.js";
 import type { KernelStore } from "./store.js";
@@ -158,6 +160,16 @@ type PairScoreColumns = {
   soleAutomatedBasis?: boolean;
   /** Enforcement or support, as fusion emitted it (ROADMAP S4). */
   suggestedPosture?: SuggestedPosture | null;
+  /**
+   * Which escalation window carried the pair term (ROADMAP S2), and fan-IN as
+   * fusion applied it (ROADMAP S1). Both are recomputable from the event rows
+   * and the event rows are gone: the retention sweep clears T0 text inside 24
+   * hours and deletes watch rows at 30 days, while a case can sit in the queue
+   * behind them. A reviewer who cannot tell a four hour sprint from a two week
+   * campaign is reading a different case.
+   */
+  velocityWindow?: VelocityWindow | null;
+  fanInSummary?: FanInSummary | typeof DB_NULL;
   modelVersion?: string;
   lexiconVersion?: string;
   fusionVersion?: string;
@@ -340,6 +352,8 @@ export class PrismaKernelStore implements KernelStore {
       // reviewer queue has no way to recompute it: the bands it derives from
       // are on the event, not on the pair.
       suggestedPosture: result.suggestedPosture ?? null,
+      velocityWindow: result.velocityWindow ?? null,
+      fanInSummary: result.fanIn ?? DB_NULL,
       windowStart: new Date(result.pair.windowStart),
       windowEnd: new Date(result.pair.windowEnd),
       modelVersion: result.versions.modelVersion,

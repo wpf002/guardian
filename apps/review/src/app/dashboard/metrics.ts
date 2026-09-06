@@ -16,7 +16,14 @@ import { getPrisma, isMockMode } from "@/lib/db";
 import { getMockData } from "@/lib/mock/fixtures";
 import { getDashboardSummary, MIN_DECISIONS_FOR_RATE } from "@/lib/data/dashboard";
 import { getCase, listDecisions, listQueue, BREACH_RISK_MINUTES } from "@/lib/data/cases";
-import { getAuditHead, listAuditEntries, verifyAuditChain } from "@/lib/data/audit";
+import {
+  getAuditHead,
+  getAuditStore,
+  listAuditEntries,
+  verifyAuditChain,
+} from "@/lib/data/audit";
+import { exportChain, type ExportArtifact } from "@guardian/audit";
+import { getDeliveryHealth, type DeliveryHealth } from "@/lib/data/deliveries";
 import type { Session } from "@/lib/auth";
 import type { ReviewDecision, Tier, Versions } from "@/lib/data/types";
 
@@ -191,6 +198,8 @@ export interface DashboardMetrics {
   criticalSignalTotal: number;
   retention: RetentionStatus;
   audit: AuditStatus;
+  /** Webhook deliveries: what died, what is waiting, what was sent twice. */
+  delivery: DeliveryHealth;
   /** The triple the scorer stamped on the most recent score in this partition. */
   currentVersions: Versions;
   versionHistory: VersionSighting[];
@@ -360,14 +369,20 @@ export async function getDashboardMetrics(
   const activeUsers = opts.activeUsers ?? ASSUMED_ACTIVE_USERS;
   const shortSince = new Date(now.getTime() - shortWindowDays * DAY_MS);
 
-  const [queuePage, shortSummary, longSummary, decisions, head, scoreEntries] = await Promise.all([
-    listQueue(session, { limit: 200 }),
-    getDashboardSummary(session, { windowDays: shortWindowDays, activeUsers }),
-    getDashboardSummary(session, { windowDays: longWindowDays, activeUsers }),
-    listDecisions(session, { window: "recent", scope: "partition", limit: 500 }),
-    getAuditHead(),
-    listAuditEntries(session, { kind: "score.assigned", limit: 500 }),
-  ]);
+  const [queuePage, shortSummary, longSummary, decisions, head, scoreEntries, delivery, dropped] =
+    await Promise.all([
+      listQueue(session, { limit: 200 }),
+      getDashboardSummary(session, { windowDays: shortWindowDays, activeUsers }),
+      getDashboardSummary(session, { windowDays: longWindowDays, activeUsers }),
+      listDecisions(session, { window: "recent", scope: "partition", limit: 500 }),
+      getAuditHead(),
+      listAuditEntries(session, { kind: "score.assigned", limit: 500 }),
+      getDeliveryHealth(session),
+      // ROADMAP P-13. Each entry is one POST the customer received twice. The
+      // worker writes these and nothing else counts them, so an empty chain
+      // means nobody has recorded any, which is not the same as none.
+      listAuditEntries(session, { kind: "delivery.result_dropped", limit: 200 }),
+    ]);
 
   /* Queue health. Age is the SLA target minus what is left on it, which is what
      the queue row already carries, so no second clock has to agree with it. */
@@ -512,6 +527,7 @@ export async function getDashboardMetrics(
       entriesInWindow,
       verification,
     },
+    delivery: { ...delivery, droppedResults: dropped.length === 0 ? null : dropped.length },
     currentVersions: versionHistory[0]?.versions ?? shortSummary.versions,
     versionHistory,
     activeSeats: shortSummary.activeSeats,
@@ -524,3 +540,25 @@ export async function getDashboardMetrics(
 }
 
 export { BREACH_RISK_MINUTES };
+
+/**
+ * The regulator export, scoped to the caller's own customer.
+ *
+ * Everything about the scoping is in exportChain: rows belonging to other
+ * customers become withheld placeholders so the chain stays linkable, and an
+ * unscoped export needs a flag this never passes. What is decided here is only
+ * who is asking and what the artifact says about why.
+ */
+export async function buildChainExport(
+  session: Session,
+  purpose?: string,
+): Promise<ExportArtifact> {
+  const store = await getAuditStore();
+  return exportChain(store, {
+    customerId: session.customerId,
+    producedBy: "guardian-review-console",
+    ...(purpose?.trim() ? { purpose: purpose.trim() } : {}),
+    keyCustodian:
+      "The chain key is held by the operator and delivered out of band. It is not in this file.",
+  });
+}

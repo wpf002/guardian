@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { requireRole, requireSession } from "@/lib/auth";
-import { markExcerptsViewed } from "@/lib/data/cases";
+import { getCase, getTimeline, markExcerptsViewed } from "@/lib/data/cases";
+import { getCustomerSettings } from "@/lib/data/settings";
+import {
+  buildReportDraft,
+  NCMEC_INCIDENT_TYPES,
+  type NcmecIncidentType,
+} from "@/components/case";
 import { appendAudit } from "@/lib/data/audit";
 import {
   DecisionRefused,
@@ -166,4 +172,65 @@ export async function recordDraftExportAction(
   } catch {
     return { ok: false };
   }
+}
+
+/**
+ * Rebuild the drafted report under an incident type the reviewer chose.
+ *
+ * NCMEC takes one incidentType per report and routes and prioritises on it.
+ * Three of the eight are reachable from Guardian's signals; the other five
+ * describe things its detectors do not assert, so a person is the only way to
+ * reach them (ROADMAP P-11).
+ *
+ * The draft is rebuilt on the server rather than patched in the browser, for
+ * the same reason it was built there in the first place: the bundle and the
+ * excerpts stay on this side, and a text the browser edited is a text nobody
+ * can vouch for. The choice is recorded on the chain, because which type a
+ * report was filed under is a decision a person made about a case.
+ */
+export async function redraftForIncidentTypeAction(
+  pairId: string,
+  incidentType: NcmecIncidentType,
+): Promise<{ draft: string }> {
+  const session = await requireRole("owner");
+  if (!NCMEC_INCIDENT_TYPES.includes(incidentType)) {
+    throw new Error("Not one of the eight CyberTipline incident types.");
+  }
+
+  const detail = await getCase(session, pairId);
+  if (!detail) throw new Error("No such case on this partition.");
+  const timeline = await getTimeline(session, pairId);
+  const settings = await getCustomerSettings(session);
+  const jurisdiction = settings?.jurisdictionCountry
+    ? settings.jurisdictionSubdivision
+      ? `${settings.jurisdictionCountry}-${settings.jurisdictionSubdivision}`
+      : settings.jurisdictionCountry
+    : null;
+
+  const draft = buildReportDraft({
+    detail,
+    timeline,
+    reviewerName: session.displayName,
+    jurisdiction,
+    generatedAt: new Date(),
+    incident: { incidentType, source: "reviewer", drivenBy: [] },
+  });
+
+  // Best effort. A chain that is unreachable must not stop a filer from having
+  // the right type on the text in front of them.
+  try {
+    await appendAudit(session, {
+      kind: "review.decision",
+      payload: {
+        pairId,
+        reviewerId: session.reviewerId,
+        action: "incident_type_chosen",
+        incidentType,
+      },
+    });
+  } catch {
+    // Logged by appendAudit. The draft is still correct.
+  }
+
+  return { draft };
 }

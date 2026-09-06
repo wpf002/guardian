@@ -606,6 +606,7 @@ describe("retention sweep", () => {
       pair: capture,
       actor: capture,
       evidenceBundle: capture,
+      webhookDelivery: capture,
     });
     await delegate.deleteExpiredPairs(new Date());
     expect(seen[0]!.reviews).toEqual({ none: {} });
@@ -628,6 +629,7 @@ describe("retention sweep", () => {
       pair: capture,
       actor: capture,
       evidenceBundle: capture,
+      webhookDelivery: capture,
     });
     const cutoff = new Date("2026-09-02T12:00:00Z");
     await delegate.clearExpiredText(cutoff);

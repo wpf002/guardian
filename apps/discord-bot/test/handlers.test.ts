@@ -1,7 +1,7 @@
 import { AuditLog, MemoryAuditStore } from "@guardian/audit";
 import { Kernel, MemoryKernelStore } from "@guardian/scorer";
 import { newCustomerSalt } from "@guardian/schema";
-import { Client, Events, GatewayIntentBits, type Message } from "discord.js";
+import { Client, Events, GatewayIntentBits, type ClientEvents } from "discord.js";
 import { describe, expect, it } from "vitest";
 import { HandlerDeps, guarded, registerHandlers } from "../src/bot.js";
 import { MemoryPairLookup } from "../src/commands.js";
@@ -62,8 +62,10 @@ describe("listener guards", () => {
     const c = client();
     registerHandlers(c, f.deps);
 
-    // Enough of a Message for the listener to reach the config read.
-    const message = { guildId: "guild-1" } as unknown as Message;
+    // Enough of a Message for the listener to reach the config read. Typed as
+    // the event's own argument rather than as Message: discord.js narrows the
+    // messageCreate payload, and a bare Message does not satisfy emit().
+    const message = { guildId: "guild-1" } as unknown as ClientEvents[Events.MessageCreate][0];
     expect(() => c.emit(Events.MessageCreate, message)).not.toThrow();
     await new Promise((resolve) => setTimeout(resolve, 0));
 

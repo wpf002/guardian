@@ -16,8 +16,15 @@ const event = {
 };
 
 function clientWith(response: unknown, status = 202) {
-  const fetchImpl = vi.fn(async () =>
-    new Response(JSON.stringify(response), { status, headers: { "content-type": "application/json" } }),
+  // Typed with the fetch signature rather than as a zero-argument thunk. The
+  // assertions below read the second argument, and a thunk types that tuple as
+  // empty, so the test only compiled once its own test files were typechecked.
+  const fetchImpl = vi.fn(
+    async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(JSON.stringify(response), {
+        status,
+        headers: { "content-type": "application/json" },
+      }),
   );
   const client = new GuardianClient({
     apiKey: "gk_1",

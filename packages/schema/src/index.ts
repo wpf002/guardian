@@ -1,6 +1,7 @@
 export * from "./agebands.js";
 export * from "./provenance.js";
 export * from "./types.js";
+export * from "./customer.js";
 export * from "./lexicon.js";
 export * from "./normalize.js";
 export * from "./ids.js";

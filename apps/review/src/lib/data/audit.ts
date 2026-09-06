@@ -13,6 +13,7 @@ import {
   AuditLog,
   PrismaAuditStore,
   type AuditKind,
+  type AuditStore,
   type VerifyResult,
 } from "@guardian/audit";
 import { getPrisma, isMockMode } from "../db";
@@ -36,6 +37,23 @@ export async function getAuditLog(): Promise<AuditLog> {
   }
   const prisma = await getPrisma();
   return new AuditLog(new PrismaAuditStore(prisma as never), auditSecret());
+}
+
+/**
+ * The store, without a chain key.
+ *
+ * Producing an export reads rows and recomputes nothing, so it needs no secret.
+ * Keeping that separate from getAuditLog is the point: the export action can
+ * then run in a process that holds no key at all, and an operator producing a
+ * regulator export is never a reason to put the key somewhere new.
+ */
+export async function getAuditStore(): Promise<AuditStore> {
+  if (isMockMode()) {
+    const data = await getMockData();
+    return data.auditStore;
+  }
+  const prisma = await getPrisma();
+  return new PrismaAuditStore(prisma as never);
 }
 
 export interface AppendAuditInput {

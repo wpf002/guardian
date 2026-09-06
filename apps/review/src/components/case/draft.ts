@@ -14,6 +14,7 @@
 
 import { bandWord } from "@/lib/mock/fixtures";
 import type { CaseDetail, TimelineState } from "@/lib/data/types";
+import { derivedIncident, incidentSourceLine, type IncidentChoice } from "./incident";
 import { buildSignalList } from "./signals";
 
 export { CYBERTIPLINE_URL } from "./cybertipline";
@@ -25,6 +26,13 @@ export interface ReportDraftInput {
   reviewerName: string;
   jurisdiction: string | null;
   generatedAt: Date;
+  /**
+   * The CyberTipline incident type and where it came from. NCMEC routes and
+   * prioritises on this field and takes exactly one per report, so the draft
+   * names it and says whether a person chose it. Omitted, the draft derives it
+   * from the recorded signals, which is what the report builder does too.
+   */
+  incident?: IncidentChoice;
 }
 
 function line(label: string, value: string): string {
@@ -37,6 +45,7 @@ function stamp(at: Date): string {
 
 export function buildReportDraft(input: ReportDraftInput): string {
   const { detail, timeline, reviewerName, jurisdiction, generatedAt } = input;
+  const incident = input.incident ?? derivedIncident(detail, timeline);
   const q = detail.queue;
   const signals = buildSignalList(detail, timeline);
   const rows = timeline.state === "ready" ? timeline.rows : [];
@@ -59,6 +68,8 @@ export function buildReportDraft(input: ReportDraftInput): string {
   out.push(line("Channel", q.channel ?? "not recorded"));
   out.push(line("Jurisdiction", jurisdiction ?? "not recorded"));
   out.push(line("Tier", q.tier));
+  out.push(line("Incident type", incident.incidentType));
+  out.push(line("  how it was set", incidentSourceLine(incident)));
   out.push(
     line(
       "Critical signals",

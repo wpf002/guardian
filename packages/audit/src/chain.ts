@@ -23,6 +23,13 @@ export const AUDIT_KINDS = [
   "retention.deleted",
   "customer.violation",
   "lexicon.updated",
+  // A worker finished an attempt and could not write the result, because
+  // another worker had already reclaimed the row. The POST happened, so the
+  // customer received that tier twice; the row records the other worker's
+  // outcome and nothing else records this one. On the chain because how often
+  // it happens is the signal that the batch and claim clocks are mismatched,
+  // and because a duplicate delivery is a fact about what left the deployment.
+  "delivery.result_dropped",
 ] as const;
 export type AuditKind = (typeof AUDIT_KINDS)[number];
 

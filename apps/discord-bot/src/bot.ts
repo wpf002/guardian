@@ -1,6 +1,12 @@
 import { AuditLog, MemoryAuditStore } from "@guardian/audit";
 import { Kernel, MemoryKernelStore } from "@guardian/scorer";
-import { hashUid, newCustomerSalt, type AgeBand } from "@guardian/schema";
+import {
+  hashUid,
+  newCustomerSalt,
+  reportingIdentityFrom,
+  reportingIdentityGaps,
+  type AgeBand,
+} from "@guardian/schema";
 import { createPrismaClient } from "@guardian/schema/db";
 import {
   AttachmentBuilder,
@@ -26,7 +32,11 @@ import {
 import { MemoryGuildConfigStore, defaultGuildConfig, type GuildConfigStore } from "./config.js";
 import { bandWithProvenance, type DiscordMessageLike, type MemberBand } from "./mapping.js";
 import { BotPipeline } from "./pipeline.js";
-import { PrismaGuildConfigStore, type GuardianDb } from "./prisma-config.js";
+import {
+  PrismaGuildConfigStore,
+  readReportingIdentity,
+  type GuardianDb,
+} from "./prisma-config.js";
 
 /**
  * Gateway adapter. Everything decision-shaped lives in pipeline.ts and
@@ -310,13 +320,23 @@ export async function start(): Promise<void> {
   const auditSecret = process.env.AUDIT_CHAIN_SECRET ?? "";
   const audit = new AuditLog(new MemoryAuditStore(), auditSecret);
   const kernel = new Kernel({ store: new MemoryKernelStore() });
-  const pipeline = new BotPipeline({ kernel, audit, customerId, idSalt });
 
   // Guild configuration lives in Postgres when there is one, so a restart does
   // not forget which channel the owner picked. Everything else stays in process
   // for phase 1 (docs/PHASE1.md, open items).
   const databaseUrl = process.env.DATABASE_URL;
   const db: GuardianDb | null = databaseUrl ? createPrismaClient(databaseUrl) : null;
+
+  // Read once, at startup. A bundle records the identity in force when it was
+  // generated, and joining the customer row per export would instead record
+  // whatever the row says at read time.
+  const reportingIdentity = db
+    ? await readReportingIdentity(db.customer, customerId)
+    : reportingIdentityFrom({});
+  const pipeline = new BotPipeline({ kernel, audit, customerId, idSalt, reportingIdentity });
+  for (const gap of reportingIdentityGaps(reportingIdentity)) {
+    console.warn(`reporting identity: ${gap}`);
+  }
   const configs: GuildConfigStore = db
     ? new PrismaGuildConfigStore(db.guildConfig, customerId)
     : new MemoryGuildConfigStore();

@@ -301,6 +301,7 @@ describe("a store error on the claim does not stop delivery for everybody", () =
       actorUid: "a1b2c3",
       targetUid: "d4e5f6",
       tier: "T2",
+      externalId: null,
       status: "delivering",
       attempt: 0,
       lastStatusCode: null,

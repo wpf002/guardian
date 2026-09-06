@@ -3,11 +3,14 @@ import { notFound } from "next/navigation";
 import { requireSession, roleAllows } from "@/lib/auth";
 import { getCase, getTimeline } from "@/lib/data/cases";
 import { getCustomerSettings } from "@/lib/data/settings";
-import type { TimelineState } from "@/lib/data/types";
+import type { CustomerSettings, TimelineState } from "@/lib/data/types";
 import {
   ActorPanel,
   buildReportDraft,
   buildSignalList,
+  derivedIncident,
+  filingReadiness,
+  type FilingReadiness,
   CaseConsole,
   excerptTotal,
   PolicyPanel,
@@ -22,6 +25,7 @@ import { Card } from "@/components";
 import {
   markExcerptsViewedAction,
   recordDraftExportAction,
+  redraftForIncidentTypeAction,
   submitDecisionAction,
   undoDecisionAction,
 } from "./actions";
@@ -97,11 +101,16 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
 
   const isOwner = roleAllows(session.role, "owner");
   const draftable = detail.queue.tier === "T2" || detail.queue.tier === "T3";
+  // Derived before the draft, because the draft prints it. The reviewer can
+  // change it, and the redraft action rebuilds the text under their choice.
+  const incident = derivedIncident(detail, timeline);
   let draft: string | null = null;
+  let readiness: FilingReadiness | null = null;
   if (isOwner && draftable) {
+    let settings: CustomerSettings | null = null;
     let jurisdiction: string | null = null;
     try {
-      const settings = await getCustomerSettings(session);
+      settings = await getCustomerSettings(session);
       jurisdiction = settings
         ? [settings.jurisdictionCountry, settings.jurisdictionSubdivision]
             .filter(Boolean)
@@ -110,12 +119,17 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
     } catch {
       jurisdiction = null;
     }
+    // The report side: what a recipient needs to route and act on the filing.
+    // A settings read that failed reads as nothing on file, which overstates
+    // the gaps and never understates them.
+    readiness = filingReadiness({ detail, timeline, settings, incident });
     draft = buildReportDraft({
       detail,
       timeline,
       reviewerName: session.displayName,
       jurisdiction,
       generatedAt: new Date(),
+      incident,
     });
   }
 
@@ -194,10 +208,14 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
         resolvedAt={detail.queue.resolvedAt}
         retentionDeadline={null}
         draft={draft}
+        derivedIncidentType={incident.incidentType}
+        incidentTypeDerived={incident.source === "signals"}
+        readiness={readiness}
         claimedBy={claimedBy}
         leaveHref="/cases"
         onSubmit={submitDecisionAction}
         onUndo={undoDecisionAction}
+        onIncidentType={redraftForIncidentTypeAction}
         onExcerptsViewed={markExcerptsViewedAction}
         onExportDraft={recordDraftExportAction}
       />

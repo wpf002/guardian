@@ -1,4 +1,11 @@
-import type { AgeBand, AgeBandProvenance, Tier } from "@guardian/schema";
+import {
+  reportingIdentityFrom,
+  type AgeBand,
+  type AgeBandProvenance,
+  type CustomerIdentityRow,
+  type CustomerReportingIdentity,
+  type Tier,
+} from "@guardian/schema";
 import { guildConfigSchema, type GuildConfig, type GuildConfigStore } from "./config.js";
 
 /**
@@ -70,9 +77,33 @@ export interface PairCountDelegate {
  * process for phase 1; the Prisma audit store is listed as open in
  * docs/PHASE1.md and needs a seeded customers row before it can be wired.
  */
+/**
+ * The customer's own reporting identity, read once at startup. Only the
+ * columns a bundle needs: the sealed NCMEC credential is read by name to
+ * derive the filing mode and its ciphertext is never carried past this read.
+ */
+export interface CustomerIdentityDelegate {
+  findUnique(args: { where: { id: string } }): Promise<CustomerIdentityRow | null>;
+}
+
 export interface GuardianDb {
   guildConfig: GuildConfigDelegate;
   pair: PairCountDelegate;
+  customer: CustomerIdentityDelegate;
+}
+
+/**
+ * Read the operator's reporting identity, or the empty one if there is no row.
+ * A missing customer is not an error here: the bot runs against an in-memory
+ * store in development, and a bundle with an empty identity reports it empty
+ * rather than refusing to exist.
+ */
+export async function readReportingIdentity(
+  delegate: CustomerIdentityDelegate,
+  customerId: string,
+): Promise<CustomerReportingIdentity> {
+  const row = await delegate.findUnique({ where: { id: customerId } });
+  return reportingIdentityFrom(row ?? {});
 }
 
 export class PrismaGuildConfigStore implements GuildConfigStore {

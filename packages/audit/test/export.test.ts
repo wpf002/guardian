@@ -416,8 +416,10 @@ describe("redaction", () => {
       await exportChain(store, { customerId: "cus_1", redactPayloadKeys: ["actorUid"] }),
     );
 
-    // Rewrite a row and relink around it, the way a forger would.
-    const forged = artifact.entries[1]!;
+    // Rewrite a row and relink around it, the way a forger would. Narrowed
+    // through included(), because a withheld row carries no payload to forge
+    // and filter() hands back the artifact's own object, not a copy.
+    const forged = included(artifact)[1]!;
     forged.payload["tier"] = "T3";
     forged.hash = "b".repeat(64);
     artifact.entries[2]!.prevHash = forged.hash;

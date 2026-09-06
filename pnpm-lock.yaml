@@ -76,6 +76,9 @@ importers:
       '@guardian/audit':
         specifier: workspace:*
         version: link:../../packages/audit
+      '@guardian/report':
+        specifier: workspace:*
+        version: link:../../packages/report
       '@guardian/schema':
         specifier: workspace:*
         version: link:../../packages/schema

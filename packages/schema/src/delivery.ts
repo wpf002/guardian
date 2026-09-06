@@ -124,6 +124,14 @@ export const webhookDeliverySchema = z.object({
   actorUid: z.string(),
   targetUid: z.string().nullable(),
   tier: tierSchema,
+  /**
+   * The caller's own id for the thing being delivered. A stream entry
+   * redelivered after a consumer crash carries the same one, and the store
+   * treats a second enqueue under it as the first one. Null where the caller
+   * has no such id: the unique index treats distinct nulls as distinct, so
+   * those callers keep the behaviour they already had.
+   */
+  externalId: z.string().min(1).max(200).nullable(),
   status: deliveryStatusSchema,
   /** Attempts made so far. 0 until the first worker picks it up. */
   attempt: z.number().int().min(0),
@@ -151,6 +159,13 @@ export const deliveryEnqueueSchema = z
     kind: deliveryKindSchema,
     url: z.string().url(),
     payload: deliveryPayloadSchema,
+    /**
+     * Idempotency key, scoped to (customerId, kind). Supply the id of whatever
+     * produced this delivery: the stream entry id, the score row id, whatever
+     * the caller can reproduce after a crash. Omit it and every enqueue is a
+     * new row, which is what the callers that have no such id already do.
+     */
+    externalId: z.string().min(1).max(200).nullish(),
   })
   .strict();
 export type DeliveryEnqueueInput = z.infer<typeof deliveryEnqueueSchema>;

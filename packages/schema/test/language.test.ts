@@ -36,7 +36,20 @@ describe("accusation guard", () => {
  */
 describe("source scan", () => {
   const root = join(import.meta.dirname, "..", "..", "..");
-  const skipDirs = new Set(["node_modules", "dist", ".next", ".turbo", ".git", "coverage", "docs"]);
+  const skipDirs = new Set([
+    "node_modules",
+    "dist",
+    ".next",
+    ".turbo",
+    ".git",
+    "coverage",
+    "docs",
+    // Python virtualenvs and pytest caches. Both are vendored trees, both are
+    // clean, and walking them only makes the scan slower.
+    ".venv",
+    ".pytest_cache",
+    "__pycache__",
+  ]);
   const skipFiles = new Set(["language.ts", "language.test.ts"]);
 
   function walk(dir: string, out: string[] = []): string[] {

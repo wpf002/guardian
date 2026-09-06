@@ -129,3 +129,117 @@ export function partitionForSweep<T extends PreservableRow>(
   }
   return { deletable, preserved };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Recording a submission                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The write that has to happen when /finish returns.
+ *
+ * Two rows move together. The report row records the NCMEC id, the submission
+ * instant and the end of the preservation period. The bundle the report was
+ * built from ratchets to CASE_1Y with the same end date, because the retention
+ * sweep reads the bundle's own class and would otherwise delete at 30 days the
+ * material a federal duty says must survive a year.
+ *
+ * They are one transaction for the obvious reason: a report row with no
+ * ratcheted bundle is a preservation duty with nothing preserved, and a
+ * ratcheted bundle with no report row is a bundle nobody can explain.
+ */
+export interface SubmissionRecord {
+  bundleId: string;
+  customerId: string;
+  /** Returned by the ESP API. Null for a bundle drafted for the public form. */
+  ncmecReportId: string | null;
+  submittedAt: Date;
+  preserveUntil: Date;
+}
+
+/** The two delegates this needs, structural so no generated type leaks in. */
+export interface PreservationTx {
+  cyberTiplineReport: {
+    update(args: {
+      where: { bundleId: string };
+      data: Record<string, unknown>;
+    }): Promise<unknown>;
+  };
+  evidenceBundle: {
+    findUnique(args: {
+      where: { bundleId: string };
+    }): Promise<{ retention?: string | null; expiresAt?: Date | null } | null>;
+    update(args: {
+      where: { bundleId: string };
+      data: Record<string, unknown>;
+    }): Promise<unknown>;
+  };
+}
+
+export interface PreservationClient {
+  $transaction<T>(fn: (tx: PreservationTx) => Promise<T>): Promise<T>;
+}
+
+/**
+ * Record a submission and ratchet the bundle under it.
+ *
+ * The ratchet is one directional. A bundle already at LEGAL_HOLD stays there,
+ * and an expiry already further out stays further out: preservation is a floor
+ * on how long the material survives, never a ceiling, and a second report on
+ * the same bundle must not pull an existing hold in.
+ */
+export async function recordSubmission(
+  client: PreservationClient,
+  record: SubmissionRecord,
+): Promise<SubmissionRecord> {
+  if (record.preserveUntil.getTime() <= record.submittedAt.getTime()) {
+    throw new Error(
+      "recordSubmission: preserveUntil must be after submittedAt. Use preserveUntil(submittedAt).",
+    );
+  }
+  await client.$transaction(async (tx) => {
+    await tx.cyberTiplineReport.update({
+      where: { bundleId: record.bundleId },
+      data: {
+        ncmecReportId: record.ncmecReportId,
+        status: "submitted",
+        submittedAt: record.submittedAt,
+        preserveUntil: record.preserveUntil,
+        retention: "CASE_1Y",
+      },
+    });
+    // Read and ratchet inside the transaction. A legal hold outranks
+    // preservation and an expiry already further out stays further out, so
+    // this is a floor rather than an assignment. The read is in the same
+    // transaction as the write, which is what stops two submissions on one
+    // bundle from writing the earlier of the two dates.
+    const bundle = await tx.evidenceBundle.findUnique({ where: { bundleId: record.bundleId } });
+    if (bundle === null) {
+      throw new Error(
+        `recordSubmission: no evidence bundle ${record.bundleId}. A report cannot preserve a bundle that is not there.`,
+      );
+    }
+    await tx.evidenceBundle.update({
+      where: { bundleId: record.bundleId },
+      data: ratchetForPreservation(bundle, record.preserveUntil),
+    });
+  });
+  return record;
+}
+
+/**
+ * The retention class and expiry a bundle should hold after a submission,
+ * given what it already holds. Exported so a caller that owns its own write can
+ * apply the same ratchet without going through recordSubmission.
+ */
+export function ratchetForPreservation(
+  current: { retention?: string | null; expiresAt?: Date | null },
+  until: Date,
+): { retention: "CASE_1Y" | "LEGAL_HOLD"; expiresAt: Date | null } {
+  if (current.retention === "LEGAL_HOLD") {
+    // A hold has no expiry and a preservation date must not give it one.
+    return { retention: "LEGAL_HOLD", expiresAt: current.expiresAt ?? null };
+  }
+  const existing = current.expiresAt ?? null;
+  const later = existing !== null && existing.getTime() > until.getTime() ? existing : until;
+  return { retention: "CASE_1Y", expiresAt: later };
+}

@@ -16,7 +16,7 @@
     "delivery-worker": "node dist/delivery-worker.js",
     "cli": "tsx src/cli.ts",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint src"
   },
   "dependencies": {

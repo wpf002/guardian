@@ -33,6 +33,16 @@ export async function getCustomerSettings(session: Session): Promise<CustomerSet
       legalBasis: true,
       crossCustomerOptIn: true,
       lexiconExtension: true,
+      timezone: true,
+      ncmecProviderName: true,
+      ncmecEspId: true,
+      contactName: true,
+      contactEmail: true,
+      // Read as a presence check only. The console never shows a credential
+      // and never holds a plaintext one: this column is ciphertext, and the
+      // only thing said about it is whether there is one.
+      ncmecCredentialCiphertext: true,
+      endToEndEncrypted: true,
     },
   });
   if (!row) return null;
@@ -47,6 +57,12 @@ export async function getCustomerSettings(session: Session): Promise<CustomerSet
       typeof row.lexiconExtension === "object" && row.lexiconExtension !== null
         ? (row.lexiconExtension as Record<string, unknown>)
         : null,
+    timezone: row.timezone,
+    ncmecProviderName: row.ncmecProviderName,
+    ncmecEspId: row.ncmecEspId,
+    contactOnFile: Boolean(row.contactName) && Boolean(row.contactEmail),
+    credentialsOnFile: row.ncmecCredentialCiphertext !== null,
+    endToEndEncrypted: row.endToEndEncrypted,
   };
 }
 

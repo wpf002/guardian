@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type {
   BandClaim,
   ChannelVisibility,
+  CustomerReportingIdentity,
   EvidenceBundle,
   EvidenceTimelineRow,
   Jurisdiction,
@@ -117,6 +118,27 @@ export interface BuildBundleInput {
   reporter?: ReporterInput;
   /** The reviewer decision behind this bundle. Absent on a kernel-generated one. */
   reviewer?: ReviewerContext | null;
+}
+
+/**
+ * Spread a customer's reporting identity into the four bundle inputs it feeds.
+ * Callers that hold a customer row use this rather than copying five fields by
+ * hand, which is how they came to be omitted everywhere but the e2e.
+ */
+export function bundleInputsFor(
+  identity: CustomerReportingIdentity,
+): Pick<BuildBundleInput, "jurisdiction" | "legalBasis" | "timezone" | "reporter"> {
+  return {
+    jurisdiction: identity.jurisdiction ?? null,
+    legalBasis: identity.legalBasis ?? null,
+    timezone: identity.timezone ?? null,
+    reporter: {
+      providerName: identity.providerName ?? null,
+      espId: identity.espId ?? null,
+      filingMode: identity.filingMode,
+      contactOnFile: identity.contactOnFile,
+    },
+  };
 }
 
 export function buildEvidenceBundle(input: BuildBundleInput): EvidenceBundle {

@@ -1,8 +1,18 @@
 import { Card, EmptyState, PageHeader, Stat } from "@/components";
-import { AuditChainPanel, BarChart, TargetMeter, type BarDatum } from "@/components/dashboard";
+import {
+  AuditChainPanel,
+  BarChart,
+  ChainExportPanel,
+  TargetMeter,
+  ValueTable,
+  type BarDatum,
+  type ChainExportResult,
+  type ValueRow,
+} from "@/components/dashboard";
 import { requireRole } from "@/lib/auth";
 import { assertCopy } from "@/lib/compose";
-import { verifyChainNow } from "./actions";
+import { deadLetterReason } from "@/lib/data/deliveries";
+import { exportChainNow, verifyChainNow } from "./actions";
 import { countWords, minutesWords, percentWords, shortHash, stampUtc } from "./format";
 import {
   getDashboardMetrics,
@@ -64,7 +74,7 @@ const NOT_HERE = assertCopy(
 export default async function DashboardPage() {
   const session = await requireRole("operator");
   const metrics = await getDashboardMetrics(session);
-  return <DashboardView metrics={metrics} verify={verifyChainNow} />;
+  return <DashboardView metrics={metrics} verify={verifyChainNow} exportChain={exportChainNow} />;
 }
 
 export interface DashboardViewProps {
@@ -75,11 +85,12 @@ export interface DashboardViewProps {
     detail: string;
     checkedAt: string;
   }>;
+  exportChain: (purpose?: string) => Promise<ChainExportResult>;
 }
 
 /** Split out so the render can be exercised without a request. */
-export function DashboardView({ metrics, verify }: DashboardViewProps) {
-  const { queue, cost, retention, audit } = metrics;
+export function DashboardView({ metrics, verify, exportChain }: DashboardViewProps) {
+  const { queue, cost, retention, audit, delivery } = metrics;
 
   const tierBars: BarDatum[] = metrics.tierRates.map((row) => ({
     key: `${row.tier}-${row.windowDays}`,
@@ -103,6 +114,14 @@ export function DashboardView({ metrics, verify }: DashboardViewProps) {
     label: row.label,
     value: row.count,
     display: countWords(row.count, "pair", "pairs"),
+  }));
+
+  const deadRows: ValueRow[] = delivery.dead.map((row) => ({
+    key: row.id,
+    endpoint: row.host,
+    tier: row.tier,
+    why: deadLetterReason(row),
+    when: stampUtc(row.updatedAt),
   }));
 
   const retentionBars: BarDatum[] = retention.rows.map((row) => ({
@@ -325,6 +344,58 @@ export function DashboardView({ metrics, verify }: DashboardViewProps) {
               <p className={styles.note}>
                 Verification walks the chain and names the entry that broke, which is what makes a
                 report survive a challenge later. It reads only, and writes nothing to the chain.
+              </p>
+            </Card>
+          </div>
+
+          <div className={styles.pair}>
+            <Card
+              title="Webhook delivery"
+              density="padded"
+              aside={`${delivery.windowDays} day window`}
+            >
+              <div className={styles.stats}>
+                <Stat label="Delivered" value={delivery.deliveredCount} />
+                <Stat label="Waiting or in flight" value={delivery.pendingCount} />
+                <Stat
+                  label="Given up on"
+                  value={delivery.deadCount}
+                  target="will not retry without a requeue"
+                />
+                <Stat
+                  label="Sent twice"
+                  value={delivery.droppedResults}
+                  unavailableNote="nothing has recorded one"
+                  target="a worker's result was dropped"
+                />
+              </div>
+
+              <ValueTable
+                caption={`Deliveries given up on, most recent first, over ${delivery.windowDays} days`}
+                columns={[
+                  { key: "endpoint", header: "Endpoint" },
+                  { key: "tier", header: "Tier" },
+                  { key: "why", header: "Why it stopped" },
+                  { key: "when", header: "Last attempt" },
+                ]}
+                rows={deadRows}
+                emptyMessage="No delivery has been given up on in this window."
+                className={styles.factsSpaced}
+              />
+
+              <p className={styles.note}>
+                {`Sent twice counts attempts whose result could not be written back because another worker had already reclaimed the row. The request left the deployment, so the customer received that tier a second time. A number climbing here means the batch and claim clocks are mismatched, not that anything was lost.`}
+              </p>
+            </Card>
+
+            <Card title="Export for a regulator" density="padded">
+              <ChainExportPanel exportChain={exportChain} />
+              <p className={styles.note}>
+                The artifact carries the entries, the algorithm and the recomputation recipe, so a
+                reader verifies it with an ordinary HMAC and none of Guardian&apos;s code. It is
+                scoped to this partition: entries belonging to other customers travel as
+                placeholders that keep the chain linkable without disclosing anything. The chain key
+                is not in the file and is delivered separately.
               </p>
             </Card>
           </div>

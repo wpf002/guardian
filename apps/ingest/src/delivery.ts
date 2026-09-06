@@ -12,6 +12,7 @@ import {
   type WebhookDelivery,
 } from "@guardian/schema";
 import { checkWebhookTarget, type TargetCheck } from "@guardian/schema/webhook-target";
+import { pinnedRequest } from "./pinned-fetch.js";
 
 /**
  * Reliable webhook delivery (ROADMAP phase 3).
@@ -332,21 +333,37 @@ export async function attemptDelivery(
   let error: string | null = null;
   let retryAfterMs: number | null = null;
 
+  const headers = {
+    "content-type": "application/json",
+    [DELIVERY_HEADERS.timestamp]: String(timestamp),
+    [DELIVERY_HEADERS.signature]: signPayload(body, secret, timestamp),
+  };
+
   try {
-    const res = await doFetch(row.url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        [DELIVERY_HEADERS.timestamp]: String(timestamp),
-        [DELIVERY_HEADERS.signature]: signPayload(body, secret, timestamp),
-      },
-      body,
-      // Never followed. See classifyStatus: a redirect is the one way an
-      // endpoint that passed every target check can still choose where the
-      // signed payload lands.
-      redirect: "manual",
-      signal: controller.signal,
-    });
+    // The addresses the check just passed on are pinned into the socket, so
+    // the connection goes to an address that was inspected rather than to
+    // whatever the name answers a moment later. Only on the default path: a
+    // caller that injected a fetch is a test or a deliberate substitution, and
+    // pinning is about the real network.
+    const pinned = deps.fetchImpl === undefined ? (target.addresses ?? []) : [];
+    const res: { status: number; headers: unknown; type?: string } =
+      pinned.length > 0
+        ? await pinnedRequest(row.url, pinned, {
+            method: "POST",
+            headers,
+            body,
+            signal: controller.signal,
+          })
+        : await doFetch(row.url, {
+            method: "POST",
+            headers,
+            body,
+            // Never followed. See classifyStatus: a redirect is the one way an
+            // endpoint that passed every target check can still choose where
+            // the signed payload lands.
+            redirect: "manual",
+            signal: controller.signal,
+          });
     statusCode = res.status;
     if (isRedirect(res)) {
       verdict = "dead";
@@ -443,7 +460,7 @@ async function resolveTarget(
 }
 
 /** First value of a header, tolerating a fake response that carries a plain object. */
-function headerOf(res: Response, name: string): string | null {
+function headerOf(res: { headers: unknown }, name: string): string | null {
   const headers: unknown = res.headers;
   if (headers === null || headers === undefined) return null;
   if (typeof (headers as Headers).get === "function") return (headers as Headers).get(name);
@@ -502,6 +519,17 @@ export function redeliver(
 
 /* ------------------------------------------------------------------ stores */
 
+/**
+ * The idempotency key of a delivery, or null where the caller supplied no id.
+ * Null is not a key: two deliveries with no external id are two deliveries.
+ */
+function idempotencyKey(
+  row: { customerId: string; kind: string; externalId?: string | null },
+): string | null {
+  const external = row.externalId ?? null;
+  return external === null ? null : `${row.customerId}\u0000${row.kind}\u0000${external}`;
+}
+
 function derive(input: DeliveryEnqueueInput, now: Date, id: string): WebhookDelivery {
   return {
     id,
@@ -512,6 +540,7 @@ function derive(input: DeliveryEnqueueInput, now: Date, id: string): WebhookDeli
     actorUid: input.payload.actorUid,
     targetUid: input.payload.targetUid ?? null,
     tier: input.payload.tier,
+    externalId: input.externalId ?? null,
     status: "pending",
     attempt: 0,
     lastStatusCode: null,
@@ -534,6 +563,14 @@ export class MemoryDeliveryStore implements DeliveryStore {
   claimTimeoutMs = DEFAULT_CLAIM_TIMEOUT_MS;
 
   async enqueue(input: DeliveryEnqueueInput, now: Date = new Date()): Promise<WebhookDelivery> {
+    // The twin of the (customerId, kind, externalId) unique index. A caller
+    // that supplies no externalId gets a new row every time, which is what a
+    // unique index over a null column does in Postgres too.
+    const key = idempotencyKey(input);
+    if (key !== null) {
+      const existing = [...this.rows.values()].find((row) => idempotencyKey(row) === key);
+      if (existing) return { ...existing };
+    }
     this.seq += 1;
     const row = derive(input, now, `wd_${this.seq}`);
     this.rows.set(row.id, row);
@@ -636,8 +673,26 @@ function isClaimable(row: WebhookDelivery, now: Date, staleBefore: number): bool
  * imported, so the module typechecks without the generated model and can be
  * tested against a fake. Same pattern as prisma-customers.ts.
  */
+export interface DeliveryIdempotencyKey {
+  customerId: string;
+  kind: string;
+  externalId: string;
+}
+
 export interface DeliveryDelegate {
   create(args: { data: Record<string, unknown> }): Promise<Record<string, unknown>>;
+  /**
+   * Used only for the idempotent enqueue. update is empty on purpose: a second
+   * enqueue under the same key is the first one, and nothing about it is newer.
+   */
+  upsert(args: {
+    // Optional, so the generated client's WhereUniqueInput union satisfies
+    // this shape. Every member of that union names a different unique index
+    // and only one of them is the compound key used here.
+    where: { customerId_kind_externalId?: DeliveryIdempotencyKey };
+    create: Record<string, unknown>;
+    update: Record<string, unknown>;
+  }): Promise<Record<string, unknown>>;
   findUnique(args: { where: { id: string } }): Promise<Record<string, unknown> | null>;
   findMany(args: {
     where: Record<string, unknown>;
@@ -693,21 +748,39 @@ export class PrismaDeliveryStore implements DeliveryStore {
 
   async enqueue(input: DeliveryEnqueueInput, now: Date = new Date()): Promise<WebhookDelivery> {
     const draft = derive(input, now, "");
-    const row = await this.db.webhookDelivery.create({
-      data: {
-        customerId: draft.customerId,
-        kind: draft.kind,
-        url: draft.url,
-        payload: draft.payload,
-        actorUid: draft.actorUid,
-        targetUid: draft.targetUid,
-        tier: draft.tier,
-        status: draft.status,
-        attempt: 0,
-        nextAttemptAt: draft.nextAttemptAt,
-        retention: draft.retention,
-        expiresAt: draft.expiresAt,
+    const data = {
+      customerId: draft.customerId,
+      kind: draft.kind,
+      url: draft.url,
+      payload: draft.payload,
+      actorUid: draft.actorUid,
+      targetUid: draft.targetUid,
+      tier: draft.tier,
+      externalId: draft.externalId,
+      status: draft.status,
+      attempt: 0,
+      nextAttemptAt: draft.nextAttemptAt,
+      retention: draft.retention,
+      expiresAt: draft.expiresAt,
+    };
+
+    // A redelivered stream entry carries the id it carried the first time, and
+    // the customer must not be told the same tier twice: a webhook receiver has
+    // no way to tell a duplicate from a second event. With no external id there
+    // is nothing to be idempotent about and this is a plain insert.
+    if (draft.externalId === null) {
+      return toDelivery(await this.db.webhookDelivery.create({ data }));
+    }
+    const row = await this.db.webhookDelivery.upsert({
+      where: {
+        customerId_kind_externalId: {
+          customerId: draft.customerId,
+          kind: draft.kind,
+          externalId: draft.externalId,
+        },
       },
+      create: data,
+      update: {},
     });
     return toDelivery(row);
   }

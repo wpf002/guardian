@@ -8,6 +8,8 @@ import type {
   SubmitDecisionInput,
   UndoInput,
 } from "@/app/cases/[id]/actions";
+import type { FilingReadiness } from "./filing";
+import type { NcmecIncidentType } from "./incident";
 import { ConsequenceCopy } from "./ConsequenceCopy";
 import { DecisionPanel } from "./DecisionPanel";
 import { ReopenPanel } from "./ReopenPanel";
@@ -29,6 +31,11 @@ export interface CaseConsoleProps {
   retentionDeadline: Date | null;
   /** Null for anyone who is not an owner on this partition. */
   draft: string | null;
+  /** The incident type the recorded signals derived, and whether they derived it. */
+  derivedIncidentType: NcmecIncidentType;
+  incidentTypeDerived: boolean;
+  /** What would stop this report being routed. Null for anyone but an owner. */
+  readiness: FilingReadiness | null;
   /** Set when somebody else holds the claim. The view is read only then. */
   claimedBy?: { who: string; sinceMinutes: number } | null;
   leaveHref: string;
@@ -36,6 +43,8 @@ export interface CaseConsoleProps {
   onUndo: (input: UndoInput) => Promise<DecisionOutcome>;
   onExcerptsViewed: (pairId: string, excerptIds: string[]) => Promise<string[]>;
   onExportDraft: (pairId: string, method: "copy" | "download") => Promise<{ ok: boolean }>;
+  /** Rebuilds the draft under a chosen incident type, on the server. */
+  onIncidentType: (pairId: string, incidentType: NcmecIncidentType) => Promise<{ draft: string }>;
 }
 
 /**
@@ -58,12 +67,16 @@ export function CaseConsole({
   resolvedAt,
   retentionDeadline,
   draft,
+  derivedIncidentType,
+  incidentTypeDerived,
+  readiness,
   claimedBy = null,
   leaveHref,
   onSubmit,
   onUndo,
   onExcerptsViewed,
   onExportDraft,
+  onIncidentType,
 }: CaseConsoleProps) {
   const [readCount, setReadCount] = useState(initialReadCount);
   const [reopened, setReopened] = useState(false);
@@ -97,8 +110,16 @@ export function CaseConsole({
         onExcerptsViewed={onExcerptsViewed}
       />
 
-      {draft !== null ? (
-        <ReportDraft pairId={pairId} draft={draft} onExport={onExportDraft} />
+      {draft !== null && readiness !== null ? (
+        <ReportDraft
+          pairId={pairId}
+          draft={draft}
+          derivedIncidentType={derivedIncidentType}
+          incidentTypeDerived={incidentTypeDerived}
+          readiness={readiness}
+          onExport={onExportDraft}
+          onIncidentType={onIncidentType}
+        />
       ) : null}
 
       {claimedBy ? (

@@ -22,13 +22,22 @@ async function metrics(): Promise<DashboardMetrics> {
 const verifyOk = async () =>
   describeVerification({ state: "ok" as const, checked: 40, head: "a".repeat(64), at: new Date() });
 
+/** The export action, stubbed. The real one is exercised in its own test. */
+const exportOk = async (purpose?: string) => ({
+  ok: true,
+  artifact: JSON.stringify({ header: { purpose: purpose ?? null } }),
+  filename: "guardian-audit-cus_1-20260904T100000.json",
+  headline: "12 entries, sequence 1 to 12.",
+  detail: "Verify it with the chain key, delivered separately.",
+});
+
 describe("operator dashboard", () => {
   beforeEach(() => {
     resetMockData();
   });
 
   it("renders queue health, cost, calibration, retention and the chain in mock mode", async () => {
-    render(<DashboardView metrics={await metrics()} verify={verifyOk} />);
+    render(<DashboardView metrics={await metrics()} verify={verifyOk} exportChain={exportOk} />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Health" })).toBeTruthy();
     expect(screen.getByText("Open at T2")).toBeTruthy();
@@ -42,7 +51,7 @@ describe("operator dashboard", () => {
   });
 
   it("shows the four hour target as a queue target and never ranks a reviewer", async () => {
-    render(<DashboardView metrics={await metrics()} verify={verifyOk} />);
+    render(<DashboardView metrics={await metrics()} verify={verifyOk} exportChain={exportOk} />);
 
     expect(screen.getAllByText(/target 4 hours/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/leaderboard/i)).toBeNull();
@@ -51,7 +60,7 @@ describe("operator dashboard", () => {
   });
 
   it("keeps every chart's numbers in the document as a table for a screen reader", async () => {
-    render(<DashboardView metrics={await metrics()} verify={verifyOk} />);
+    render(<DashboardView metrics={await metrics()} verify={verifyOk} exportChain={exportOk} />);
 
     // The tables are always mounted, visually hidden until asked for, so the
     // SVG can stay decorative without hiding the numbers from anybody.
@@ -61,7 +70,7 @@ describe("operator dashboard", () => {
   });
 
   it("toggles a chart's data table open and closed from the keyboard-reachable control", async () => {
-    render(<DashboardView metrics={await metrics()} verify={verifyOk} />);
+    render(<DashboardView metrics={await metrics()} verify={verifyOk} exportChain={exportOk} />);
 
     const toggle = screen.getAllByRole("button", { name: "Show the table" })[0]!;
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
@@ -78,7 +87,7 @@ describe("operator dashboard", () => {
   });
 
   it("reports a verification result from the chain when the control is used", async () => {
-    render(<DashboardView metrics={await metrics()} verify={verifyOk} />);
+    render(<DashboardView metrics={await metrics()} verify={verifyOk} exportChain={exportOk} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Verify now" }));
 
@@ -97,7 +106,7 @@ describe("operator dashboard", () => {
         at: new Date(),
       });
 
-    render(<DashboardView metrics={await metrics()} verify={verifyBroken} />);
+    render(<DashboardView metrics={await metrics()} verify={verifyBroken} exportChain={exportOk} />);
     fireEvent.click(screen.getByRole("button", { name: "Verify now" }));
 
     await waitFor(() => {
@@ -121,7 +130,7 @@ describe("operator dashboard", () => {
         at: new Date(),
       });
 
-    render(<DashboardView metrics={await metrics()} verify={verifyBroken} />);
+    render(<DashboardView metrics={await metrics()} verify={verifyBroken} exportChain={exportOk} />);
     fireEvent.click(screen.getByRole("button", { name: "Verify now" }));
 
     await waitFor(() => {
@@ -135,7 +144,7 @@ describe("operator dashboard", () => {
       throw new Error("chain unreachable");
     };
 
-    render(<DashboardView metrics={await metrics()} verify={verifyThrows} />);
+    render(<DashboardView metrics={await metrics()} verify={verifyThrows} exportChain={exportOk} />);
     fireEvent.click(screen.getByRole("button", { name: "Verify now" }));
 
     await waitFor(() => {
@@ -150,14 +159,14 @@ describe("operator dashboard", () => {
       ...base,
       isEmpty: true,
     };
-    render(<DashboardView metrics={empty} verify={verifyOk} />);
+    render(<DashboardView metrics={empty} verify={verifyOk} exportChain={exportOk} />);
 
     expect(screen.getByText("Nothing has been scored on this partition yet.")).toBeTruthy();
     expect(screen.queryByText("Open at T2")).toBeNull();
   });
 
   it("prints no string that the wording guard would refuse", async () => {
-    const { container } = render(<DashboardView metrics={await metrics()} verify={verifyOk} />);
+    const { container } = render(<DashboardView metrics={await metrics()} verify={verifyOk} exportChain={exportOk} />);
     const text = container.textContent ?? "";
     expect(text.length).toBeGreaterThan(0);
     expect(isAccusatory(text)).toBe(false);

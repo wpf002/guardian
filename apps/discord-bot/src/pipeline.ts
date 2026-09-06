@@ -1,6 +1,7 @@
 import type { AuditLog } from "@guardian/audit";
 import {
   buildEvidenceBundle,
+  bundleInputsFor,
   Kernel,
   type ScoredEvent,
 } from "@guardian/scorer";
@@ -10,7 +11,9 @@ import {
   hashUidOrNull,
   retentionForTier,
   textRetainedForTier,
+  reportingIdentityFrom,
   type AgeBand,
+  type CustomerReportingIdentity,
   type Event,
   type EvidenceBundle,
   type Tier,
@@ -36,6 +39,13 @@ export interface PipelineDeps {
   customerId: string;
   /** Per-guild salt. Discord ids never reach storage unhashed. */
   idSalt: string;
+  /**
+   * Who the operator is, for filing. Read once off the customer row at
+   * startup rather than joined per bundle, so a bundle records the identity in
+   * force when it was generated. Absent means the customer has registered
+   * nothing yet, and the bundle reports every field of it empty.
+   */
+  reportingIdentity?: CustomerReportingIdentity;
   /** How many recent messages per pair to keep for the bundle. */
   timelineDepth?: number;
 }
@@ -198,6 +208,7 @@ export class BotPipeline {
       versions: this.deps.kernel.versionTriple,
       provenance: [{ surface: "discord", sourceId: guildId }],
       auditHead: head.hash,
+      ...bundleInputsFor(this.deps.reportingIdentity ?? reportingIdentityFrom({})),
     });
 
     await this.deps.audit.append({

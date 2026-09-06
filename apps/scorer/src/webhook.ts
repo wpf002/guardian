@@ -91,11 +91,23 @@ export function toWebhookPayload(result: TierResult): WebhookPayload {
  * failed enqueue is retried from the queue. A duplicate tier is a nuisance; a
  * dropped one is the bug this replaced.
  */
+export interface DispatchOptions {
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+  /**
+   * The id of whatever produced this tier, normally the customer's own message
+   * id for the event that was scored. It becomes the delivery's idempotency
+   * key, so a stream entry redelivered after a consumer crash rescores and
+   * re-enqueues onto the row that already exists rather than sending the
+   * customer the same tier twice. Omit it and every dispatch is a new row.
+   */
+  externalId?: string | null;
+}
+
 export async function dispatch(
   target: WebhookTarget,
   payload: WebhookPayload,
-  fetchImpl: typeof fetch = fetch,
-  timeoutMs = 5000,
+  options: DispatchOptions = {},
 ): Promise<DispatchResult> {
   if (queue !== null) {
     const row = await queue.enqueue({
@@ -103,10 +115,11 @@ export async function dispatch(
       kind: payload.event,
       url: target.url,
       payload,
+      ...(options.externalId ? { externalId: options.externalId } : {}),
     });
     return { delivered: false, queued: true, deliveryId: row.id };
   }
-  return dispatchNow(target, payload, fetchImpl, timeoutMs);
+  return dispatchNow(target, payload, options.fetchImpl ?? fetch, options.timeoutMs ?? 5000);
 }
 
 /**

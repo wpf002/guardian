@@ -33,6 +33,7 @@ function fakeDelegate(): GuildConfigDelegate & { rows: Map<string, GuildConfigRo
         roleBands: write.roleBands,
         trustedRoleIds: write.trustedRoleIds,
         defaultBand: write.defaultBand,
+        defaultBandProvenance: write.defaultBandProvenance,
         autoTimeoutOnT2: write.autoTimeoutOnT2,
         autoTimeoutMinutes: write.autoTimeoutMinutes,
         excludedChannelIds: write.excludedChannelIds,

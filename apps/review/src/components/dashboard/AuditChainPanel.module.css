@@ -58,3 +58,37 @@
   color: var(--danger);
   font-size: var(--text-sm);
 }
+
+/* The export panel's one input. Shared with AuditChainPanel because the two
+   sit in the same card pair and a second stylesheet for one field would put
+   them a rounding error apart. */
+.field {
+  display: grid;
+  gap: var(--space-1);
+  margin-block-end: var(--space-3);
+  max-width: var(--measure);
+}
+
+.field label {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.field input {
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.field input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.field .detail {
+  font-size: var(--text-xs);
+}

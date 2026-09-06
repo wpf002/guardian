@@ -13,11 +13,12 @@
     "dev:mock": "GUARDIAN_MOCK=1 next dev -p 3100"
   },
   "dependencies": {
+    "@guardian/audit": "workspace:*",
+    "@guardian/report": "workspace:*",
+    "@guardian/schema": "workspace:*",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "@guardian/schema": "workspace:*",
-    "@guardian/audit": "workspace:*",
     "zod": "^3.23.0"
   },
   "devDependencies": {
