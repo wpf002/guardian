@@ -157,6 +157,13 @@ export async function recordDraftExportAction(
   method: "copy" | "download",
 ): Promise<{ ok: boolean; auditSeq?: number }> {
   const session = await requireRole("owner");
+
+  // Rule 6, on the server. The page only renders the draft for a
+  // reviewer-confirmed T3, but a server action is reachable whatever the page
+  // rendered, and this one puts a bundle on the chain as exported.
+  const detail = await getCase(session, pairId);
+  if (!detail?.reviewerConfirmedT3) return { ok: false };
+
   try {
     const { seq } = await appendAudit(session, {
       kind: "bundle.exported",

@@ -700,6 +700,7 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
     // Nothing has been designated: a designation is made at filing, and the
     // actor is the one value this must never default to.
     reportedSubjectUid: null,
+    reviewerConfirmedT3: spec.tier === "T3",
     actor: {
       hashedUid: hashUid(spec.actorUid, MOCK_SALT),
       band: spec.actorBand,

@@ -67,6 +67,9 @@ export function toDiscordMessageLike(message: Message): DiscordMessageLike {
       : null,
     // Count only. The bot never opens an attachment URL.
     attachmentCount: message.attachments.size,
+    // A thread has its own channel id, so an exclusion naming the parent has to
+    // be able to see the parent. Null on anything that is not a thread.
+    parentChannelId: message.channel.isThread() ? (message.channel.parentId ?? null) : null,
   };
 }
 
@@ -222,9 +225,27 @@ export async function handleMessage(message: Message, deps: HandlerDeps): Promis
   // or take the listener down.
   await guarded(deps, "alert", async () => {
     const channel = await message.client.channels.fetch(action.channelId);
-    if (channel && channel.isTextBased() && "send" in channel) {
-      await (channel as TextChannel).send(alert);
+    if (!channel || !channel.isTextBased() || !("send" in channel)) return;
+
+    // Client#channels is a client-wide manager and resolves any channel the bot
+    // can see in any guild. The mod channel id is free text in the console, so
+    // a paste from the wrong tab used to post one guild's alert, naming and
+    // pinging two of its accounts, into an unrelated server. Refuse rather than
+    // send: a dead mod channel an operator can see is better than a card
+    // delivered somewhere nobody consented to receive it.
+    const target = channel as TextChannel;
+    if (!("guildId" in channel) || target.guildId !== message.guildId) {
+      report(
+        deps,
+        "alert",
+        new Error(
+          "the configured mod channel is not in this guild, so the alert was not sent. Set it again with /guardian setup.",
+        ),
+      );
+      return;
     }
+
+    await target.send(alert);
   });
 
   if (action.kind === "alert_and_timeout" && message.member?.moderatable) {

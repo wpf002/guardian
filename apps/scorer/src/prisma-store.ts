@@ -341,11 +341,23 @@ export class PrismaKernelStore implements KernelStore {
       await this.ensureActor(customerId, actorUid, "UNKNOWN", now);
       await this.ensureActor(customerId, targetUid, "UNKNOWN", now);
     }
+    // The tier column is reviewer-owned once a reviewer has set it.
+    //
+    // keepRetention already ratchets retention so a later T0 cannot shorten a
+    // T3 case, and the tier had no equivalent: one more message on a reported
+    // pair rescored it to T1, which drops the case out of T3, makes the drafted
+    // report vanish, and makes packages/report refuse the same case it had just
+    // accepted. The model does not get to unmake the one tier it cannot make
+    // (CLAUDE.md rule 6).
+    //
+    // A reviewer's own path is unaffected: recordDecision writes the tier
+    // through its own transaction in apps/review, not through here.
+    const reviewerOwnsTier = existing?.tier === "T3" && result.producedBy !== "reviewer";
     const columns: PairScoreColumns & Pick<PairStateColumns, "windowStart" | "windowEnd"> = {
       pairScore: result.pair.score,
       actorScore: result.actor.score,
       fusedScore: result.fusedScore,
-      tier: result.tier,
+      ...(reviewerOwnsTier ? {} : { tier: result.tier }),
       criticalSignals: [...result.criticalSignals],
       soleAutomatedBasis: result.soleAutomatedBasis,
       // ROADMAP S4. Without this the posture dies with the request and the

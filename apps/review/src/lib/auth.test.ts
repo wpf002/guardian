@@ -95,14 +95,33 @@ describe("re-resolving a session against the roster", () => {
     delete process.env.REVIEWERS;
   });
 
-  it("takes role and customerId from the roster row, not from the cookie", () => {
+  it("takes the role from the roster row, not from the cookie", () => {
     process.env.REVIEWERS = JSON.stringify(roster);
-    const claim: Session = { ...session, role: "owner", customerId: "cus_elsewhere" };
-    expect(resolveSession(claim)).toMatchObject({
+    expect(resolveSession({ ...session, role: "reviewer" })).toMatchObject({
       reviewerId: "rev_ar",
       role: "owner",
       customerId: "cus_northwood",
     });
+  });
+
+  /**
+   * The customerId is part of the match rather than something the roster
+   * corrects, so a cookie naming another partition is not a session at all.
+   * Matching on the id alone meant Array.find picked the first row with that
+   * id, and a roster with the same person on two customers routed a seat into
+   * the wrong partition (CLAUDE.md rule 8).
+   */
+  it("is not a session when the cookie names a customer the seat is not on", () => {
+    process.env.REVIEWERS = JSON.stringify(roster);
+    expect(resolveSession({ ...session, customerId: "cus_elsewhere" })).toBeNull();
+  });
+
+  it("signs nobody in when the roster lists an id twice", () => {
+    process.env.REVIEWERS = JSON.stringify([
+      roster[0],
+      { ...roster[0], customerId: "cus_other", token: "tok_other" },
+    ]);
+    expect(resolveSession(session)).toBeNull();
   });
 
   it("demotes on the next request rather than at the end of the window", () => {

@@ -92,7 +92,12 @@ export interface WorkerOptions {
   audit: AuditLog;
   /** Which customers this worker instance serves. One partition each. */
   customerIds: string[];
-  webhookFor?: (customerId: string) => WebhookTarget | null;
+  /**
+   * Where this customer's tiers go. Async because it is resolved per dispatch
+   * rather than snapshotted at startup: a URL cleared in settings has to stop
+   * delivery without a restart, the way a rotated signing secret already does.
+   */
+  webhookFor?: (customerId: string) => Promise<WebhookTarget | null> | WebhookTarget | null;
   /** Writes the events row and the pair tier. Absent in tests and the eval harness. */
   persist?: (event: Event, scored: ScoredEvent) => Promise<void>;
   /**
@@ -433,7 +438,7 @@ export async function scoreAndDispatch(
   // T0 is not worth a customer's webhook call.
   if (result.tier === "T0") return;
 
-  const target = opts.webhookFor?.(event.customerId);
+  const target = await opts.webhookFor?.(event.customerId);
   if (!target) return;
   // The event id is the idempotency key. A redelivered stream entry scores
   // to the same tier and lands on the same delivery row.
@@ -580,10 +585,31 @@ async function main(): Promise<void> {
       "no customers to serve: create one with the ingest cli or set GUARDIAN_CUSTOMER_IDS",
     );
   }
-  const targets = new Map<string, WebhookTarget>();
-  for (const c of customers) {
-    if (c.webhookUrl) targets.set(c.id, { url: c.webhookUrl, secret: c.webhookSecret });
-  }
+  /**
+   * Webhook targets, cached briefly rather than frozen at startup.
+   *
+   * This used to be a Map built once from the customers table. An operator who
+   * pasted the wrong endpoint into settings and cleared it a minute later was
+   * told "Cleared. Tier events are not being delivered anywhere", and the
+   * scorer kept enqueueing to the old URL until somebody restarted the process.
+   * The delivery worker already resolves the signing secret per attempt for
+   * exactly this reason; the URL had no equivalent.
+   */
+  const targetCache = new Map<string, { target: WebhookTarget | null; at: number }>();
+  const TARGET_TTL_MS = 30_000;
+  const targetFor = async (customerId: string): Promise<WebhookTarget | null> => {
+    const hit = targetCache.get(customerId);
+    if (hit && Date.now() - hit.at < TARGET_TTL_MS) return hit.target;
+    const row = await db.customer.findUnique({
+      where: { id: customerId },
+      select: { webhookUrl: true, webhookSecret: true },
+    });
+    const target: WebhookTarget | null = row?.webhookUrl
+      ? { url: row.webhookUrl, secret: row.webhookSecret }
+      : null;
+    targetCache.set(customerId, { target, at: Date.now() });
+    return target;
+  };
 
   /**
    * Tiers are handed to a durable delivery row rather than a single fetch, and
@@ -621,7 +647,7 @@ async function main(): Promise<void> {
         customerIds: customers.map((c) => c.id),
         consumerName,
         lease: new RedisPartitionLease(redis),
-        webhookFor: (customerId) => targets.get(customerId) ?? null,
+        webhookFor: targetFor,
         persist: (event, scored) => persistScoredEvent(db, store, event, scored),
       },
       () => stopping,

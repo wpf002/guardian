@@ -96,6 +96,32 @@ export function loadReviewers(raw = process.env.REVIEWERS): ReviewerRecord[] {
       });
     }
   }
+
+  /*
+   * A duplicate reviewer id is refused, whole roster, loudly.
+   *
+   * Nothing states that ids are unique across customers, and the natural roster
+   * for one person covering two partitions has the same id twice. Every lookup
+   * here is an Array.find on the id, so with a duplicate the first row wins:
+   * one seat's token authenticates as the other seat, and a session that signed
+   * in to the second customer reads the first customer's partition on every
+   * request after the sign-in (CLAUDE.md rule 8).
+   *
+   * Refusing the whole roster rather than dropping the later rows is the safe
+   * direction: an empty roster signs nobody in, which somebody notices in
+   * seconds, and a silently dropped seat is a seat quietly reading somebody
+   * else's cases.
+   */
+  const ids = new Set<string>();
+  for (const seat of out) {
+    if (ids.has(seat.id)) {
+      console.error(
+        `[guardian] REVIEWERS lists reviewer id ${seat.id} more than once. Ids have to be unique across customers, because a lookup by id would otherwise route one seat into another customer's partition. No seat is signed in until this is fixed.`,
+      );
+      return [];
+    }
+    ids.add(seat.id);
+  }
   return out;
 }
 
@@ -209,7 +235,15 @@ export function roleAllows(role: Role, minimum: Role): boolean {
  */
 export function resolveSession(claim: Session | null): Session | null {
   if (!claim) return null;
-  const seat = loadReviewers().find((r) => r.id === claim.reviewerId);
+  // Matched on the whole identity the cookie carries, not on the id alone.
+  // Nothing states that reviewer ids are unique across customers, and the
+  // natural roster for one person covering two partitions has the same id
+  // twice: with an id-only match, Array.find returns the first row, so a seat
+  // that signed in to the second customer was served the first customer's
+  // partition on every request after the sign-in (CLAUDE.md rule 8).
+  const seat = loadReviewers().find(
+    (r) => r.id === claim.reviewerId && r.customerId === claim.customerId,
+  );
   if (!seat) return null;
   return {
     reviewerId: seat.id,

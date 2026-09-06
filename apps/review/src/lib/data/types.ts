@@ -225,6 +225,17 @@ export interface CaseDetail {
   accounts: { actorUid: string; targetUid: string };
   /** The account a reviewer designated as the subject of a report, if any. */
   reportedSubjectUid: string | null;
+  /**
+   * Whether a recorded reviewer decision on THIS pair produced tier T3.
+   *
+   * The one fact rule 6 turns on, and it is not the pair's tier: the model
+   * assigns T2 on its own, and a case sitting at T2 has had no decision at all.
+   * The console used to draft a CyberTipline bundle at T2 or T3 and check only
+   * that somebody had opened an excerpt, so an owner could export a federal
+   * report built from a tier the model produced with no reviewer decision
+   * behind it, let alone the two a T3 needs.
+   */
+  reviewerConfirmedT3: boolean;
   priorCases: PriorCase[];
   policy: OperatorPolicy;
   versions: Versions;

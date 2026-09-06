@@ -155,6 +155,28 @@ export function resolveResultTier(
   }
 }
 
+/**
+ * A pair that two reviewers put at T3 is not undone by one.
+ *
+ * The reopen panel refuses this in the browser and the server action had no
+ * equivalent, so a session that had proposed nothing and read nothing could
+ * dismiss a reported case: one person removing a tier two people were required
+ * to create, and the review row it wrote recorded `modelTier: "T3"`, which the
+ * schema documents as the tier the model had assigned. The hash chain then
+ * asserted the model reached T3, which is the one thing rule 6 says it cannot.
+ *
+ * Retracting a report is a real need and a different act. It is not this one,
+ * and building it is a decision about who may do it, not a missing branch here.
+ */
+function assertNotOverwritingT3(currentTier: Tier, concurrence: Concurrence | undefined): void {
+  if (currentTier !== "T3") return;
+  if (concurrence) return;
+  throw new DecisionRefused(
+    "t3_already_recorded",
+    "This case is at tier T3, which two reviewers produced. One reviewer does not undo it. Retracting a confirmed report is a separate act with its own record.",
+  );
+}
+
 function assertT3Allowed(
   resultTier: Tier,
   decision: ReviewDecision,
@@ -323,6 +345,7 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
     assertExcerptRead(decision, pair.humanViewedAt);
 
     const modelTier = pair.queue.tier;
+    assertNotOverwritingT3(modelTier, input.concurrence);
     const { tier: resultTier, state } = resolveResultTier(decision, modelTier, input.concurrence);
     assertT3Allowed(resultTier, decision, input.concurrence, session);
 
@@ -387,6 +410,7 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
   assertExcerptRead(decision, pair.humanViewedAt);
 
   const modelTier = pair.tier;
+  assertNotOverwritingT3(modelTier, input.concurrence);
   const { tier: resultTier, state } = resolveResultTier(decision, modelTier, input.concurrence);
   assertT3Allowed(resultTier, decision, input.concurrence, session);
 

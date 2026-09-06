@@ -233,8 +233,21 @@ describe("the case detail at /cases/[id]", () => {
     expect(fills.length).toBeGreaterThan(negative.length);
   });
 
-  it("gives an owner a drafted report that says Guardian submits nothing", async () => {
+  /**
+   * Rule 6. The draft is built from a reviewer-confirmed T3 and nothing else.
+   * pair_4f2a sits at T2, which the model assigned by itself, so it gets no
+   * draft: drafting there would have been Guardian preparing a federal report
+   * from a tier no person decided.
+   */
+  it("drafts nothing on a case the model tiered and nobody decided", async () => {
     await renderCase("pair_4f2a");
+    expect(
+      screen.queryByRole("heading", { name: "Report draft, for filing at the CyberTipline" }),
+    ).toBeNull();
+  });
+
+  it("gives an owner a drafted report that says Guardian submits nothing", async () => {
+    await renderCase("pair_c5e1");
     expect(
       screen.getByRole("heading", { name: "Report draft, for filing at the CyberTipline" }),
     ).toBeTruthy();

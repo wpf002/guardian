@@ -224,19 +224,31 @@ describe("recordDecision", () => {
     expect(allowed.resultTier).toBe("T2");
   });
 
-  it("refuses to restore a T3 pair through undo", async () => {
-    // A decision on a pair the model left at T3 is the only way to reach an
-    // undo that would put one back, and undo is not the retraction path.
+  /**
+   * A tier two reviewers produced is not undone by one. The reopen panel
+   * refused this in the browser and the server action did not, so a session
+   * that had proposed nothing could dismiss a reported case, and the review row
+   * it wrote recorded modelTier "T3" on a chain that then asserted the model
+   * had reached it.
+   *
+   * This refusal now happens before a review row is written at all, which makes
+   * undoDecision's own cannot_restore_t3 guard unreachable through this path.
+   * That guard stays as the second lock: it is the one that would hold if a
+   * later caller found another way to a decision on a T3 pair.
+   */
+  it("refuses any lone decision on a pair already at T3", async () => {
     await readEverything("pair_c5e1");
-    const result = await recordDecision({
-      session,
-      pairId: "pair_c5e1",
-      decision: "watch",
-      reasonCode: "watch.insufficient_context",
-    });
-    await expect(undoDecision(session, result.review.id)).rejects.toMatchObject({
-      code: "cannot_restore_t3",
-    });
+    for (const [decision, reasonCode] of [
+      ["watch", "watch.insufficient_context"],
+      ["dismiss", "dismiss.same_band_no_gap"],
+    ] as const) {
+      await expect(
+        recordDecision({ session, pairId: "pair_c5e1", decision, reasonCode }),
+      ).rejects.toMatchObject({ code: "t3_already_recorded" });
+    }
+
+    const data = await getMockData();
+    expect(data.pairs.find((p) => p.queue.pairId === "pair_c5e1")?.queue.tier).toBe("T3");
   });
 
   it("undo restores the tier the decision replaced, not a tier the caller picked", async () => {

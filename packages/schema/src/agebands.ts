@@ -129,8 +129,16 @@ export function yearGap(actor: AgeBand, target: AgeBand): number | null {
  * is lawful and must not be inflated, so same-band pairs sit below 1.
  */
 export function ageGapMultiplier(actor: AgeBand, target: AgeBand): number {
-  if (!isMinorBand(target)) return 0.4;
+  // Unknown is tested first, and the order is the whole point. isMinorBand
+  // returns false for UNKNOWN, so with the adult test first an unstated
+  // recipient took the adult-recipient discount of 0.4 and the 0.8 below was
+  // unreachable for the target half. targetBand defaults to UNKNOWN in the
+  // inbound schema and in both SDKs, so that was the default state of every
+  // platform customer who does not populate recipient bands: a missing age
+  // scored cheaper than a stated adult, which is backwards. Missing data
+  // reduces confidence; it does not earn a discount.
   if (actor === "UNKNOWN" || target === "UNKNOWN") return 0.8;
+  if (!isMinorBand(target)) return 0.4;
 
   const gap = bandGap(actor, target);
   if (gap === null) return 0.8;

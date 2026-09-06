@@ -392,6 +392,8 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
     // Null rather than the actor, because the actor is exactly the wrong
     // default and defaulting to it is the bug this field exists to close.
     reportedSubjectUid: null,
+    // Rule 6: a decision on this pair that produced T3, not the pair's tier.
+    reviewerConfirmedT3: reviews.some((r) => r.pairId === row.id && r.resultTier === "T3"),
     actor: {
       hashedUid: row.actorUid,
       band: queue.actorBand,

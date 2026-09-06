@@ -62,6 +62,18 @@ export function filingReadiness(input: FilingReadinessInput): FilingReadiness {
     });
   }
 
+  // Rule 6. Only a human reviewer produces T3, and only a T3 becomes a filing.
+  // humanViewedAt is not a substitute: it says somebody opened an excerpt, not
+  // that anybody decided anything.
+  if (!detail.reviewerConfirmedT3) {
+    gaps.push({
+      severity: "blocking",
+      what: "No reviewer decision has produced tier T3 on this case",
+      gather:
+        "A report is built from a reviewer-confirmed T3 and nothing else. Propose it, and a second reviewer has to uphold it. The model tops out at T2 and cannot make this decision.",
+    });
+  }
+
   // NCMEC displays the reported account as the suspect. Guardian never picks
   // it, and a filing sent before somebody does is a filing where a model's
   // choice about which side of a pair to score became a suspect designation

@@ -104,7 +104,11 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
   if (timelineError) missing.push("the excerpts, because the timeline did not load");
 
   const isOwner = roleAllows(session.role, "owner");
-  const draftable = detail.queue.tier === "T2" || detail.queue.tier === "T3";
+  // Rule 6, at the one place it decides something. The tier is not the test:
+  // the model assigns T2 by itself, so a case at T2 has had no decision at all.
+  // This used to be `tier === "T2" || tier === "T3"`, which drafted a federal
+  // report from a tier the model produced.
+  const draftable = detail.reviewerConfirmedT3;
   // Derived before the draft, because the draft prints it. The reviewer can
   // change it, and the redraft action rebuilds the text under their choice.
   const incident = derivedIncident(detail, timeline);

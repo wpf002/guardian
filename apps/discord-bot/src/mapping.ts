@@ -29,6 +29,15 @@ export interface DiscordMessageLike {
   referencedAuthorId: string | null;
   /** Attachment count only. The bot never reads attachment bytes or URLs. */
   attachmentCount: number;
+  /**
+   * For a thread, the channel it hangs off. Null anywhere else.
+   *
+   * Exclusion was an exact-id test on channelId, and a thread has its own id,
+   * so an owner who excluded #support was still having every thread inside
+   * #support read and scored. The exclusion list is a statement about where
+   * Guardian may not look, and a thread is inside the place it names.
+   */
+  parentChannelId?: string | null;
 }
 
 export type MappingRefusal =
@@ -132,7 +141,12 @@ export function toEvent(
   }
   if (!msg.guildId) return { ok: false, refusal: "no_guild" };
   if (msg.authorBot) return { ok: false, refusal: "bot_author" };
-  if (config.excludedChannelIds.includes(msg.channelId)) {
+  // The thread's parent counts. Excluding a channel and still reading its
+  // threads is reading the place the owner said not to look.
+  if (
+    config.excludedChannelIds.includes(msg.channelId) ||
+    (msg.parentChannelId != null && config.excludedChannelIds.includes(msg.parentChannelId))
+  ) {
     return { ok: false, refusal: "excluded_channel" };
   }
   if (!config.enabled || config.modChannelId === null) return { ok: false, refusal: "not_ready" };

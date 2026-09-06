@@ -77,3 +77,28 @@ describe("statutory brackets", () => {
     expect(crossesStatutoryBracket("A13_15", "A16_17")).toBe(true);
   });
 });
+
+/**
+ * The order of the two guards, which was wrong and silently halved the gap term
+ * for every event with no stated recipient band. targetBand defaults to UNKNOWN
+ * in the inbound schema and in both SDKs.
+ */
+describe("an unknown band is never cheaper than a stated one", () => {
+  it("gives an unstated recipient the unknown factor, not the adult discount", () => {
+    expect(ageGapMultiplier("A21_PLUS", "UNKNOWN")).toBe(0.8);
+    expect(ageGapMultiplier("A21_PLUS", "A18_20")).toBe(0.4);
+    expect(ageGapMultiplier("A21_PLUS", "UNKNOWN")).toBeGreaterThan(
+      ageGapMultiplier("A21_PLUS", "A18_20"),
+    );
+  });
+
+  it("does the same on the actor side, and on both at once", () => {
+    expect(ageGapMultiplier("UNKNOWN", "A13_15")).toBe(0.8);
+    expect(ageGapMultiplier("UNKNOWN", "UNKNOWN")).toBe(0.8);
+    expect(ageGapMultiplier("UNKNOWN", "A18_20")).toBe(0.8);
+  });
+
+  it("still damps a stated adult recipient, which is what 0.4 is for", () => {
+    expect(ageGapMultiplier("A21_PLUS", "A21_PLUS")).toBe(0.4);
+  });
+});
