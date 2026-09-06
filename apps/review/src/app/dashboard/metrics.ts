@@ -24,6 +24,7 @@ import {
 } from "@/lib/data/audit";
 import { exportChain, type ExportArtifact } from "@guardian/audit";
 import { getDeliveryHealth, type DeliveryHealth } from "@/lib/data/deliveries";
+import { getReportRollup, type ReportRollup } from "@/lib/data/reports";
 import type { Session } from "@/lib/auth";
 import type { ReviewDecision, Tier, Versions } from "@/lib/data/types";
 
@@ -200,6 +201,8 @@ export interface DashboardMetrics {
   audit: AuditStatus;
   /** Webhook deliveries: what died, what is waiting, what was sent twice. */
   delivery: DeliveryHealth;
+  /** Reports: drafted, submitted, and still under the preservation duty. */
+  reports: ReportRollup;
   /** The triple the scorer stamped on the most recent score in this partition. */
   currentVersions: Versions;
   versionHistory: VersionSighting[];
@@ -369,7 +372,17 @@ export async function getDashboardMetrics(
   const activeUsers = opts.activeUsers ?? ASSUMED_ACTIVE_USERS;
   const shortSince = new Date(now.getTime() - shortWindowDays * DAY_MS);
 
-  const [queuePage, shortSummary, longSummary, decisions, head, scoreEntries, delivery, dropped] =
+  const [
+    queuePage,
+    shortSummary,
+    longSummary,
+    decisions,
+    head,
+    scoreEntries,
+    delivery,
+    reports,
+    dropped,
+  ] =
     await Promise.all([
       listQueue(session, { limit: 200 }),
       getDashboardSummary(session, { windowDays: shortWindowDays, activeUsers }),
@@ -378,6 +391,7 @@ export async function getDashboardMetrics(
       getAuditHead(),
       listAuditEntries(session, { kind: "score.assigned", limit: 500 }),
       getDeliveryHealth(session),
+      getReportRollup(session),
       // ROADMAP P-13. Each entry is one POST the customer received twice. The
       // worker writes these and nothing else counts them, so an empty chain
       // means nobody has recorded any, which is not the same as none.
@@ -528,6 +542,7 @@ export async function getDashboardMetrics(
       verification,
     },
     delivery: { ...delivery, droppedResults: dropped.length === 0 ? null : dropped.length },
+    reports,
     currentVersions: versionHistory[0]?.versions ?? shortSummary.versions,
     versionHistory,
     activeSeats: shortSummary.activeSeats,

@@ -39,3 +39,4 @@ export {
   type FilingReadiness,
   type FilingSeverity,
 } from "./filing";
+export { ReportTrail } from "./ReportTrail";

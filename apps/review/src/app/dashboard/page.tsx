@@ -90,7 +90,7 @@ export interface DashboardViewProps {
 
 /** Split out so the render can be exercised without a request. */
 export function DashboardView({ metrics, verify, exportChain }: DashboardViewProps) {
-  const { queue, cost, retention, audit, delivery } = metrics;
+  const { queue, cost, retention, audit, delivery, reports } = metrics;
 
   const tierBars: BarDatum[] = metrics.tierRates.map((row) => ({
     key: `${row.tier}-${row.windowDays}`,
@@ -388,6 +388,27 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
               </p>
             </Card>
 
+            <Card title="Reporting" density="padded">
+              <div className={styles.stats}>
+                <Stat label="Drafts taken out of the console" value={reports.draftsExported} />
+                <Stat label="Report records" value={reports.drafted + reports.submitted} />
+                <Stat label="Submitted" value={reports.submitted} />
+                <Stat
+                  label="Under preservation"
+                  value={reports.underPreservation}
+                  target="one year from submission"
+                />
+              </div>
+              <p className={styles.note}>
+                NCMEC publishes no outcome back to the reporter, so no number here can say what an
+                investigator did with a report. These count what left, not what came of it. A draft
+                taken out of the console is a filing Guardian cannot follow: the operator files at
+                the public form themselves.
+              </p>
+            </Card>
+          </div>
+
+          <div className={styles.pair}>
             <Card title="Export for a regulator" density="padded">
               <ChainExportPanel exportChain={exportChain} />
               <p className={styles.note}>

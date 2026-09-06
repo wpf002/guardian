@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession, roleAllows } from "@/lib/auth";
 import { getCase, getTimeline } from "@/lib/data/cases";
+import { getReportTrail } from "@/lib/data/reports";
 import { getCustomerSettings } from "@/lib/data/settings";
 import type { CustomerSettings, TimelineState } from "@/lib/data/types";
 import {
@@ -10,6 +11,7 @@ import {
   buildSignalList,
   derivedIncident,
   filingReadiness,
+  ReportTrail,
   type FilingReadiness,
   CaseConsole,
   excerptTotal,
@@ -106,6 +108,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
   const incident = derivedIncident(detail, timeline);
   let draft: string | null = null;
   let readiness: FilingReadiness | null = null;
+  let trail: Awaited<ReturnType<typeof getReportTrail>> | null = null;
   if (isOwner && draftable) {
     let settings: CustomerSettings | null = null;
     let jurisdiction: string | null = null;
@@ -123,6 +126,8 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
     // A settings read that failed reads as nothing on file, which overstates
     // the gaps and never understates them.
     readiness = filingReadiness({ detail, timeline, settings, incident });
+    // What happened after the draft left, as far as Guardian holds it.
+    trail = await getReportTrail(session, detail.queue.pairId);
     draft = buildReportDraft({
       detail,
       timeline,
@@ -189,6 +194,8 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
       </div>
 
       <PolicyPanel policy={detail.policy} />
+
+      {trail ? <ReportTrail trail={trail} /> : null}
 
       <ProvenanceLine
         versions={detail.versions}

@@ -99,14 +99,24 @@ Everything the four owners deliberately left out, plus what integration turned u
 ## What is open, and what is blocking it
 
 Everything in phases 1 to 3 that needed nothing outside this repository is now
-built. What remains needs a Discord bot token, an NCMEC registration, a signed
-partner, counsel, or real traffic. Two things are open and are not blocked on
-anybody:
+built. One thing is open that is not blocked on a person:
 
 | | What | Why it matters |
 |---|---|---|
-| F-8, external half | Order-adherence against PANC or PJZ | Permuting the stage order costs 54 points of T2 recall. Until that is checked against transcripts, ordered progression is a design choice with a recorded cost, not a differentiator, and it must not be sold as one. |
-| ~~Lint~~ | ~~No eslint config exists, so every workspace's `lint` script has never run~~ | **done.** A root flat config, type-aware over `src` and syntax-only elsewhere, plus the Next config the console already had. It found nine dead bindings, a dead phrase pool in the eval generators, eight literal invisible characters where escapes were meant, five promise-returning click handlers, and eleven `String()` calls over values that could be a `File` or an object. |
+| F-8, external half | Order-adherence against PANC or PJZ | Permuting the stage order costs 54 points of T2 recall. Until that is checked against transcripts, ordered progression is a design choice with a recorded cost, not a differentiator, and it must not be sold as one. Needs dataset access rather than code. |
+
+Everything else that remains is waiting on somebody outside this repository:
+
+| What | Waiting on |
+|---|---|
+| A first real guild | A Discord bot token, and an owner who wants it |
+| Submitting a report rather than drafting one | NCMEC ESP registration, and the P-1 answer about a hash-only file record |
+| Stage classifier, learned fusion | PANC and PJZC access, then labels from real reviewer decisions |
+| Investigator triage (phase 4) | One signed LE or NGO partner |
+| Processor agreement, retention program, UK OSA risk assessment, parent-app consent posture | Counsel |
+| Voice and video (S5) | A partner model. Declared in the DESIGN.md section 5 catalog at weight "none" so it reads as a known false negative rather than an absence |
+
+**The linter now runs.** It had never executed: there was no eslint config anywhere, so `pnpm lint` failed the same way in ten workspaces. A root flat config, type-aware over `src` and syntax-only elsewhere, plus the Next config the console already had. It found nine dead bindings, a dead phrase pool in the eval generators, eight literal invisible characters where escapes were meant, five promise-returning click handlers, and eleven `String()` calls over values that could be a `File` or an object.
 
 ## Phase 2: stage classifier and review queue
 
@@ -155,7 +165,7 @@ Full status: [PHASE3.md](PHASE3.md).
 | Independent audit export for regulators | done | `packages/audit/src/export.ts`. Self-contained artifact with the recomputation recipe, verified offline from the artifact plus the key, scoped per customer with rule 8 refusals and other customers' rows visibly withheld. An artifact where no row could be recomputed fails rather than passing, because the key is never used on that path. The dashboard export button is still open. |
 | Webhook deliveries under the retention sweep | done | A `deliveries` step in `apps/ingest/src/retention-job.ts`. Rule 7 covers the new table. |
 | Phase 3 end to end against live infrastructure | done | `scripts/integration/e2e.test.ts`. T2 to a second reviewer's concurrence to T3 through `apps/review/src/lib/decisions.ts`, then bundle, report, completeness, a bytes assertion, delivery backoff and an offline-verified audit export. |
-| Report status and outcome trail back to the reporter | planned | Moved down from phase 2. Australia's eSafety undertaking (Aug 2026) makes outcome notification binding for Roblox. Tickets vanishing into a black box was the core Schlep grievance. |
+| Report status and outcome trail back to the reporter | **done** | `getReportTrail` and a panel on the case, plus a reporting card on the dashboard. Everything on the trail comes from the hash chain or a stored row, so it cannot say something happened that the chain does not record. The last line is the point: NCMEC publishes no outcome back to the reporter, so the trail says where Guardian's knowledge ends rather than leaving a reader to assume somebody is still watching. That black box is the grievance that pushed civilian hunters into publishing instead of reporting. |
 | Processor agreement and retention program | planned | counsel |
 | UK Online Safety Act children's risk assessment | planned | Both an exposure and an unclaimed sales wedge. Role-derived Discord bands do not satisfy highly-effective age assurance. |
 
