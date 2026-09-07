@@ -49,6 +49,18 @@ export interface QueueFilters {
 }
 
 /** One queue row. Three lines, never four (DESIGN-UI 6). */
+/**
+ * A line of the conversation as the queue shows it.
+ *
+ * `from` is a side, not a person: "older" and "younger" are the two bands on
+ * the pair, and the row never carries a name because there is never one to
+ * carry (CLAUDE.md rule 8).
+ */
+export interface QueueExcerpt {
+  text: string;
+  from: "older" | "younger";
+}
+
 export interface QueueCase {
   pairId: string;
   /** Last four of the pair id. The header names the pair, never the people. */
@@ -69,6 +81,22 @@ export interface QueueCase {
   messageCount: number;
   spanHours: number;
   mediaEventCount: number;
+  /**
+   * One line of the conversation, for the queue row.
+   *
+   * The reviewer's only question at the queue is whether to open this case, and
+   * a description of a conversation is a worse answer than a line of it. The
+   * line is chosen server-side and it is never the worst thing said: threat and
+   * sextortion language stays collapsed behind an explicit reveal on the case
+   * page, so the queue takes the earliest recognisable move instead. Null when
+   * the excerpts are gone under retention, or when every line on the case is a
+   * collapsed span.
+   */
+  excerpt: QueueExcerpt | null;
+  /** How many of the six stages were reached. The trajectory, as a count. */
+  stagesReached: number;
+  /** When the pair arrived. The row prints a clock time, not a countdown. */
+  createdAt: Date;
   /** Null on T1: the card prints "no SLA (watch)" so the absence is a statement. */
   slaRemainingMinutes: number | null;
   claim: ClaimState;

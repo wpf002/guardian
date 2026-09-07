@@ -138,7 +138,6 @@ export default async function QueuePage({ searchParams }: QueuePageProps) {
       <QueueHeader
         summary={page.summary}
         rankingSentence={RANKING_SENTENCE}
-        sessionStartedAt={new Date(session.issuedAt)}
         notice={notice}
       />
 

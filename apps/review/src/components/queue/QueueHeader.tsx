@@ -1,4 +1,3 @@
-import { SessionTimer } from "@/components/SessionTimer";
 import type { QueueSummary } from "@/lib/data/types";
 import { shortTime } from "./words";
 import styles from "./QueueHeader.module.css";
@@ -7,8 +6,6 @@ export interface QueueHeaderProps {
   summary: QueueSummary;
   /** Printed, because a reviewer who cannot see why A is above B loses trust. */
   rankingSentence: string;
-  /** Stand-in for the shift start until a reviewer session row exists. */
-  sessionStartedAt: Date;
   /** A short statement about the last action, when there is one. */
   notice?: string | null;
 }
@@ -19,14 +16,14 @@ export interface QueueHeaderProps {
  * ranking sentence moved into a disclosure a reviewer opens once and never
  * again, because it was three lines of justification sitting on top of the work.
  *
- * The budget sits here rather than in settings because exposure held to a few
- * hours a day is the finding that drives reviewer outcomes, and making the
- * budget ambient is the cheapest way to hold it.
+ * There is no session budget here. One was added from reviewer-wellbeing
+ * research, nobody asked for it, and it became the largest element on a page
+ * whose job is to show cases. Bounded exposure is a real finding and it belongs
+ * where a shift is actually managed, not above the queue.
  */
 export function QueueHeader({
   summary,
   rankingSentence,
-  sessionStartedAt,
   notice,
 }: QueueHeaderProps) {
   return (
@@ -53,9 +50,6 @@ export function QueueHeader({
             {notice}
           </p>
         ) : null}
-      </div>
-      <div className={styles.aside}>
-        <SessionTimer startedAt={sessionStartedAt} />
       </div>
     </header>
   );

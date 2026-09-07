@@ -46,18 +46,22 @@ describe("/queue in mock mode", () => {
     expect(cards.length).toBeGreaterThan(1);
 
     // The card names the pair and the critical signal in words, never a person.
-    expect(container.textContent).toContain("Pair 4f2a");
+    expect(container.textContent).toContain("4f2a");
     expect(container.textContent).toContain("threat template match");
+    // A line of the conversation, which is what the row is for.
+    expect(container.textContent).toContain("dont tell anyone we talk");
     // A card with no critical signal says nothing about it. The tier badge
     // already carries the diamond when one fired, so absence needs no words.
     expect(container.textContent).not.toContain("critical: none");
     // The headline is the pattern; the bands and provenance sit under it.
-    expect(container.textContent).toContain("Stage 3 to 4 in 19h");
-    expect(container.textContent).toContain("bands 16-17 to 9-12");
-    // Line three is claim state and the SLA, with T1 stating the absence.
-    expect(container.textContent).toContain("unclaimed");
-    expect(container.textContent).toContain("no SLA (watch)");
-    expect(container.textContent).toMatch(/\d+h \d+m left/);
+    expect(container.textContent).toContain("Asked who supervises the younger account");
+    expect(container.textContent).toContain("Ages 16-17 and 9-12");
+    // Claim state appears only when somebody else holds it. "unclaimed" on
+    // every row is a word that never changes anything.
+    expect(container.textContent).not.toContain("unclaimed");
+    expect(container.textContent).toContain("claimed by M. Osei");
+    expect(container.textContent).toContain("Watch, no target");
+    expect(container.textContent).toMatch(/Due by \d\d:\d\d/);
 
     // No fused score, no percentage, no weight. The word score survives only
     // inside a pattern clause that says the pair has nothing else.
@@ -68,9 +72,9 @@ describe("/queue in mock mode", () => {
   it("ranks T2 above T1 and puts the critical case first", async () => {
     await renderQueue();
     const rows = screen.getAllByRole("listitem").map((row) => row.textContent ?? "");
-    expect(rows[0]).toContain("Pair 4f2a");
-    const firstT1 = rows.findIndex((row) => row.includes("no SLA (watch)"));
-    const lastT2 = rows.map((row) => row.includes("left")).lastIndexOf(true);
+    expect(rows[0]).toContain("4f2a");
+    const firstT1 = rows.findIndex((row) => row.includes("Watch, no target"));
+    const lastT2 = rows.map((row) => row.includes("Due by")).lastIndexOf(true);
     expect(firstT1).toBeGreaterThan(lastT2);
   });
 

@@ -14,8 +14,6 @@ export interface QueueListProps {
    * there, behind requireSession and the data layer, never in this component.
    */
   open: (pairId: string, mode: OpenMode) => void | Promise<void>;
-  /** Test seam. Defaults to the wall clock. */
-  now?: () => number;
 }
 
 /** No binding fires while focus is in a text field (DESIGN-UI 12). */
@@ -34,12 +32,10 @@ function isTypingTarget(target: EventTarget | null): boolean {
  * roving tabindex over the cards, because the card is the tab stop rather than
  * anything inside it.
  */
-export function QueueList({ cases, open, now }: QueueListProps) {
-  const clock = now ?? Date.now;
+export function QueueList({ cases, open }: QueueListProps) {
   const [selected, setSelected] = useState(0);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [agedMinutes, setAgedMinutes] = useState(0);
   const [opening, startTransition] = useTransition();
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   // Focus follows j and k, and never moves on mount or on a re-render.
@@ -51,16 +47,9 @@ export function QueueList({ cases, open, now }: QueueListProps) {
     cardRefs.current[selected]?.focus();
   }, [selected]);
 
-  // The SLA figures age in place rather than by refetching, from the moment
-  // this list mounted. Minutes and not seconds: a ticking second counter is a
-  // stopwatch, and the SLA is a property of the queue.
-  useEffect(() => {
-    const openedAt = clock();
-    const timer = setInterval(() => {
-      setAgedMinutes(Math.max(0, Math.floor((clock() - openedAt) / 60_000)));
-    }, 30_000);
-    return () => clearInterval(timer);
-  }, [clock]);
+  // No timer. The row prints the clock time a case is due by, computed once on
+  // the server, so nothing here re-renders six rows every thirty seconds to
+  // decrement six deadlines nobody is acting on.
 
   const openCase = useCallback(
     (index: number, mode: OpenMode) => {
@@ -122,7 +111,6 @@ export function QueueList({ cases, open, now }: QueueListProps) {
             item={item}
             selected={index === selected}
             pending={opening && pendingId === item.pairId}
-            agedMinutes={agedMinutes}
             onFocus={() => setSelected(index)}
             onOpen={(mode) => openCase(index, mode)}
             cardRef={(element) => {

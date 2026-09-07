@@ -23,6 +23,7 @@ import type {
   CustomerSettings,
   GuildConfigView,
   PriorCase,
+  QueueExcerpt,
   ReviewRecord,
   Speaker,
   StagePoint,
@@ -289,7 +290,7 @@ function specs(): PairSpec[] {
       id: "pair_4f2a",
       tier: "T2",
       criticalSignals: ["threat_template"],
-      patternClause: "Stage 3 to 4 in 19h",
+      patternClause: "Asked who supervises the younger account, then asked to move to Snapchat",
       whySentence:
         "An account in the 16-17 band asked who supervises the younger account's phone, then asked to continue on another app 19 hours later. A threat-template match followed.",
       actorBand: band("A16_17", 0.42, "server_role"),
@@ -344,7 +345,7 @@ function specs(): PairSpec[] {
       id: "pair_91c7",
       tier: "T2",
       criticalSignals: [],
-      patternClause: "Migration ask with age gap",
+      patternClause: "Asked the younger account to carry on the conversation somewhere else",
       whySentence:
         "An account in the 18-20 band asked to continue the conversation on another app 9 minutes after first contact with an account in the 13-15 band.",
       actorBand: band("A18_20", 0.55, "server_role"),
@@ -388,7 +389,7 @@ function specs(): PairSpec[] {
       id: "pair_0b3e",
       tier: "T2",
       criticalSignals: ["coercion_nonfinancial"],
-      patternClause: "Coercion language, non-financial",
+      patternClause: "Language demanding self-harm and proof of it, between two accounts in the same age band",
       whySentence:
         "Both accounts sit in the 13-15 band. A directive with a proof demand was recorded, and no payment was asked for.",
       actorBand: band("A13_15", 0.66, "server_role"),
@@ -428,7 +429,7 @@ function specs(): PairSpec[] {
       id: "pair_aa19",
       tier: "T1",
       criticalSignals: [],
-      patternClause: "Economic bait, single signal",
+      patternClause: "Offered in-game currency, and nothing else was recorded",
       whySentence:
         "An account offered in-game currency to accounts that add it. No further stage was reached.",
       actorBand: band("UNKNOWN", null, "unknown"),
@@ -466,7 +467,7 @@ function specs(): PairSpec[] {
       id: "pair_7d40",
       tier: "T1",
       criticalSignals: [],
-      patternClause: "Handle swap between same-band accounts",
+      patternClause: "Two accounts in the same age band swapped handles",
       whySentence:
         "Two accounts in the 13-15 band exchanged usernames for another app. Nothing else in the window carried a signal.",
       actorBand: band("A13_15", 0.72, "server_role"),
@@ -501,7 +502,7 @@ function specs(): PairSpec[] {
       id: "pair_3c88",
       tier: "T1",
       criticalSignals: [],
-      patternClause: "Actor score only, no conversational fact",
+      patternClause: "Nothing was recorded here; the tier rests on what the older account did elsewhere",
       whySentence:
         "The per-actor score alone stands behind this tier. Nothing on this pair carried a signal.",
       actorBand: band("A18_20", null, "platform_default"),
@@ -537,7 +538,7 @@ function specs(): PairSpec[] {
       id: "pair_c5e1",
       tier: "T3",
       criticalSignals: ["payment_after_media", "threat_template"],
-      patternClause: "Payment demand minutes after a media event",
+      patternClause: "A payment demand four minutes after an image was sent",
       whySentence:
         "An account in the 21+ band solicited an image from an account in the 13-15 band, then demanded payment 3 minutes after the media event.",
       actorBand: band("A21_PLUS", 0.81, "customer_declared"),
@@ -681,6 +682,9 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
       messageCount: rows.length,
       spanHours,
       mediaEventCount,
+      excerpt: queueExcerpt(rows),
+      stagesReached: buildStagePath(spec, start).filter((p) => p.reachedAt !== null).length,
+      createdAt: start,
       slaRemainingMinutes: spec.slaRemainingMinutes,
       claim: spec.claim,
       // Derived, exactly as the database mapper derives it, so a read in mock
@@ -951,4 +955,35 @@ export function getMockData(): Promise<MockData> {
 /** Test hook. Rebuilds the fixture set from the seed. */
 export function resetMockData(): void {
   cached = null;
+}
+
+/**
+ * The one line of the conversation the queue row carries.
+ *
+ * Not the worst thing said. Threat and sextortion language is collapsed behind
+ * an explicit reveal on the case page, and lifting it onto a list somebody
+ * scans six of would undo that for no gain: a reviewer deciding whether to open
+ * a case does not need the threat, they need to recognise the move.
+ *
+ * So this takes the earliest line that carries a signal and is not collapsed,
+ * which in practice is the supervision probe or the migration ask, the two
+ * moves that make the shape recognisable. Null when the excerpts are gone under
+ * retention, or when every signal-bearing line on the case is collapsed.
+ */
+function queueExcerpt(rows: TimelineRow[]): QueueExcerpt | null {
+  const order = ["none", "contact", "trust", "probe", "migrate", "sexualize", "coerce"];
+  const candidates = rows.filter(
+    (row) => row.collapsed === null && row.media === null && row.signals.length > 0 && row.text,
+  );
+  // The furthest along, not the first: the row's job is to show how far this
+  // went, and a contact-stage pleasantry shows nothing.
+  const candidate = candidates.reduce<TimelineRow | null>((best, row) => {
+    if (!best) return row;
+    return order.indexOf(row.stage ?? "none") >= order.indexOf(best.stage ?? "none") ? row : best;
+  }, null);
+  if (!candidate?.text) return null;
+  return {
+    text: candidate.text,
+    from: candidate.speaker === "t" ? "older" : "younger",
+  };
 }

@@ -236,6 +236,15 @@ function toQueueCase(
     messageCount: total,
     spanHours,
     mediaEventCount: row.lastInboundMediaAt ? 1 : 0,
+    // The database queue read does not open a bundle, so the row carries no
+    // excerpt. getTimeline is the only reader of the timeline json and it is a
+    // per-case call: loading two hundred bundles to put one line on each row is
+    // the wrong trade, and a queue that shows an excerpt on fixtures and not on
+    // a database is worse than one that shows neither. This is the gap that
+    // closes when the pair row carries its own headline excerpt.
+    excerpt: null,
+    stagesReached: stages.length,
+    createdAt: row.createdAt,
     slaRemainingMinutes: slaRemainingMinutes(row.tier, row.createdAt, now),
     // The schema has no claim columns yet (DESIGN-UI 13.2 gap 1), so a database
     // read is always unclaimed. Nothing here guesses at ownership.

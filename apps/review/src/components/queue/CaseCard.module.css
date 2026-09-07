@@ -1,14 +1,13 @@
 /*
- * The card has one job: say what happened, in one sentence, readable at a
- * glance from across a desk.
+ * The queue row.
  *
- * The first version put that sentence at 14px and surrounded it with eight
- * pieces of 12px muted metadata, so nothing was primary and the whole list read
- * as grey noise. Now the sentence is the largest thing on the card, the tier is
- * a badge rather than a hairline, and everything else is one quiet line
- * underneath that a reviewer reads only when they have decided to care.
+ * One text column, one accent, three shapes. The tier is a 3px rule down the
+ * left edge and a word in the caption, never a filled badge: six filled badges
+ * at the left margin, five of them reading the same thing, is a wall the eye
+ * cannot sort on, and it competes with the sentence for the largest element.
  *
- * Colour is still spent once, on the tier.
+ * Shape follows tier and claim state and never the score. A layout driven by
+ * the score is the model telling the reviewer what to skip.
  */
 
 .item {
@@ -17,25 +16,44 @@
 
 .card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas:
-    "tier  headline  time"
-    "tier  meta      meta";
-  column-gap: var(--space-4);
-  row-gap: var(--space-2);
-  align-items: start;
-  inline-size: 100%;
-  padding: var(--space-5) var(--space-5);
-  text-align: start;
-  color: var(--text);
-  background: var(--surface);
-  /* The card is a button, so its resting edge is a control boundary and has to
-     hold 3:1. That is --border, not the hairline --divider. */
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-5);
   border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--tier-t1-border);
   border-radius: var(--radius-lg);
-  transition:
-    border-color var(--motion-fast) var(--motion-in),
-    background-color var(--motion-fast) var(--motion-in);
+  /* Square the left corners so the tier rule reads as a rule. A 12px radius
+     eats most of a 3px edge and the colour disappears at a glance, which is
+     the one job it has. */
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background var(--motion-fast) ease;
+}
+
+.card[data-tier="T2"] {
+  border-inline-start-color: var(--tier-t2-border);
+}
+
+.card[data-tier="T3"] {
+  border-inline-start-color: var(--tier-t3-border);
+}
+
+/* A case somebody else holds, or one already decided, is worth none of your
+   attention and should take none of your screen. Height is the signal; a
+   dashed border is a 1px change nobody sees. */
+.card[data-shape="struck"] {
+  padding-block: var(--space-3);
+  background: var(--surface-sunken);
+}
+
+.card[data-pending="true"] {
+  background: var(--surface-sunken);
+  cursor: progress;
 }
 
 .card:hover {
@@ -46,124 +64,147 @@
   background: var(--surface-sunken);
 }
 
-/* Unread is a slightly raised ground rather than a second border weight, since
-   the boundary is already spent on meeting contrast. */
-.card[data-unread="true"] {
-  background: var(--surface-raised);
+.card:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 /*
- * A card someone else holds is read only, which is different from disabled and
- * says so in words. A dashed boundary, never an opacity: group opacity
- * composites the whole subtree and would drop every line below body contrast.
+ * The support posture. It changes how the whole case reads, so it sits above
+ * the headline: the account this tier describes is itself in a minor band, and
+ * the right response is a welfare referral rather than enforcement.
  */
-.card[data-claimed-elsewhere="true"] {
-  border-style: dashed;
-}
-
-.card[data-pending="true"] {
-  background: var(--surface-sunken);
-}
-
-.tierCell {
-  display: flex;
-  grid-area: tier;
-  align-items: flex-start;
-  padding-block-start: 2px;
-}
-
-/* The sentence. Largest thing on the card, and the only thing at full ink. */
-.headline {
-  grid-area: headline;
-  font-size: var(--text-md);
-  font-weight: var(--weight-regular);
+.reframe {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   line-height: var(--leading-snug);
-  letter-spacing: var(--tracking-body);
-  text-wrap: balance;
+  max-width: var(--measure);
 }
 
-/* Time sits opposite the sentence, right aligned, quiet until it is not. */
-.timeCell {
-  display: flex;
-  grid-area: time;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.breach {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+/* What happened. The largest thing on the row and the only thing at full ink. */
+.headline {
   color: var(--text);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
+  /* pretty, not balance: balance evens the line lengths and was breaking
+     "proof of / it," mid-phrase. This only pulls up an orphan. */
+  text-wrap: pretty;
+  max-width: 62ch;
 }
 
 /*
- * One meta line. Everything a reviewer does not need in order to decide whether
- * to open the case lives here, separated by thin dividers rather than dots.
+ * A line of the conversation.
+ *
+ * Indented and quoted so it reads as somebody's words rather than as another
+ * field. It is never the worst line on the case: threat and sextortion
+ * language stays collapsed behind an explicit reveal on the case page, and the
+ * queue takes the earliest recognisable move instead.
  */
-.meta {
-  display: flex;
-  grid-area: meta;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--text-muted);
+.excerpt {
+  display: block;
+  margin-block: var(--space-1);
+  padding-inline-start: var(--space-4);
+  border-inline-start: 2px solid var(--divider);
+  max-width: 62ch;
 }
 
-.meta > * + *::before {
-  content: "";
-  display: inline-block;
-  inline-size: 1px;
-  block-size: 0.9em;
-  margin-inline-end: var(--space-3);
-  vertical-align: -0.1em;
-  background: var(--divider);
+.excerpt q {
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  quotes: "\201C" "\201D";
 }
 
-.pairId {
-  font-size: var(--text-sm);
+.excerptFrom {
+  display: block;
+  margin-block-start: 2px;
   color: var(--text-subtle);
+  font-size: var(--text-xs);
 }
 
-.posture {
+/*
+ * What fired, then what was inferred from it, in that order and at two weights.
+ * The split is the point: a critical signal is a rule that forces a review
+ * whatever the score says, and everything after it is the model's reading.
+ */
+.basis {
+  display: block;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  max-width: 62ch;
+}
+
+.fired {
   color: var(--text);
   font-weight: var(--weight-medium);
 }
 
-.claim {
-  margin-inline-start: auto;
+.inferred {
+  color: var(--text-muted);
+}
+
+/* Both ages, how each was read, and how many conversations this account is in. */
+.who {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  max-width: 62ch;
+}
+
+/* A byline. Read after the decision, not during it. */
+.caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  justify-content: space-between;
+  align-items: baseline;
+  margin-block-start: var(--space-1);
   color: var(--text-subtle);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
 }
 
-.claim::before {
-  content: none !important;
+.captionLeft {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
 }
 
-@media (max-width: 640px) {
+/* Middle dots between the caption's fragments, and never before the first. */
+.captionLeft > span + span::before {
+  content: "·";
+  margin-inline-end: var(--space-2);
+  color: var(--divider);
+}
+
+.card[data-shape="struck"] .caption {
+  margin-block-start: 0;
+}
+
+/*
+ * A clock time, not a countdown. The old row re-rendered every thirty seconds
+ * to decrement six deadlines, which is the sort key printed six times and does
+ * not help anybody decide what to open.
+ */
+.due {
+  color: var(--text-muted);
+}
+
+.due[data-urgent="true"] {
+  color: var(--text);
+  font-weight: var(--weight-medium);
+}
+
+@media (max-width: 34rem) {
   .card {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "tier"
-      "headline"
-      "meta"
-      "time";
-    row-gap: var(--space-3);
     padding: var(--space-4);
   }
 
-  .timeCell {
-    flex-direction: row;
-    align-items: baseline;
-    gap: var(--space-2);
-  }
-
-  .claim {
-    margin-inline-start: 0;
+  .caption {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

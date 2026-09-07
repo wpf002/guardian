@@ -118,9 +118,153 @@ export function claimClause(claim: ClaimState): string {
 }
 
 /** Line three, when the operator's posture for this case is support. */
-export const SUPPORT_POSTURE_NOTE = "no enforcement action offered on this case";
+/**
+ * What the support posture means, said in full.
+ *
+ * It used to read "no enforcement action offered on this case", which tells a
+ * reviewer what the software will not do rather than what they are looking at.
+ * The account this tier describes is itself in a younger band, and the reason
+ * that happens is that people who do this were disproportionately victims
+ * themselves (ROADMAP S4). A reviewer who reads the headline first and this
+ * second has already read the case wrong, so it goes above the headline and it
+ * says the thing.
+ */
+export const SUPPORT_POSTURE_NOTE =
+  "The account this describes is itself in a younger band. Read this as a welfare case, not an enforcement one.";
 export const SUPPORT_POSTURE_CHIP = "support posture suggested";
 
 export function shortTime(at: Date): string {
   return at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/* -------------------------------------------------------------------------- */
+/* The row's four lines                                                       */
+/* -------------------------------------------------------------------------- */
+
+/** The six stages, so "five of six" means something. */
+const STAGE_COUNT = 6;
+
+/**
+ * What fired, and whether it forces a review on its own.
+ *
+ * This is the line that keeps a reviewer thinking. Every triage discipline that
+ * puts a score in front of a human has been burned by the human deferring to
+ * it, and Guardian's whole legal posture rests on the person deciding. So the
+ * row separates the checkable fact from the estimate: a critical signal is a
+ * rule that fired and forces review whatever the score says, and everything
+ * else is the model's reading.
+ */
+export function basisClause(criticalSignals: string[]): string {
+  if (criticalSignals.length === 0) {
+    return compose(
+      "queue.basisClause.none",
+      "Nothing here forces a review on its own. This is the model's reading.",
+    );
+  }
+  const named = criticalSignals.map(signalWord).join(", ");
+  return compose(
+    "queue.basisClause.critical",
+    `A ${named} puts this in review on its own.`,
+  );
+}
+
+/** How far it went and over how long. The trajectory, which is the signal. */
+export function trajectoryClause(stagesReached: number, spanHours: number): string {
+  if (stagesReached <= 1) {
+    return compose("queue.trajectory.single", "One stage. No progression recorded.");
+  }
+  const span =
+    spanHours <= 0
+      ? "in one sitting"
+      : spanHours < 48
+        ? `over ${spanHours} hours`
+        : `over ${Math.round(spanHours / 24)} days`;
+  return compose(
+    "queue.trajectory",
+    `${stagesReached} of ${STAGE_COUNT} stages, ${span}.`,
+  );
+}
+
+/**
+ * Both ages, how each was read, and whether that reading is worth anything.
+ *
+ * A case resting on an age gap that came from a Discord role is the commonest
+ * reason to close one without opening it, so the provenance is a sentence
+ * rather than a suffix.
+ */
+export function agesClause(actor: BandReading, target: BandReading): string {
+  const verified: BandProvenance[] = ["government_id", "customer_declared"];
+  const estimated: BandProvenance[] = ["facial_estimate", "os_bracket"];
+
+  const ages = `Ages ${bandWord(actor.band)} and ${bandWord(target.band)}`;
+  const both = actor.provenance === target.provenance ? actor.provenance : null;
+
+  if (actor.band === "UNKNOWN" || target.band === "UNKNOWN") {
+    return compose("queue.ages.unknown", `${ages}. One side's age was never read.`);
+  }
+  if (both && verified.includes(both)) {
+    return compose("queue.ages.verified", `${ages}, from the operator's own record.`);
+  }
+  if (both && estimated.includes(both)) {
+    return compose("queue.ages.estimated", `${ages}, both estimated.`);
+  }
+  if (both === "server_role") {
+    return compose("queue.ages.role", `${ages}, both from Discord roles, neither verified.`);
+  }
+  return compose(
+    "queue.ages.mixed",
+    `${ages}, ${PROVENANCE_WORDS[actor.provenance]} and ${PROVENANCE_WORDS[target.provenance]}, neither verified.`,
+  );
+}
+
+/**
+ * When this is due, as a clock time.
+ *
+ * It used to be a countdown that re-rendered every row every thirty seconds.
+ * That is the sort key printed six times, it does not help anybody decide what
+ * to open, and a shift spent watching six deadlines decrement is a stopwatch
+ * whatever the comment above it says. A clock time is checkable against the
+ * wall and needs no timer.
+ */
+export function dueClause(
+  tier: string,
+  createdAt: Date,
+  slaRemainingMinutes: number | null,
+  resolved: boolean,
+): { text: string; urgent: boolean } {
+  if (resolved) return { text: "resolved", urgent: false };
+  if (slaRemainingMinutes === null) return { text: "Watch, no target", urgent: false };
+
+  const due = new Date(createdAt.getTime() + SLA_MINUTES * 60_000);
+  const clock = `${String(due.getUTCHours()).padStart(2, "0")}:${String(due.getUTCMinutes()).padStart(2, "0")}`;
+
+  if (slaRemainingMinutes <= 0) {
+    return { text: `Past the target, was due ${clock}`, urgent: true };
+  }
+  if (slaRemainingMinutes <= BREACH_RISK_MINUTES) {
+    return { text: `Due by ${clock}, under an hour`, urgent: true };
+  }
+  return { text: `Due by ${clock}`, urgent: false };
+}
+
+/** DESIGN.md 6.4: a human sees a T2 within four hours. */
+const SLA_MINUTES = 4 * 60;
+
+/** "the older account" / "the younger account". A side, never a person. */
+export function speakerWord(from: "older" | "younger"): string {
+  return from === "older" ? "the older account" : "the younger account";
+}
+
+/**
+ * A clause written to sit mid-line, promoted to its own sentence.
+ *
+ * actorContext is phrased for a chip ("actor in 3 pairs this week") and the row
+ * sets it after another sentence, where a lowercase fragment and a missing full
+ * stop read as a layout accident.
+ */
+export function sentenceCase(clause: string): string {
+  const trimmed = clause.trim();
+  if (trimmed === "") return "";
+  const first = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return /[.!?]$/.test(first) ? first : `${first}.`;
 }
