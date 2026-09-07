@@ -143,20 +143,46 @@ export function prismaRetentionDelegate(prisma: PrismaLike): RetentionDelegate {
       });
       return result.count;
     },
+    /**
+     * Expired pairs, and the review rows that hang off them.
+     *
+     * This used to exclude any pair with a review row and any pair a reviewer
+     * had resolved, because `Review.pair` is `onDelete: Restrict` and a delete
+     * would fail. Every decision sets both, dismissal included, so the moment a
+     * reviewer touched a case it became immortal: a teen-romance false positive
+     * dismissed on day two kept the child's quoted excerpts in `pairs.signals`
+     * for ever, with an `expiresAt` in the past that nothing acted on, while the
+     * console told the reviewer the excerpts were deleted.
+     *
+     * Rule 7 wins over the Restrict. The rule says deletion is a scheduled job;
+     * the Restrict was a comment saying a decision should outlive a pair. Both
+     * cannot hold, and the reason the rule wins is that the decision does
+     * outlive it: every review is on the hash chain, which is append-only and
+     * tamper-evident and is the record that would be shown to a regulator. The
+     * mutable row is a copy. Keeping the copy meant keeping a child's words to
+     * protect something already kept somewhere better.
+     *
+     * The Restrict stays, because it still stops an accidental pair delete
+     * elsewhere from taking decisions with it. The sweep deletes the reviews
+     * itself, in the same transaction, so the deletion is deliberate rather
+     * than a cascade nobody sees. A legal hold is still excluded.
+     */
     async deleteExpiredPairs(now) {
-      // A pair with a review row is a reviewer's record and the foreign key
-      // is Restrict, so it stays whatever its expiry says. Excluding it here
-      // keeps one reviewed pair from aborting the delete of every other
-      // expired pair in the same statement.
-      const result = await prisma.pair.deleteMany({
-        where: {
-          expiresAt: { lt: now },
-          retention: { not: "LEGAL_HOLD" },
-          resolvedAt: null,
-          reviews: { none: {} },
-        },
+      const doomed = await prisma.pair.findMany({
+        where: { expiresAt: { lt: now }, retention: { not: "LEGAL_HOLD" } },
+        select: { id: true },
+        take: PAIR_DELETE_BATCH,
       });
-      return result.count;
+      if (doomed.length === 0) return 0;
+
+      const ids = doomed.map((row) => String(row.id));
+      const results = await prisma.$transaction([
+        prisma.review.deleteMany({ where: { pairId: { in: ids } } }),
+        prisma.pair.deleteMany({ where: { id: { in: ids } } }),
+      ]);
+      // The pair delete is the second operation, and its count is the number
+      // this step reports. The reviews that went with it are not pairs.
+      return results[1]?.count ?? 0;
     },
     async deleteExpiredActors(now) {
       const result = await prisma.actor.deleteMany({
@@ -186,18 +212,38 @@ export function prismaRetentionDelegate(prisma: PrismaLike): RetentionDelegate {
   };
 }
 
+/**
+ * Pairs deleted per sweep. Bounded because the delete runs in one transaction
+ * with its reviews, and an unbounded transaction over a year of expired rows is
+ * a lock nobody wants. The sweep runs hourly, so a backlog drains.
+ */
+const PAIR_DELETE_BATCH = 500;
+
 interface Deletable {
   deleteMany(args: { where: Record<string, unknown> }): Promise<{ count: number }>;
 }
 
 export interface PrismaLike {
+  /**
+   * Pairs are read before they are deleted, because their review rows go in the
+   * same transaction and the Restrict on that foreign key means the order
+   * matters.
+   */
+  pair: Deletable & {
+    findMany(args: {
+      where: Record<string, unknown>;
+      select: Record<string, boolean>;
+      take: number;
+    }): Promise<Array<Record<string, unknown>>>;
+  };
+  review: Deletable;
+  $transaction<T>(operations: Array<Promise<T>>): Promise<T[]>;
   event: Deletable & {
     updateMany(args: {
       where: Record<string, unknown>;
       data: Record<string, unknown>;
     }): Promise<{ count: number }>;
   };
-  pair: Deletable;
   actor: Deletable;
   evidenceBundle: Deletable;
   webhookDelivery: Deletable;

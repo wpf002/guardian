@@ -133,24 +133,48 @@ the drafted bundle, which is the only path anybody will actually use in phase 1,
 prints both accounts neutrally, names neither, and blocks filing until a person
 says which one the report is about.
 
-## Nine open findings from the rule sweep, 2026-09-05
+## Four findings still open from the rule sweep
 
-Confirmed by an adversarial pass over rules 2, 3, 4, 6, 7, 8 and 9. Eight others
-from the same sweep are fixed in `f37ed5e`. These are open because three of them
-argue with a decision somebody made on purpose, one needs a schema change, and
-the rest are smaller than the eight.
+Five of the nine are closed in `f37ed5e`'s follow-up. Three needed a decision
+somebody had to make rather than a patch, and those decisions are recorded here
+because each reverses something a comment in the code asked for.
+
+**S-3, deletion beats the Restrict.** `Review.pair` was `onDelete: Restrict`
+with the comment "a reviewer's decision is never removed by a pair expiring",
+and the sweep therefore skipped any pair a reviewer had touched. Every decision
+sets both `resolvedAt` and a review row, dismissal included, so a teen-romance
+false positive dismissed on day two kept the child's quoted excerpts for ever
+with an expiry in the past, while the console told the reviewer they were gone.
+Rule 7 wins, and the reason it wins is that the decision does outlive the pair:
+every review is on the hash chain, which is append-only, tamper-evident, and the
+record a regulator would be shown. The mutable row was a copy. The Restrict
+stays, because it still stops an accidental delete elsewhere; the sweep deletes
+the reviews itself, in the same transaction, in batches of 500.
+
+**S-5, the chain holds a digest of a note, not the note.** A reviewer's note
+describes the conversation and usually quotes it, and the chain outlives every
+retention class Guardian has. Storing the words there was rule 7 with no
+exception written for it. The chain now records whether a note was written, how
+long it was, and its sha256. A regulator checking that a stated reason was not
+rewritten hashes the note off the review row and compares; nobody reading the
+chain reads the child. The note itself stays on the review row, which retention
+now deletes.
+
+**S-1, a mod channel everyone can read is refused.** "post in a public channel"
+was the third entry in `FORBIDDEN_ACTIONS` and nothing read the list, while
+`/guardian setup` offered every text channel. The alert names two accounts,
+pings them, and describes a grooming trajectory. The send now tests
+`@everyone`'s ViewChannel on the resolved channel, which is the question the
+rule is actually asking.
+
+Still open, and why:
 
 | | Finding | Why it is open |
 |---|---|---|
-| S-1 | The mod channel may be a channel the scored accounts read. `/guardian setup` offers every GUILD_TEXT channel, so `#general` is one click, and `FORBIDDEN_ACTIONS` is a constant nothing reads. | Needs a product decision: refuse a channel `@everyone` can read, or warn. Refusing is right and it changes what an owner can configure. |
-| S-2 | Reviewer band provenance and confidence are never written to the Actor row. The only writer is the dev seed, so every real case shows provenance unknown. The console's sole source for all three is that row. | Needs provenance threaded through `ActorState` plus a ratchet, so a later unknown cannot overwrite a government id. A schema-adjacent change, not a patch. |
-| S-3 | Any pair a reviewer has touched is permanently exempt from deletion: the sweep excludes `resolvedAt` set and `reviews: { none: {} }`, and a dismissal sets both. A dismissed false positive keeps the child's quoted excerpts forever. | Argues with a deliberate choice. `Review.pair` is `onDelete: Restrict` with the comment "a reviewer's decision is never removed by a pair expiring". Rule 7 says the opposite. Somebody has to pick, and the audit chain already keeps the decision permanently. |
-| S-4 | Raw message text sits in Redis for as long as the stream is retained; no sweep step touches the queue. | Rule 7 covers stored rows and the queue is not one, which is either a gap in the rule or a gap in the sweep. |
-| S-5 | Reviewer free-text notes quoting the conversation are stored only in `audit_entries`, which has no retention class. | Same tension as S-3: the chain is append-only on purpose, so a note quoting a child cannot be deleted without breaking it. The fix is probably to stop putting quotes in notes. |
-| S-6 | A scoped audit export leaks a per-version census of the rows it withheld. | Rule 8, medium. A count of another customer's rows is not their content, but it is not nothing. |
-| S-7 | The retention sweep records itself under customer `system`, so no customer's dashboard can show its own last sweep. | The dashboard's retention card reads a chain entry it can never see. Cosmetic until somebody asks when their data was deleted. |
-| S-8 | The mod channel id is validated as a snowflake shape and never as a channel in that guild. | The send side now refuses a cross-guild channel, so this is a usability gap rather than a leak: the console accepts a value the bot will not use. |
-| S-9 | `modelTier` on a review row is documented as the tier the model assigned, and is set from `pair.tier` at open time, which can be a reviewer's T3. | Now unreachable through the lone-reviewer path, but the column still means two things. Renaming it is a migration. |
+| S-2 | Actor band provenance and confidence are never written; the only writer is the dev seed, so every real case shows provenance unknown. The console's sole source for all three is that row. | Needs provenance threaded through `ActorState` and a ratchet so a later unknown cannot overwrite a government id. A schema-adjacent change, and the UK Online Safety Act's age-assurance test turns on the distinction, so it wants doing properly rather than quickly. |
+| S-4 | Raw message text sits in Redis for as long as the stream is retained; no sweep step touches the queue. | Rule 7 covers stored rows and a queue is arguably not one. Either the rule needs a sentence or the sweep needs a step, and that is a call about what the rule means. |
+| S-6 | A scoped audit export leaks a per-version census of the rows it withheld. | Rule 8, medium. A count of another customer's rows is not their content, and removing it costs a reader the ability to tell a redacted export from a short one. |
+| S-9 | `modelTier` on a review row is documented as the tier the model assigned and is set from `pair.tier` at open time, which can be a reviewer's T3. | Unreachable through the lone-reviewer path now that a T3 pair refuses a plain decision, but the column still means two things. Renaming it is a migration. |
 
 ## What is open, and what is blocking it
 

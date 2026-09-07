@@ -234,6 +234,31 @@ export async function handleMessage(message: Message, deps: HandlerDeps): Promis
     // send: a dead mod channel an operator can see is better than a card
     // delivered somewhere nobody consented to receive it.
     const target = channel as TextChannel;
+
+    /*
+     * "post in a public channel" is the third entry in FORBIDDEN_ACTIONS and
+     * nothing read that list. `/guardian setup` offers every GUILD_TEXT channel,
+     * so #general is one click, and the alert names two accounts, pings them,
+     * and describes a grooming trajectory. Posted where the scored accounts can
+     * read it, that is Guardian telling a child they are in a case file and
+     * telling the other account it has been noticed, in front of the server.
+     *
+     * The test is @everyone's ViewChannel on the resolved channel, which is the
+     * question the rule is actually asking: not "is this named general" but
+     * "can the people in this alert read it".
+     */
+    const everyone = target.guild?.roles?.everyone;
+    if (everyone && target.permissionsFor(everyone)?.has(PermissionFlagsBits.ViewChannel)) {
+      report(
+        deps,
+        "alert",
+        new Error(
+          "the configured mod channel is readable by everyone in the server, so the alert was not sent. Pick a channel only moderators can see.",
+        ),
+      );
+      return;
+    }
+
     if (!("guildId" in channel) || target.guildId !== message.guildId) {
       report(
         deps,

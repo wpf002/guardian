@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -418,5 +419,40 @@ describe("notes that could not be filed are refused at write time", () => {
         "First contact to a payment demand inside three hours, and the receiving account stated an age in band on the second message.",
     });
     expect(result).toBeTruthy();
+  });
+});
+
+/**
+ * Rule 7 against an append-only chain. A reviewer's note describes the
+ * conversation and often quotes it, and the chain outlives every retention
+ * class Guardian has, so the words cannot go on it. The digest keeps what the
+ * chain is for: a regulator hashes the note off the review row and compares.
+ */
+describe("what a decision puts on the chain", () => {
+  it("seals the reviewer's notes rather than storing them", async () => {
+    await readEverything("pair_4f2a");
+    const quoted = "she told him she was 13 and he asked her to send a picture";
+    const result = await recordDecision({
+      session,
+      pairId: "pair_4f2a",
+      decision: "confirm",
+      reasonCode: "confirm.progression_pattern",
+      notes: { timeline: quoted },
+    });
+
+    const data = await getMockData();
+    const entry = (await data.auditStore.read()).find((e) => e.seq === result.review.auditSeq);
+    const payload = JSON.stringify(entry?.payload ?? {});
+
+    expect(payload).not.toContain(quoted);
+    expect(payload).not.toContain("she told him");
+    const notes = entry?.payload.notes as Record<string, { present: boolean; sha256: string | null }>;
+    expect(notes.timeline.present).toBe(true);
+    expect(notes.timeline.sha256).toBe(createHash("sha256").update(quoted, "utf8").digest("hex"));
+    expect(notes.outsideContext.present).toBe(false);
+    expect(notes.outsideContext.sha256).toBeNull();
+
+    // The note itself is still on the review row, which retention deletes.
+    expect(result.review.notes.timeline).toBe(quoted);
   });
 });

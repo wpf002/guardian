@@ -19,6 +19,7 @@
  * hash-chained, so nothing is lost. It is not queryable, which is the cost.
  */
 
+import { createHash } from "node:crypto";
 import {
   escalateRetention,
   expiresAt,
@@ -497,6 +498,28 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
   };
 }
 
+/**
+ * A free-text field, as the chain holds it: whether there was one, how long it
+ * was, and a digest of it. Never the text.
+ *
+ * The length is here because "was a note written" and "was it a sentence or a
+ * page" are both questions a reader of the chain can reasonably have, and
+ * neither needs the words.
+ */
+function sealed(value: string | null | undefined): {
+  present: boolean;
+  length: number;
+  sha256: string | null;
+} {
+  const text = value?.trim() ?? "";
+  if (text === "") return { present: false, length: 0, sha256: null };
+  return {
+    present: true,
+    length: text.length,
+    sha256: createHash("sha256").update(text, "utf8").digest("hex"),
+  };
+}
+
 function auditPayload(
   input: RecordDecisionInput,
   reason: Reason,
@@ -510,6 +533,8 @@ function auditPayload(
     decision: input.decision,
     state,
     reasonCode: reason.code,
+    // Structured, not prose: a record of which reason fields were set, so it
+    // stays on the chain as it was.
     reasonDetail: input.reasonDetail ?? null,
     annotations: input.annotations ?? [],
     modelTier,
@@ -517,10 +542,17 @@ function auditPayload(
     minutesSpent: input.minutesSpent ?? null,
     interrupted: input.interrupted ?? false,
     viewedExcerptCount: input.viewedExcerptCount ?? null,
+    // Sealed, not stored. A reviewer's note describes the conversation and
+    // often quotes it, and the chain is append-only: a note holding a child's
+    // words is a row that outlives every retention class Guardian has, which is
+    // rule 7 with no exception written for it. The digest keeps exactly what the
+    // chain is for. A regulator checking that a stated reason was not rewritten
+    // hashes the note off the review row and compares; nobody reading the chain
+    // reads the child.
     notes: {
-      timeline: input.notes?.timeline ?? null,
-      outsideContext: input.notes?.outsideContext ?? null,
-      recommendation: input.notes?.recommendation ?? null,
+      timeline: sealed(input.notes?.timeline),
+      outsideContext: sealed(input.notes?.outsideContext),
+      recommendation: sealed(input.notes?.recommendation),
     },
     changeOrigin: {
       origin: "guardian",

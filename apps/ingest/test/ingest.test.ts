@@ -593,24 +593,81 @@ describe("retention sweep", () => {
     expect(JSON.stringify(swept!.payload)).not.toContain("reviews_pairId_fkey");
   });
 
-  it("skips pairs that carry a review", async () => {
-    const seen: Array<Record<string, unknown>> = [];
-    const capture = {
-      deleteMany: async (args: { where: Record<string, unknown> }) => {
-        seen.push(args.where);
-        return { count: 0 };
-      },
+  /**
+   * Rule 7 over the Restrict on Review.pair.
+   *
+   * The sweep used to exclude any pair with a review row and any pair a
+   * reviewer had resolved, and every decision sets both. A dismissed false
+   * positive kept the child's quoted excerpts for ever with an expiry in the
+   * past. The decision itself is on the hash chain, which is the record that
+   * outlives the row.
+   */
+  it("deletes an expired pair and the review rows that hang off it", async () => {
+    const seen: Array<{ table: string; where: Record<string, unknown> }> = [];
+    const deleteMany = (table: string) => async (args: { where: Record<string, unknown> }) => {
+      seen.push({ table, where: args.where });
+      return { count: table === "pair" ? 2 : 3 };
     };
+    const capture = { deleteMany: deleteMany("other") };
     const delegate = prismaRetentionDelegate({
       event: { ...capture, updateMany: async () => ({ count: 0 }) },
-      pair: capture,
+      pair: {
+        deleteMany: deleteMany("pair"),
+        findMany: async (args: { where: Record<string, unknown> }) => {
+          seen.push({ table: "pair.findMany", where: args.where });
+          return [{ id: "pair_a" }, { id: "pair_b" }];
+        },
+      },
+      review: { deleteMany: deleteMany("review") },
+      $transaction: async <T,>(ops: Array<Promise<T>>) => Promise.all(ops),
       actor: capture,
       evidenceBundle: capture,
       webhookDelivery: capture,
     });
-    await delegate.deleteExpiredPairs(new Date());
-    expect(seen[0]!.reviews).toEqual({ none: {} });
-    expect(seen[0]!.resolvedAt).toBeNull();
+
+    const deleted = await delegate.deleteExpiredPairs(new Date());
+
+    // The count reported is pairs, not the reviews that went with them.
+    expect(deleted).toBe(2);
+
+    const read = seen.find((s) => s.table === "pair.findMany")!;
+    // Neither exclusion survives. A legal hold still does.
+    expect(read.where.resolvedAt).toBeUndefined();
+    expect(read.where.reviews).toBeUndefined();
+    expect(read.where.retention).toEqual({ not: "LEGAL_HOLD" });
+
+    const reviews = seen.find((s) => s.table === "review")!;
+    expect(reviews.where.pairId).toEqual({ in: ["pair_a", "pair_b"] });
+    // Reviews go first, because the foreign key is still Restrict.
+    expect(seen.map((s) => s.table)).toEqual(["pair.findMany", "review", "pair"]);
+  });
+
+  it("deletes nothing and opens no transaction when no pair has expired", async () => {
+    const touched: string[] = [];
+    const capture = { deleteMany: async () => ({ count: 0 }) };
+    const delegate = prismaRetentionDelegate({
+      event: { ...capture, updateMany: async () => ({ count: 0 }) },
+      pair: {
+        deleteMany: async () => {
+          touched.push("pair");
+          return { count: 0 };
+        },
+        findMany: async () => [],
+      },
+      review: {
+        deleteMany: async () => {
+          touched.push("review");
+          return { count: 0 };
+        },
+      },
+      $transaction: async <T,>(ops: Array<Promise<T>>) => Promise.all(ops),
+      actor: capture,
+      evidenceBundle: capture,
+      webhookDelivery: capture,
+    });
+
+    expect(await delegate.deleteExpiredPairs(new Date())).toBe(0);
+    expect(touched).toEqual([]);
   });
 
   it("clears T0 text on the column the server stamped, not the customer's ts", async () => {
@@ -626,7 +683,11 @@ describe("retention sweep", () => {
           return { count: 0 };
         },
       },
-      pair: capture,
+      // The pair delete reads first, then deletes its reviews and the pairs
+      // in one transaction, so the stub needs all three.
+      pair: { ...capture, findMany: async () => [] },
+      review: capture,
+      $transaction: async <T,>(ops: Array<Promise<T>>) => Promise.all(ops),
       actor: capture,
       evidenceBundle: capture,
       webhookDelivery: capture,
@@ -647,7 +708,17 @@ describe("retention sweep", () => {
     };
     const delegate = prismaRetentionDelegate({
       event: { ...capture, updateMany: async () => ({ count: 0 }) },
-      pair: capture,
+      // Pairs are selected before they are deleted, so the hold predicate is
+      // on the read rather than on the delete for that one step.
+      pair: {
+        ...capture,
+        findMany: async (args: { where: Record<string, unknown> }) => {
+          seen.push(args.where);
+          return [];
+        },
+      },
+      review: capture,
+      $transaction: async <T,>(ops: Array<Promise<T>>) => Promise.all(ops),
       actor: capture,
       evidenceBundle: capture,
       webhookDelivery: capture,
