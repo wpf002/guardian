@@ -18,7 +18,6 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 import { LexiconEditor } from "@/components/settings/LexiconEditor";
 import { addLexiconPhrasesAction } from "@/app/settings/actions";
 import { getLexiconView } from "@/app/settings/data";
-import { resetSessionLimits } from "@/app/settings/data";
 import SettingsPage from "@/app/settings/page";
 import { listAuditEntries } from "@/lib/data/audit";
 import { mockSession } from "@/lib/auth";
@@ -34,7 +33,6 @@ const EMPTY: LexiconState = {
 
 beforeEach(() => {
   resetMockData();
-  resetSessionLimits();
 });
 
 afterEach(() => {
@@ -42,7 +40,7 @@ afterEach(() => {
 });
 
 describe("the settings page", () => {
-  it("renders the seat, the limits, the lexicon, the webhook and retention", async () => {
+  it("renders the seat, the lexicon, the webhook and retention", async () => {
     render(await SettingsPage());
 
     expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeDefined();
@@ -54,7 +52,6 @@ describe("the settings page", () => {
     // Every section an owner sees.
     for (const title of [
       "Your seat",
-      "Session limits",
       "Theme",
       "Keyboard shortcuts",
       "Lexicon extension",

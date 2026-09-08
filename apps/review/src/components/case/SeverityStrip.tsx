@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Card, TierBadge } from "@/components";
 import { bandWord } from "@/lib/mock/fixtures";
 import type { BandReading, QueueCase } from "@/lib/data/types";
@@ -14,16 +13,19 @@ function bandPhrase(reading: BandReading): string {
 
 export interface SeverityStripProps {
   queue: QueueCase;
-  /** Where "Defer, I need a buffer" goes. Leaving is always available. */
-  deferHref: string;
 }
 
 /**
  * Rendered from the pair row alone, before the evidence is fetched, so a
- * reviewer can dismiss, watch or defer without reading anything. Both escapes
- * are links, so they work with no client JavaScript and cost no exposure.
+ * reviewer can dismiss or watch without reading anything. The one control is a
+ * link, so it works with no client JavaScript and costs no exposure.
+ *
+ * There was a second control here, "Defer, I need a buffer", which released the
+ * claim with no reason recorded. A claim is not persisted on this deployment,
+ * so it released nothing: it was a link back to the queue with a sentence under
+ * it. Leaving is the browser Back button and the Queue link in the nav.
  */
-export function SeverityStrip({ queue, deferHref }: SeverityStripProps) {
+export function SeverityStrip({ queue }: SeverityStripProps) {
   const critical =
     queue.criticalSignals.length > 0
       ? queue.criticalSignals.map((signal) => signal.replace(/_/g, " ")).join(", ")
@@ -68,14 +70,7 @@ export function SeverityStrip({ queue, deferHref }: SeverityStripProps) {
         <a className={styles.linkAction} href="#timeline">
           Open the timeline
         </a>
-        <Link className={styles.linkAction} href={deferHref}>
-          Defer, I need a buffer
-        </Link>
       </div>
-      <p className={styles.note}>
-        Deferring leaves this case without a decision. It logs no reason and it does not count
-        as a skip.
-      </p>
     </Card>
   );
 }

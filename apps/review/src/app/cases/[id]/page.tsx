@@ -177,7 +177,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
         </p>
       </div>
 
-      <SeverityStrip queue={detail.queue} deferHref="/cases" />
+      <SeverityStrip queue={detail.queue} />
 
       <WhyPanel sentence={detail.whySentence} features={detail.features} />
 

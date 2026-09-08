@@ -75,7 +75,7 @@ A 56px left rail holds three destinations for a reviewer, with the exposure mete
 | `/audit/[seq]` | all | One hash-chain entry, read only. Every provenance line in the app links here |
 | `/help` | all | Tiers in plain words, what Guardian does not do, the keyboard sheet rendered from the keymap registry |
 
-**Not in the IA, deliberately.** No cross-case search. No saved views beyond the filter chips. No notifications. No inbox. No stats page. No operations dashboard: that is a separate product for a person who visits twenty minutes a week, and building it first inverts who this app is for. Each of these is a reason to be somewhere other than a case.
+**Not in the IA, deliberately.** No cross-case search. No saved views, and no filters. No notifications. No inbox. No stats page. No operations dashboard: that is a separate product for a person who visits twenty minutes a week, and building it first inverts who this app is for. Each of these is a reason to be somewhere other than a case.
 
 ### File layout
 
@@ -158,19 +158,17 @@ Type sizes used across the whole app: `--text-xs` 12, `--text-sm` 14, `--text-md
 
 ### 5.1 `/queue`
 
-**Purpose.** See what is waiting, why it is in that order, and get into the top case without touching the mouse. Most shifts a reviewer skips this screen by pressing Enter.
+**Purpose.** See what is waiting and get into the top case without touching the mouse. Most shifts a reviewer skips this screen by pressing Enter.
 
-**Above the fold.** Partition name, count, live indicator, breach-risk count, session budget remaining. The ranking rule as one printed sentence. Five filter chips. The first four to six cards. Nothing else: no charts, no trend, no welcome.
+**Above the fold.** Partition name, count, breach-risk count, then cards. Nothing else: no charts, no trend, no welcome.
+
+**Three things this section used to specify and the build no longer has.** A printed ranking sentence with a `how ranking works` disclosure; five filter chips; a session budget meter. None came from the product spec. The ranking sentence and its disclosure spent the fold arguing for the sort order before showing a case. The chips mostly printed the same number twice on a partition this size, and a control whose only effect is to hide cases from the person whose job is to read them has to earn its place. The session budget came from reviewer-wellbeing research rather than from a requirement, and became the largest element on the page. The queue is now one ranked list, unfiltered, and the URL carries no filter state.
 
 ```
 ┌────┬──────────────────────────────────────────────────────────────────────────────────┐
 │ ▣  │  Queue · Northwood Gaming                                                        │
-│Que │  14 in queue · live · 3 at breach risk · 47 min of session budget left           │
+│Que │  14 waiting · 3 running out of time                                              │
 │ 14 │                                                                                  │
-│ ▤  │  Ranked by tier and critical signal, times identifiable-victim signal, times     │
-│Con │  actor fan-out, divided by SLA time remaining.          [ how ranking works ]    │
-│ 2  │                                                                                  │
-│    │  [ All 14 ]  [ Critical 3 ]  [ Unclaimed 9 ]  [ Breach risk 3 ]  [ Needs 2nd 2 ] │
 │ ▥  │ ─────────────────────────────────────────────────────────────────────────────── │
 │Dec │ ┃◆ T2   Pair 4f2a      critical: threat template match             unclaimed     │
 │    │ ┃       Stage 3 to 4 in 19h · bands 16-17 to 9-12, role-derived                  │
@@ -206,7 +204,7 @@ The ranking rule is printed because a reviewer who cannot see why case A is abov
 
 ### 5.2 `/queue/[caseId]`, above the fold
 
-**Purpose.** Decide. The strip is designed so a reviewer can dismiss, watch or defer without scrolling once.
+**Purpose.** Decide. The strip is designed so a reviewer can dismiss or watch without scrolling once.
 
 ```
 ┌────┬────────────────────┬─────────────────────────────────────────────────────────────┐
@@ -215,7 +213,7 @@ The ranking rule is printed because a reviewer who cannot see why case A is abov
 │    │┃◆T2 4f2a   2h41  ▸ │ │ T2 review          ◆ threat template match              │ │
 │ ▤  │┃Stage 3→4, 19h     │ │ Bands 16-17 → 9-12 · role-derived · confidence 0.42     │ │
 │Con │ ────────────────── │ │ 14 messages · 19h span · 1 media event, verdict no match│ │
-│ 2  │ T2 91c7    3h12    │ │ [ Defer, I need a buffer ]     [ Open the timeline  t ] │ │
+│ 2  │ T2 91c7    3h12    │ │                                [ Open the timeline  t ] │ │
 │    │ claimed A. Rivera  │ └─────────────────────────────────────────────────────────┘ │
 │ ▥  │ ────────────────── │                                                             │
 │Dec │ T2 0b3e    3h40    │ Why this is here                                            │
@@ -260,7 +258,7 @@ Three things on this screen are grafts, and each answers a documented failure.
 
 **Loading.** The severity strip renders first from the pair row. The timeline shows a labelled placeholder, "Loading 14 messages", with the count known in advance so a reviewer can judge whether to wait.
 
-**Error, strip loaded and timeline failed.** "The evidence timeline could not be loaded. You can defer this case or retry. Do not decide on the strip alone when the timeline is unavailable." Confirm and Propose disable with that reason printed beside them; Dismiss, Watch, Defer and Escalate stay live, because a person who cannot read the evidence can still honestly say "not sure" or "watch".
+**Error, strip loaded and timeline failed.** "The evidence timeline could not be loaded. Do not decide on the strip alone when the timeline is unavailable." Confirm and Propose disable with that reason printed beside them; Dismiss, Watch and Escalate stay live, because a person who cannot read the evidence can still honestly say "not sure" or "watch".
 
 ---
 
@@ -577,7 +575,7 @@ The pattern goes above the fold and the raw text below it, because the reviewer'
 
 **Order above the fold, and why that order.**
 
-1. **Severity preview strip.** Server-rendered from `Pair` alone and streamed before the bundle is fetched. Tier word, critical signals in words, both bands with provenance and confidence to two decimals, message count, time span, media-event count with operator verdicts. Two controls live inside it: *Open the timeline*, and *Defer, I need a buffer*, which releases the claim without a decision, logs no reason and does not count as a skip. A reviewer can leave from here having read nothing, and a dismissal can cost zero exposure.
+1. **Severity preview strip.** Server-rendered from `Pair` alone and streamed before the bundle is fetched. Tier word, critical signals in words, both bands with provenance and confidence to two decimals, message count, time span, media-event count with operator verdicts. One control lives inside it, *Open the timeline*. A reviewer can leave from here having read nothing, and a dismissal can cost zero exposure. A second control, *Defer, I need a buffer*, was specified here and built, and has been removed: a claim is not persisted on this deployment (13.2 gap 1), so it released nothing. It was a link back to the queue with a sentence under it saying it logged no reason. Leaving is the Queue link in the nav until claims are a column.
 2. **Why this is here.** One sentence in the behaviour-not-person voice, generated from the fusion output and grammatically identical to the Discord card so the two surfaces read as one product. Under it, the three highest-contributing features with weights as short bars, the critical one marked in words. Where actor skew contributed, nearest-exemplar snippet labels sit behind a disclosure so "skew is rising" is inspectable rather than oracular.
 3. **Pair and actor context, side by side.** Pair: the six-cell stage strip with hit stages filled, transitions annotated with elapsed time, the velocity window that fired named beneath, and the `soleAutomatedBasis` statement. Actor: other pairs in the window, fan-out, fan-in, account age, alt-cluster flag, elevated role as a risk annotation with its one-line explanation, prior Guardian cases with outcomes inline.
 4. **Policy for this tier**, as the operator wrote it, with the last edit and its author.
@@ -601,7 +599,6 @@ Docked to the foot of the case pane, separated by a 1px rule and a shift to `--s
   4  Propose T3     opens the proposal. It does not create T3
   e  Escalate to a second reviewer without deciding
   c  Request context from the operator
-  d  Defer, I need a buffer
 ```
 
 Consequence microcopy sits under each verb, always visible, never on hover. *"Dismiss: the pair returns to normal scoring. It does not clear anyone of anything."* The words clear, cleared, exonerate, innocent and false alarm appear nowhere.
@@ -810,6 +807,8 @@ Every user-facing literal lives in `src/lib/copy.ts` and passes `assertNoAccusat
 
 ## 11. Wellness controls, with exact limits
 
+**Status.** This whole section was written from reviewer-wellbeing research rather than from a product requirement, and the parts of it that put a meter, a budget or a break prompt in front of a reviewer have been removed from the build. The session budget, the micro-break interstitial and the exposure meter no longer exist in code, and neither does the `/settings` form that let a reviewer ratchet those numbers. What remains below is a design note, not a description of the product. Two of its structural claims do still hold and are enforced elsewhere: there is no image code path at all, and nothing anywhere shows a per-reviewer speed, ranking, target or handling time.
+
 **Structural.** No imagery, and no image code path to disable. Every published wellness control in the market is an image control, so all of the following had to be invented for text.
 
 | Control | Limit | Who may move it |
@@ -850,8 +849,6 @@ Every binding lives in `lib/keys.ts` and the shortcut sheet renders from that re
 | `j` / `k` | Move selection down / up. Does not open, does not claim |
 | `Enter` or `o` | Claim and open the selected case |
 | `Shift+Enter` | Open read-only without claiming |
-| `1` to `5` | Jump to filter chip |
-| `/` | Focus the filter chips for type-ahead |
 
 **In a case**
 
@@ -863,7 +860,6 @@ Every binding lives in `lib/keys.ts` and the shortcut sheet renders from that re
 | `Space` | Reveal the focused collapsed span |
 | `Shift+Space` | Reveal all spans in this case, after a confirm that says how many and that it writes read flags |
 | `x` | Open the focused normalization or lexicon popover. `Esc` closes it |
-| `d` | Defer, I need a buffer. Releases the claim, no reason, not a skip |
 | `s` | Skip with a reason. Counts as a difficulty signal, and the queue says so |
 | `e` | Escalate to a second reviewer without deciding |
 | `c` | Request context from the operator |
@@ -1019,8 +1015,7 @@ The reviewers of this design check these, in this order. A failure in section A 
 
 ### D. Wellness
 
-- [ ] The severity strip renders before the timeline is fetched, and Defer works having read nothing.
-- [ ] Session budget 120 min, cases per hour 8, micro-break 25 min, buffer 90 s, rotation 12 weeks. Org may move each only in the protective direction.
+- [ ] The severity strip renders before the timeline is fetched, so a dismissal can cost zero exposure.
 - [ ] Collapse is a one-way ratchet, with no per-case override.
 - [ ] The exposure meter is severity- and reveal-weighted, not case count.
 - [ ] At 100% the queue stops serving, does not log out, does not interrupt an open case, and lands on lower-intensity work.
@@ -1034,7 +1029,7 @@ The reviewers of this design check these, in this order. A failure in section A 
 - [ ] A decision is two keystrokes: verb, then reason with Enter.
 - [ ] Undo is 60 seconds, a persistent inline bar with the seconds in text, and writes a compensating entry. The bar survives the route revalidating the case as resolved, and the tier it restores is read from the review it compensates, never chosen by the caller.
 - [ ] A failed write never advances the case and never looks like a completed decision.
-- [ ] If the timeline failed, Confirm and Propose disable with the reason and Dismiss, Watch, Defer and Escalate stay live.
+- [ ] If the timeline failed, Confirm and Propose disable with the reason and Dismiss, Watch and Escalate stay live.
 - [ ] Claim state is enforced. Opening a claimed case is read-only with a handoff request.
 - [ ] A blocked proposal surfaces as a staffing class with the oldest proposal's age, addressed to whoever can add a seat, never as a reviewer's backlog.
 - [ ] The one-seat branch records a reviewer-confirmed T2 with a drafted bundle and never a T3.

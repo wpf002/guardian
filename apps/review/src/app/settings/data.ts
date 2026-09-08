@@ -1,16 +1,12 @@
 /**
  * The data this route owns, on top of @/lib/data/settings.
  *
- * Three things live here rather than in the shared data layer because the
- * schema has no home for them yet, and coding around a gap in one route is
- * cheaper to unpick later than faking a column:
+ * Two things live here rather than in the shared data layer because the schema
+ * has no home for them yet, and coding around a gap in one route is cheaper to
+ * unpick later than faking a column:
  *
  *  - The webhook URL and secret are on Customer, but no shared reader exposes
  *    them. This one does, and it never returns the secret to the client.
- *  - Per-reviewer wellness limits have no table. Pre-SSO the reviewer roster is
- *    an environment variable (see lib/auth), so there is nothing to hang a
- *    preference row on. They are held per process here and stated as such on
- *    screen, so nobody mistakes them for durable.
  *  - The lexicon view is assembled from the base file plus the customer
  *    extension. The merge label is the customer id, which is what the scorer
  *    uses, so the version string this page prints is the one a score row
@@ -35,49 +31,8 @@ import type {
   LexiconFieldView,
   LexiconView,
   RetentionRow,
-  SessionLimits,
-  SessionLimitsView,
   WebhookView,
 } from "./types";
-
-/* ------------------------------------------------------------------ limits */
-
-/** DESIGN-UI 11. Every one of these moves in one direction only. */
-export const ORG_DEFAULT_LIMITS: SessionLimits = {
-  sessionBudgetMinutes: 120,
-  microBreakMinutes: 25,
-  casesPerHour: 8,
-  collapseProtectedSpans: true,
-};
-
-/** Lower bounds, so a reviewer cannot ratchet themselves out of a working day. */
-export const LIMIT_FLOORS = {
-  sessionBudgetMinutes: 15,
-  microBreakMinutes: 5,
-  casesPerHour: 1,
-} as const;
-
-const limitsByReviewer = new Map<string, SessionLimits>();
-
-export function getSessionLimits(session: Session): SessionLimitsView {
-  return {
-    orgDefaults: { ...ORG_DEFAULT_LIMITS },
-    mine: { ...(limitsByReviewer.get(session.reviewerId) ?? ORG_DEFAULT_LIMITS) },
-  };
-}
-
-/**
- * Applies a reviewer's own limits. The ratchet is checked here as well as in the
- * form, because the form is a convenience and this is the write.
- */
-export function setSessionLimits(session: Session, next: SessionLimits): void {
-  limitsByReviewer.set(session.reviewerId, next);
-}
-
-/** Test hook. Nothing in the app calls this. */
-export function resetSessionLimits(): void {
-  limitsByReviewer.clear();
-}
 
 /* ----------------------------------------------------------------- webhook */
 

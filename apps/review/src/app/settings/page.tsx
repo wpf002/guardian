@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/PageHeader";
 import {
   LexiconEditor,
   RetentionTable,
-  SessionLimitsForm,
   ThemePicker,
   WebhookPanel,
 } from "@/components/settings";
@@ -18,14 +17,11 @@ import {
   addLexiconPhrasesAction,
   removeLexiconPhraseAction,
   sendTestDeliveryAction,
-  updateSessionLimitsAction,
   updateWebhookUrlAction,
 } from "./actions";
 import {
   getLexiconView,
-  getSessionLimits,
   getWebhookView,
-  ORG_DEFAULT_LIMITS,
   retentionRows,
 } from "./data";
 import type { LexiconView, WebhookView } from "./types";
@@ -33,7 +29,7 @@ import styles from "@/components/settings/settings.module.css";
 
 export const metadata: Metadata = {
   title: "Settings",
-  description: "Your seat, your session limits, and the customer configuration behind them.",
+  description: "Your seat and the customer configuration behind it.",
 };
 
 /** Rotation off the T2 queue, DESIGN-UI 11. The interval is the org's to set. */
@@ -50,7 +46,6 @@ export default async function SettingsPage() {
   const isOperator = roleAllows(session.role, "operator");
 
   const customer = await getCustomerSettings(session).catch(() => null);
-  const limits = getSessionLimits(session);
   const seats = listSeats(session);
   const secondSeat = hasSecondSeat(session);
 
@@ -136,13 +131,6 @@ export default async function SettingsPage() {
               </p>
             </div>
           </div>
-        </Card>
-
-        <Card
-          title="Session limits"
-          aside={`org default ${ORG_DEFAULT_LIMITS.sessionBudgetMinutes} min a day`}
-        >
-          <SessionLimitsForm limits={limits} action={updateSessionLimitsAction} />
         </Card>
 
         <Card title="Theme">

@@ -12,13 +12,6 @@ export { KeyboardHelp, type KeyboardHelpProps } from "./KeyboardHelp";
 export { LoadingState, SkeletonRows, type LoadingStateProps } from "./LoadingState";
 export { PageHeader, type PageHeaderProps } from "./PageHeader";
 export { Select, type SelectOption, type SelectProps } from "./Select";
-export {
-  SessionTimer,
-  SESSION_BUDGET_MINUTES,
-  MICRO_BREAK_MINUTES,
-  ELEVATED_AT,
-  type SessionTimerProps,
-} from "./SessionTimer";
 export { StagePath, STAGE_LADDER, type StagePathProps } from "./StagePath";
 export { Stat, type StatProps } from "./Stat";
 export { Textarea, type TextareaProps } from "./Textarea";

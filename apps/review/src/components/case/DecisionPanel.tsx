@@ -455,9 +455,6 @@ export function DecisionPanel({
       ) : null}
 
       <div className={styles.escapes}>
-        <Link className={styles.linkEscape} href={leaveHref}>
-          Defer, I need a buffer
-        </Link>
         <Button
           variant="ghost"
           disabledReason="Escalating to a second reviewer without deciding needs the concurrence route, which is not built yet."

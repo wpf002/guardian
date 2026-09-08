@@ -42,8 +42,6 @@ export type ClaimState =
   | { state: "other"; who: string; sinceMinutes: number };
 
 export interface QueueFilters {
-  /** "all" | "critical" | "unclaimed" | "breach" | "needs_second" */
-  chip?: "all" | "critical" | "unclaimed" | "breach" | "needs_second";
   tier?: Tier[];
   limit?: number;
 }
@@ -111,7 +109,6 @@ export interface QueueSummary {
   criticalCount: number;
   unclaimedCount: number;
   breachRiskCount: number;
-  needsSecondCount: number;
   /** Null when nothing has ever arrived. Lets a reviewer tell empty from broken. */
   lastArrivalAt: Date | null;
 }

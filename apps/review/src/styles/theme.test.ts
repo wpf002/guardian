@@ -125,7 +125,6 @@ describe("components spend the right token on a control boundary", () => {
   const controls: Array<[string, string]> = [
     ["Form.module.css", ".control"],
     ["Button.module.css", ".secondary"],
-    ["queue/FilterChips.module.css", ".chip"],
     ["queue/CaseCard.module.css", ".card"],
     ["case/Decision.module.css", ".verb"],
     ["Dialog.module.css", ".panel"],

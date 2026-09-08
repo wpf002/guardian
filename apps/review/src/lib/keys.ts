@@ -28,8 +28,6 @@ export const KEY_GROUPS: KeyGroup[] = [
       { keys: "j / k", action: "Move selection down or up. Does not open, does not claim" },
       { keys: "Enter or o", action: "Claim and open the selected case" },
       { keys: "Shift+Enter", action: "Open read only without claiming" },
-      { keys: "1 to 5", action: "Jump to a filter chip" },
-      { keys: "/", action: "Focus the filter chips for type-ahead" },
     ],
   },
   {
@@ -41,7 +39,6 @@ export const KEY_GROUPS: KeyGroup[] = [
       { keys: "Space", action: "Reveal the focused collapsed span" },
       { keys: "Shift+Space", action: "Reveal every span in this case, after a confirm that says how many" },
       { keys: "x", action: "Open the focused normalization popover. Escape closes it" },
-      { keys: "d", action: "Defer, I need a buffer. Releases the claim, no reason, not a skip" },
       { keys: "s", action: "Skip with a reason" },
       { keys: "e", action: "Escalate to a second reviewer without deciding" },
       { keys: "c", action: "Request context from the operator" },

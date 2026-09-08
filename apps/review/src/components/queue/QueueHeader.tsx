@@ -4,28 +4,22 @@ import styles from "./QueueHeader.module.css";
 
 export interface QueueHeaderProps {
   summary: QueueSummary;
-  /** Printed, because a reviewer who cannot see why A is above B loses trust. */
-  rankingSentence: string;
   /** A short statement about the last action, when there is one. */
   notice?: string | null;
 }
 
 /**
- * Above the fold: where you are, how many are waiting, how much shift is left.
- * No charts, no trend, no welcome, and no paragraph explaining the ranking. The
- * ranking sentence moved into a disclosure a reviewer opens once and never
- * again, because it was three lines of justification sitting on top of the work.
+ * Above the fold: where you are and how many are waiting. No charts, no trend,
+ * no welcome.
  *
- * There is no session budget here. One was added from reviewer-wellbeing
- * research, nobody asked for it, and it became the largest element on a page
- * whose job is to show cases. Bounded exposure is a real finding and it belongs
- * where a shift is actually managed, not above the queue.
+ * Two things that were here are gone. A disclosure headed "Why this order" held
+ * a paragraph explaining the rank formula; nobody asked for it, and a queue that
+ * argues for its own sort order before showing a case is spending the fold on
+ * itself. And there was a session budget, added from reviewer-wellbeing research
+ * rather than from the spec, which became the largest element on a page whose
+ * job is to show cases.
  */
-export function QueueHeader({
-  summary,
-  rankingSentence,
-  notice,
-}: QueueHeaderProps) {
+export function QueueHeader({ summary, notice }: QueueHeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.main}>
@@ -41,10 +35,6 @@ export function QueueHeader({
             </span>
           ) : null}
         </p>
-        <details className={styles.how}>
-          <summary className={styles.summary}>Why this order</summary>
-          <p className={styles.howBody}>{rankingSentence}</p>
-        </details>
         {notice ? (
           <p className={styles.notice} role="status">
             {notice}

@@ -26,10 +26,6 @@ import type {
   Tier,
 } from "./types";
 
-/** Rank order the queue prints above itself, so a reviewer can see why A is above B. */
-export const RANKING_SENTENCE =
-  "The most serious cases come first, and among those, the ones with the least time left. A case rises if a critical signal fired, if the younger account is easier to identify, or if the same older account turns up in several conversations. The order describes the queue, not anybody in it.";
-
 const TIER_WEIGHT: Record<Tier, number> = { T0: 0, T1: 1, T2: 2, T3: 3 };
 
 /** Under this many minutes of SLA left, a case counts toward breach risk. */
@@ -42,21 +38,6 @@ function rankScore(row: QueueCase): number {
   return base + critical + 600 / Math.max(sla, 5);
 }
 
-function matchesChip(row: QueueCase, chip: QueueFilters["chip"]): boolean {
-  switch (chip) {
-    case "critical":
-      return row.criticalSignals.length > 0;
-    case "unclaimed":
-      return row.claim.state === "unclaimed";
-    case "breach":
-      return row.slaRemainingMinutes !== null && row.slaRemainingMinutes <= BREACH_RISK_MINUTES;
-    case "needs_second":
-      return row.tier === "T2" && row.criticalSignals.length > 0;
-    default:
-      return true;
-  }
-}
-
 function summarise(partitionName: string, cases: QueueCase[]): QueueSummary {
   return {
     partitionName,
@@ -66,7 +47,6 @@ function summarise(partitionName: string, cases: QueueCase[]): QueueSummary {
     breachRiskCount: cases.filter(
       (c) => c.slaRemainingMinutes !== null && c.slaRemainingMinutes <= BREACH_RISK_MINUTES,
     ).length,
-    needsSecondCount: cases.filter((c) => matchesChip(c, "needs_second")).length,
     lastArrivalAt:
       cases.length === 0
         ? null
@@ -263,7 +243,6 @@ export async function listQueue(
   session: Session,
   filters: QueueFilters = {},
 ): Promise<QueuePage> {
-  const chip = filters.chip ?? "all";
   const limit = filters.limit ?? 50;
 
   if (isMockMode()) {
@@ -274,7 +253,6 @@ export async function listQueue(
       .map((p) => p.queue);
     const summary = summarise(data.customer.name, all);
     const cases = all
-      .filter((row) => matchesChip(row, chip))
       .filter((row) => (filters.tier ? filters.tier.includes(row.tier) : true))
       .sort((a, b) => rankScore(b) - rankScore(a))
       .slice(0, limit);
@@ -310,7 +288,6 @@ export async function listQueue(
   );
   const summary = summarise(customer?.name ?? session.customerId, all);
   const cases = all
-    .filter((row) => matchesChip(row, chip))
     .filter((row) => (filters.tier ? filters.tier.includes(row.tier) : true))
     .sort((a, b) => rankScore(b) - rankScore(a))
     .slice(0, limit);

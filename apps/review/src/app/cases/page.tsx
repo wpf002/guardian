@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { EmptyState, PageHeader, TierBadge } from "@/components";
 import { requireSession } from "@/lib/auth";
-import { listQueue, RANKING_SENTENCE } from "@/lib/data/cases";
+import { listQueue } from "@/lib/data/cases";
 import styles from "./cases.module.css";
 import caseStyles from "@/components/case/Case.module.css";
 
@@ -34,8 +34,6 @@ export default async function CasesPage() {
             </span>
           </>
         }
-        about={<p>{RANKING_SENTENCE}</p>}
-        aboutLabel="Why this order"
       />
 
       {page.cases.length === 0 ? (

@@ -29,11 +29,21 @@ describe("the queue", () => {
     expect(page.summary.lastArrivalAt).toBeNull();
   });
 
-  it("names the unfiltered count when a filter empties the list", async () => {
-    const all = await listQueue(session);
-    const critical = await listQueue(session, { chip: "critical" });
-    expect(critical.summary.total).toBe(all.summary.total);
-    expect(critical.cases.every((c) => c.criticalSignals.length > 0)).toBe(true);
+  // The queue hides nothing. The chip filters that used to sit above it are
+  // gone, so the list a reviewer sees is every unresolved case in the partition
+  // and the summary count is the length of that list, never a larger number.
+  it("hides no case behind a filter", async () => {
+    const page = await listQueue(session);
+    expect(page.summary.total).toBe(page.cases.length);
+    expect(page.cases.some((c) => c.criticalSignals.length === 0)).toBe(true);
+  });
+
+  it("ranks the more serious cases above the rest", async () => {
+    const page = await listQueue(session);
+    const tiers = page.cases.map((c) => c.tier);
+    const lastT2 = tiers.lastIndexOf("T2");
+    const firstT1 = tiers.indexOf("T1");
+    expect(firstT1).toBeGreaterThan(lastT2);
   });
 
   it("prints no SLA for a watch tier", async () => {

@@ -2,25 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { findAccusations, lexiconSchema } from "@guardian/schema";
-import { requireRole, requireSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { appendAudit } from "@/lib/data/audit";
 import { getLexiconExtension, updateLexiconExtension } from "@/lib/data/settings";
 import {
   assertExtensionMerges,
   baseLexicon,
   isPhraseField,
-  LIMIT_FLOORS,
-  ORG_DEFAULT_LIMITS,
   readExtension,
   sendTestDelivery,
-  setSessionLimits,
   setWebhookUrl,
 } from "./data";
 import { checkWebhookTarget } from "@guardian/schema/webhook-target";
 import type {
   LexiconState,
-  SessionLimits,
-  SessionLimitsState,
   TestDeliveryState,
   WebhookState,
 } from "./types";
@@ -33,63 +28,6 @@ import type {
 
 const ATTESTATION =
   "This change was made on our own initiative and not at the direction of a law enforcement request.";
-
-/* ------------------------------------------------------------------ limits */
-
-/** The wellness controls move one way only (DESIGN-UI 11). */
-function readLimits(formData: FormData): SessionLimits | string {
-  const budget = Number(formData.get("sessionBudgetMinutes"));
-  const microBreak = Number(formData.get("microBreakMinutes"));
-  const cases = Number(formData.get("casesPerHour"));
-  const collapse = formData.get("collapseProtectedSpans") === "on";
-
-  if (!Number.isInteger(budget) || !Number.isInteger(microBreak) || !Number.isInteger(cases)) {
-    return "Each limit has to be a whole number of minutes or cases.";
-  }
-  if (budget > ORG_DEFAULT_LIMITS.sessionBudgetMinutes) {
-    return `You can lower the session budget below ${ORG_DEFAULT_LIMITS.sessionBudgetMinutes} minutes, not raise it.`;
-  }
-  if (microBreak > ORG_DEFAULT_LIMITS.microBreakMinutes) {
-    return `You can shorten the micro-break interval below ${ORG_DEFAULT_LIMITS.microBreakMinutes} minutes, not lengthen it.`;
-  }
-  if (cases > ORG_DEFAULT_LIMITS.casesPerHour) {
-    return `You can lower the cases per hour below ${ORG_DEFAULT_LIMITS.casesPerHour}, not raise it.`;
-  }
-  if (budget < LIMIT_FLOORS.sessionBudgetMinutes) {
-    return `The session budget cannot go below ${LIMIT_FLOORS.sessionBudgetMinutes} minutes.`;
-  }
-  if (microBreak < LIMIT_FLOORS.microBreakMinutes) {
-    return `The micro-break interval cannot go below ${LIMIT_FLOORS.microBreakMinutes} minutes.`;
-  }
-  if (cases < LIMIT_FLOORS.casesPerHour) {
-    return `Cases per hour cannot go below ${LIMIT_FLOORS.casesPerHour}.`;
-  }
-  if (!collapse && ORG_DEFAULT_LIMITS.collapseProtectedSpans) {
-    return "Collapsing protected spans can be turned on and never off.";
-  }
-  return {
-    sessionBudgetMinutes: budget,
-    microBreakMinutes: microBreak,
-    casesPerHour: cases,
-    collapseProtectedSpans: collapse,
-  };
-}
-
-export async function updateSessionLimitsAction(
-  _previous: SessionLimitsState,
-  formData: FormData,
-): Promise<SessionLimitsState> {
-  const session = await requireSession();
-  const limits = readLimits(formData);
-  if (typeof limits === "string") return { error: limits, message: null };
-
-  setSessionLimits(session, limits);
-  revalidatePath("/settings");
-  return {
-    error: null,
-    message: `Saved. ${limits.sessionBudgetMinutes} minutes of case time a day, a break every ${limits.microBreakMinutes} minutes.`,
-  };
-}
 
 /* ----------------------------------------------------------------- lexicon */
 

@@ -31,16 +31,20 @@ async function renderQueue(params: Record<string, string> = {}) {
 }
 
 describe("/queue in mock mode", () => {
-  it("renders the ranking rule, the counts, the chips and the ranked cards", async () => {
+  it("renders the counts and the ranked cards, and nothing above them", async () => {
     const { container } = await renderQueue();
 
     expect(screen.getByRole("heading", { level: 1, name: "Queue" })).toBeTruthy();
     expect(container.textContent).toContain("Northwood Gaming");
     expect(container.textContent).toContain("waiting");
-    expect(container.textContent).toContain("The most serious cases come first");
 
-    expect(screen.getByRole("navigation", { name: "Queue filters" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Needs second reviewer/ })).toBeTruthy();
+    // Nothing sits between the count and the first case: no paragraph arguing
+    // for the sort order, no filter chips, no session budget.
+    expect(container.textContent).not.toContain("Why this order");
+    expect(container.textContent).not.toContain("The most serious cases come first");
+    expect(screen.queryByRole("navigation", { name: "Queue filters" })).toBeNull();
+    expect(container.textContent).not.toContain("Breach risk");
+    expect(container.textContent).not.toMatch(/min left/);
 
     const cards = screen.getAllByRole("listitem");
     expect(cards.length).toBeGreaterThan(1);
@@ -83,11 +87,13 @@ describe("/queue in mock mode", () => {
     expect(container.textContent).toContain("claimed by M. Osei");
   });
 
-  it("names the unfiltered count when a filter empties the list", async () => {
+  // A query string is not a filter any more. Whatever it says, the page shows
+  // the whole partition, so a stale bookmark cannot hide a case from a reviewer.
+  it("ignores filter parameters left over in the URL", async () => {
     const { container } = await renderQueue({ chip: "needs_second", tier: "T1" });
-    expect(container.textContent).toContain("No cases match these filters.");
-    expect(container.textContent).toMatch(/\d+ cases are in the queue\./);
-    expect(screen.getByRole("link", { name: "Show every case" })).toBeTruthy();
+    const rows = screen.getAllByRole("listitem");
+    expect(rows.length).toBeGreaterThan(1);
+    expect(container.textContent).toContain("4f2a");
   });
 
   it("writes nothing about a person anywhere on the page", async () => {

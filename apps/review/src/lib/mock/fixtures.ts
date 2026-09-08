@@ -394,7 +394,7 @@ function specs(): PairSpec[] {
         "Both accounts sit in the 13-15 band. A directive with a proof demand was recorded, and no payment was asked for.",
       actorBand: band("A13_15", 0.66, "server_role"),
       targetBand: band("A13_15", 0.7, "server_role"),
-      actorContext: "no enforcement action offered on this case",
+      actorContext: "first case for either account",
       suggestedPosture: "support",
       soleAutomatedBasis: false,
       channel: "#voice-text",

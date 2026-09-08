@@ -6,31 +6,6 @@
  * browser bundle.
  */
 
-/** The wellness limits from DESIGN-UI 11, as this deployment holds them. */
-export interface SessionLimits {
-  /** T2 case minutes per reviewer per day. */
-  sessionBudgetMinutes: number;
-  /** Minutes between micro-breaks. */
-  microBreakMinutes: number;
-  casesPerHour: number;
-  /** Collapse of protected spans. A one-way ratchet toward more collapsing. */
-  collapseProtectedSpans: boolean;
-}
-
-/**
- * Org defaults sit beside the reviewer's own value on every row, because a
- * limit a reviewer cannot see the shape of is a limit they cannot use.
- */
-export interface SessionLimitsView {
-  orgDefaults: SessionLimits;
-  mine: SessionLimits;
-}
-
-export interface SessionLimitsState {
-  error: string | null;
-  message: string | null;
-}
-
 export interface LexiconFieldView {
   /** The field name as the lexicon holds it. */
   field: string;
