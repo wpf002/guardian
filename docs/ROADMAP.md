@@ -209,7 +209,7 @@ Goal: fine-tune on PANC and PJZC plus bot-collected labels, ship the Next.js rev
 | Operator dashboard: queue health, tier rates, retention, audit status | done | `/dashboard`. Handling time is deliberately not shown per person and not compared between people. |
 | Guild setup UI for Discord owners | done | `/guilds` and `/guilds/[guildId]`, mirroring the slash commands |
 | Review decisions write `Review` rows and audit entries; T3 only from here | done | One code path, `src/lib/decisions.ts`. T3 needs a proposal plus a second reviewer. |
-| Text-native reviewer wellness controls | done | Session budget with break prompts, threat language collapsed behind an explicit reveal, a defer that logs no reason and does not count as a skip. |
+| Text-native reviewer wellness controls | partly reverted | Threat language stays collapsed behind an explicit reveal, and nothing shows a per-reviewer speed or handling time. The session budget, the break prompts and the defer are removed (`a53bd7c`): they came from wellbeing research rather than from the spec, and the defer released nothing because a claim is not persisted. DESIGN-UI 11 is marked as a design note. |
 | Adversarial review of the reviewer console, 35 findings fixed | done | Three lenses over the built app: design and accessibility, security, correctness. Summarised in the five rows below the table. |
 | Report status and outcome trail back to the reporter | moved | Now a phase 3 row. It is the reporting half of the product and it needs the CyberTipline client underneath it. |
 | Evidence record shaped as a superset of CyberTipline API fields | done | Delivered early, in phase 3, because `packages/report` needed it. `buildReport` is a projection rather than a rewrite. |
