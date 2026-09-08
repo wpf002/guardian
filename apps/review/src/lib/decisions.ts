@@ -41,7 +41,7 @@ import {
 } from "./reasons";
 import { getPrisma, isMockMode } from "./db";
 import { getMockData } from "./mock/fixtures";
-import { appendAudit, appendAuditInTransaction } from "./data/audit";
+import { appendAudit, appendAuditInTransaction, hasReadEvidence } from "./data/audit";
 import type { Session } from "./session";
 import type { ReviewRecord } from "./data/types";
 
@@ -221,6 +221,28 @@ function assertExcerptRead(decision: ReviewDecision, humanViewedAt: Date | null)
   );
 }
 
+/**
+ * The second reviewer has to have read the evidence themselves.
+ *
+ * `Pair.humanViewedAt` is set by whoever read first and never records who, so
+ * on a concurrence it is already satisfied by the proposer: without this the
+ * second reviewer could write T3 having opened nothing. Two people are required
+ * on a T3 because two people are supposed to have looked, and a check that the
+ * first person looked twice is not that.
+ */
+async function assertSecondReviewerRead(
+  session: Session,
+  pairId: string,
+  concurrence: Concurrence | undefined,
+): Promise<void> {
+  if (!concurrence) return;
+  if (await hasReadEvidence(session, pairId)) return;
+  throw new DecisionRefused(
+    "concurrence_without_own_read",
+    "You have not opened an excerpt on this case. A concurrence is a second reading, so the timeline has to be rendered to you before you answer the proposal.",
+  );
+}
+
 function summaryFor(state: ReviewState, resultTier: Tier, reasonCode: string): string {
   const label = reasonLabel(reasonCode);
   switch (state) {
@@ -256,6 +278,31 @@ function validate(input: RecordDecisionInput): Reason {
     throw new DecisionRefused(
       "reason_decision_mismatch",
       `Reason ${reason.code} belongs to the ${reason.decision} set, not to ${input.decision}.`,
+    );
+  }
+  /*
+   * The concurrence reasons ride on decision "report" because a concurrence is
+   * an answer to a proposal, so the decision check above lets them through on a
+   * proposal too. These two close that: a first reviewer cannot propose a
+   * report whose stated reason is "same reading from the evidence", and a
+   * second reviewer cannot uphold under an overturn reason.
+   */
+  if (reason.concurrence && !input.concurrence) {
+    throw new DecisionRefused(
+      "concurrence_reason_without_proposal",
+      `Reason ${reason.code} is what a second reviewer picks when answering a proposal. A proposal states a CyberTipline incident type instead.`,
+    );
+  }
+  if (input.concurrence && !reason.concurrence) {
+    throw new DecisionRefused(
+      "proposal_reason_on_concurrence",
+      `Reason ${reason.code} states an incident type, which the proposal already did. A concurrence says whether the evidence carries it.`,
+    );
+  }
+  if (input.concurrence && reason.concurrence !== (input.concurrence.upheld ? "uphold" : "overturn")) {
+    throw new DecisionRefused(
+      "concurrence_side_mismatch",
+      `Reason ${reason.code} belongs to the ${reason.concurrence} set. It cannot carry the other answer.`,
     );
   }
   if (
@@ -344,6 +391,8 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
     }
 
     assertExcerptRead(decision, pair.humanViewedAt);
+    await assertSecondReviewerRead(session, pairId, input.concurrence);
+    assertProposalIsOpen(data.reviews, pairId, input.concurrence);
 
     const modelTier = pair.queue.tier;
     assertNotOverwritingT3(modelTier, input.concurrence);
@@ -368,15 +417,31 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
         outsideContext: input.notes?.outsideContext ?? null,
         recommendation: input.notes?.recommendation ?? null,
       },
+      state,
       parentReviewId: input.concurrence?.proposalReviewId ?? null,
       createdAt: new Date(),
       retentionDeadline: expiresAt(retentionForTier(resultTier)),
       auditSeq: null,
     };
 
+    if (input.concurrence) {
+      const proposal = data.reviews.find((r) => r.id === input.concurrence!.proposalReviewId);
+      // assertProposalIsOpen already refused an answered one; this closes it.
+      if (proposal) proposal.state = state;
+    }
     if (state !== "proposed") {
       pair.queue.tier = resultTier;
       pair.queue.resolvedAt = new Date();
+      pair.queue.proposal = null;
+    } else {
+      pair.queue.proposal = {
+        reviewId: review.id,
+        proposerReviewerId: session.reviewerId,
+        proposerName: session.displayName,
+        reasonLabel: reason.label,
+        proposedAt: review.createdAt,
+        mine: true,
+      };
     }
     data.reviews.unshift(review);
 
@@ -409,6 +474,22 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
     );
   }
   assertExcerptRead(decision, pair.humanViewedAt);
+  await assertSecondReviewerRead(session, pairId, input.concurrence);
+  if (input.concurrence) {
+    const proposal = await prisma.review.findFirst({
+      where: { id: input.concurrence.proposalReviewId, pairId },
+      select: { reviewerId: true, state: true },
+    });
+    if (!proposal) {
+      throw new DecisionRefused("proposal_not_found", "That proposal is not on this case.");
+    }
+    if (proposal.reviewerId !== input.concurrence.proposerReviewerId) {
+      throw new DecisionRefused(
+        "proposal_proposer_mismatch",
+        "The proposal names a different reviewer than the one this concurrence answers.",
+      );
+    }
+  }
 
   const modelTier = pair.tier;
   assertNotOverwritingT3(modelTier, input.concurrence);
@@ -437,6 +518,8 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
         pairId,
         reviewerId: session.reviewerId,
         decision,
+        state,
+        parentReviewId: input.concurrence?.proposalReviewId ?? null,
         reason: reason.code,
         modelTier,
         resultTier,
@@ -445,6 +528,25 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
         viewedExcerptCount: input.viewedExcerptCount ?? null,
       },
     });
+    if (input.concurrence) {
+      /*
+       * The proposal stops being open in the same transaction that answers it.
+       * updateMany with state: proposed in the where clause is the lock: two
+       * reviewers upholding the same proposal at once, and the second update
+       * matches no row, so the transaction is rolled back rather than writing
+       * two T3 answers to one proposal.
+       */
+      const closed = await tx.review.updateMany({
+        where: { id: input.concurrence.proposalReviewId, pairId, state: "proposed" },
+        data: { state },
+      });
+      if (closed.count !== 1) {
+        throw new DecisionRefused(
+          "proposal_not_open",
+          "That proposal is no longer open. Somebody has already answered it, or it was withdrawn.",
+        );
+      }
+    }
     if (state !== "proposed") {
       await tx.pair.update({
         where: { id: pairId },
@@ -486,6 +588,7 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
         outsideContext: input.notes?.outsideContext ?? null,
         recommendation: input.notes?.recommendation ?? null,
       },
+      state,
       parentReviewId: input.concurrence?.proposalReviewId ?? null,
       createdAt: createdRow.createdAt,
       retentionDeadline,
@@ -619,6 +722,116 @@ export async function undoDecision(
     });
   });
   return { auditSeq: seq, restoredTier: restoreTier };
+}
+
+/**
+ * A concurrence answers a proposal that is still open, made by somebody else.
+ *
+ * The database branch gets this from `updateMany` with `state: "proposed"` in
+ * the where clause, which is also the lock against two reviewers answering the
+ * same proposal at once. Fixtures have no transaction, so the same three
+ * conditions are checked here.
+ */
+function assertProposalIsOpen(
+  reviews: ReviewRecord[],
+  pairId: string,
+  concurrence: Concurrence | undefined,
+): void {
+  if (!concurrence) return;
+  const proposal = reviews.find((r) => r.id === concurrence.proposalReviewId);
+  if (!proposal || proposal.pairId !== pairId) {
+    throw new DecisionRefused("proposal_not_found", "That proposal is not on this case.");
+  }
+  if (proposal.state !== "proposed") {
+    throw new DecisionRefused(
+      "proposal_not_open",
+      "That proposal is no longer open. Somebody has already answered it, or it was withdrawn.",
+    );
+  }
+  if (proposal.reviewerId !== concurrence.proposerReviewerId) {
+    throw new DecisionRefused(
+      "proposal_proposer_mismatch",
+      "The proposal names a different reviewer than the one this concurrence answers.",
+    );
+  }
+}
+
+/**
+ * The proposer takes their own proposal back.
+ *
+ * Not an undo. Undo compensates a decision that changed a tier and closes after
+ * sixty seconds; a proposal changed no tier and stays open until somebody
+ * answers it, which may be days. What it costs is the same either way: the case
+ * returns to the queue as an ordinary T2 and no report exists.
+ *
+ * Only the proposer, and only while it is open. A second reviewer who disagrees
+ * overturns it, which is a decision with a reason on the chain, rather than
+ * making it disappear.
+ */
+export async function withdrawProposal(
+  session: Session,
+  reviewId: string,
+): Promise<{ auditSeq: number; pairId: string }> {
+  if (isMockMode()) {
+    const data = await getMockData();
+    const proposal = data.reviews.find((r) => r.id === reviewId);
+    assertWithdrawAllowed(session, proposal);
+    proposal!.state = "withdrawn";
+    const pair = data.pairs.find((p) => p.queue.pairId === proposal!.pairId);
+    if (pair) pair.queue.proposal = null;
+    const { seq } = await appendAudit(session, {
+      kind: "review.decision",
+      payload: { withdraws: reviewId, pairId: proposal!.pairId, state: "withdrawn" },
+    });
+    return { auditSeq: seq, pairId: proposal!.pairId };
+  }
+
+  const prisma = await getPrisma();
+  const proposal = await prisma.review.findFirst({
+    where: { id: reviewId, pair: { customerId: session.customerId } },
+    select: { id: true, pairId: true, reviewerId: true, state: true, decision: true },
+  });
+  assertWithdrawAllowed(session, proposal ?? undefined);
+  const pairId = proposal!.pairId;
+
+  const { seq } = await prisma.$transaction(async (tx) => {
+    const closed = await tx.review.updateMany({
+      where: { id: reviewId, state: "proposed" },
+      data: { state: "withdrawn" },
+    });
+    if (closed.count !== 1) {
+      throw new DecisionRefused(
+        "proposal_not_open",
+        "That proposal is no longer open. Somebody has already answered it.",
+      );
+    }
+    return appendAuditInTransaction(session, tx, {
+      kind: "review.decision",
+      payload: { withdraws: reviewId, pairId, state: "withdrawn" },
+    });
+  });
+  return { auditSeq: seq, pairId };
+}
+
+function assertWithdrawAllowed(
+  session: Session,
+  proposal: { reviewerId: string; state: string; decision?: string } | undefined,
+): void {
+  if (!proposal) {
+    throw new DecisionRefused("not_found", "That proposal is not in your log.");
+  }
+  if (proposal.reviewerId !== session.reviewerId) {
+    throw new DecisionRefused(
+      "not_your_proposal",
+      "Only the reviewer who proposed a report can withdraw it. A second reviewer who disagrees overturns it, which is a decision with a reason.",
+    );
+  }
+  if (proposal.state !== "proposed") {
+    throw new DecisionRefused(
+      "proposal_not_open",
+      "That proposal has already been answered. Withdrawing it would remove a record two people are on.",
+    );
+  }
 }
 
 /** The two things that close an undo: the tier it would restore, and the clock. */

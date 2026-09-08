@@ -2,6 +2,7 @@
 
 export { ActorPanel, type ActorPanelProps } from "./ActorPanel";
 export { CaseConsole, type CaseConsoleProps } from "./CaseConsole";
+export { ConcurrencePanel, type ConcurrencePanelProps } from "./ConcurrencePanel";
 export { ConsequenceCopy, type ConsequenceCopyProps } from "./ConsequenceCopy";
 export { DecisionPanel, type DecisionPanelProps } from "./DecisionPanel";
 export { PolicyPanel, type PolicyPanelProps } from "./PolicyPanel";

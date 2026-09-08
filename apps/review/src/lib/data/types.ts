@@ -99,8 +99,34 @@ export interface QueueCase {
   slaRemainingMinutes: number | null;
   claim: ClaimState;
   unread: boolean;
+  /**
+   * An unanswered proposal for report on this pair, when there is one.
+   *
+   * A proposal writes no tier, so without this the pair returns to the queue
+   * indistinguishable from any other T2 and the second reviewer it is waiting
+   * for has no way to know.
+   */
+  proposal: OpenProposal | null;
   updatedAt: Date;
   resolvedAt: Date | null;
+}
+
+/**
+ * A proposal for report that nobody has answered.
+ *
+ * A proposal writes no tier, so the pair goes back into the queue looking like
+ * any other T2. This is what tells a second reviewer that it is not one, and it
+ * is the only thing that reorders the queue ahead of tier.
+ */
+export interface OpenProposal {
+  reviewId: string;
+  proposerReviewerId: string;
+  proposerName: string;
+  /** The CyberTipline incident type the proposal states, in words. */
+  reasonLabel: string;
+  proposedAt: Date;
+  /** True when this session is the reviewer who proposed it. */
+  mine: boolean;
 }
 
 export interface QueueSummary {
@@ -261,6 +287,8 @@ export interface CaseDetail {
    * behind it, let alone the two a T3 needs.
    */
   reviewerConfirmedT3: boolean;
+  /** The unanswered proposal this case is waiting on, if any. */
+  proposal: OpenProposal | null;
   priorCases: PriorCase[];
   policy: OperatorPolicy;
   versions: Versions;
@@ -278,6 +306,11 @@ export interface ReviewRecord {
   reviewerId: string;
   reviewerName: string;
   decision: ReviewDecision;
+  /**
+   * What the decision did. A report decision alone is "proposed": it writes no
+   * tier and leaves the pair in the queue for a second reviewer.
+   */
+  state: "recorded" | "proposed" | "upheld" | "overturned" | "withdrawn";
   reasonCode: string;
   reasonLabel: string;
   modelTier: Tier;

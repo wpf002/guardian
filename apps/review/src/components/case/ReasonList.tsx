@@ -10,6 +10,15 @@ export interface ReasonListProps {
   decision: ReviewDecision;
   title: string;
   busy?: boolean;
+  /**
+   * The list to offer, when it is not simply the set for this decision. A
+   * concurrence rides on decision "report" like a proposal does, and the two
+   * choose from different sets: the first reviewer names a CyberTipline
+   * incident type, the second says whether the evidence carries it.
+   */
+  reasons?: Reason[];
+  /** Distinguishes two lists open under the same decision. */
+  listKey?: string;
   onCommit: (reason: Reason) => void;
   onCancel: () => void;
 }
@@ -21,8 +30,16 @@ export interface ReasonListProps {
  * dialog a reviewer learns to dismiss, so there is no separate confirm step
  * here.
  */
-export function ReasonList({ decision, title, busy = false, onCommit, onCancel }: ReasonListProps) {
-  const all = useMemo(() => reasonsFor(decision), [decision]);
+export function ReasonList({
+  decision,
+  title,
+  busy = false,
+  reasons,
+  listKey,
+  onCommit,
+  onCancel,
+}: ReasonListProps) {
+  const all = useMemo(() => reasons ?? reasonsFor(decision), [reasons, decision]);
   const [filter, setFilter] = useState("");
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +85,7 @@ export function ReasonList({ decision, title, busy = false, onCommit, onCancel }
     }
   }
 
-  const listId = `reasons-${decision}`;
+  const listId = `reasons-${listKey ?? decision}`;
 
   return (
     <div className={styles.reasons}>

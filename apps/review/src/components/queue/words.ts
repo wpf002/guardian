@@ -13,7 +13,13 @@
  */
 
 import { compose } from "@/lib/compose";
-import type { AgeBand, BandProvenance, BandReading, ClaimState } from "@/lib/data/types";
+import type {
+  AgeBand,
+  BandProvenance,
+  BandReading,
+  ClaimState,
+  OpenProposal,
+} from "@/lib/data/types";
 
 /** How a case was opened. A claim is a write; a read only open is not. */
 export type OpenMode = "claim" | "read_only";
@@ -267,4 +273,26 @@ export function sentenceCase(clause: string): string {
   if (trimmed === "") return "";
   const first = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
   return /[.!?]$/.test(first) ? first : `${first}.`;
+}
+
+/**
+ * The line an unanswered proposal puts on its queue row.
+ *
+ * A proposal writes no tier, so without this the pair sits in the queue as an
+ * ordinary T2 and the second reviewer it is waiting for cannot tell. Two
+ * sentences, because the two readers need different things: the person who
+ * proposed it needs to know it is still waiting, and everybody else needs to
+ * know they are the one who can finish it.
+ */
+export function proposalClause(proposal: OpenProposal, now = new Date()): string {
+  const minutes = Math.max(0, Math.round((now.getTime() - proposal.proposedAt.getTime()) / 60_000));
+  const waited =
+    minutes < 60
+      ? `${minutes} min`
+      : minutes < 24 * 60
+        ? `${Math.round(minutes / 60)}h`
+        : `${Math.round(minutes / (24 * 60))}d`;
+  return proposal.mine
+    ? `Your proposal for report, waiting ${waited} for a second reviewer`
+    : `Waiting on you. Proposed for report ${waited} ago, and a second reviewer writes the tier`;
 }

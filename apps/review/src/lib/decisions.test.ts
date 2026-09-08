@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockSession } from "./auth";
+import type { Session } from "./session";
 import {
   DecisionRefused,
   REASONS,
@@ -10,8 +11,9 @@ import {
   recordDecision,
   resolveResultTier,
   undoDecision,
+  withdrawProposal,
 } from "./decisions";
-import { markExcerptsViewed } from "./data/cases";
+import { listQueue, markExcerptsViewed } from "./data/cases";
 import { getMockData, resetMockData } from "./mock/fixtures";
 
 const session = mockSession();
@@ -26,11 +28,11 @@ beforeEach(() => {
  * checks its own record of that rather than the browser's count, so a test that
  * wants either has to read something first.
  */
-async function readEverything(pairId: string): Promise<string[]> {
+async function readEverything(pairId: string, who: Session = session): Promise<string[]> {
   const data = await getMockData();
   const pair = data.pairs.find((p) => p.queue.pairId === pairId);
   const rows = pair?.timeline.state === "ready" ? pair.timeline.rows : [];
-  return markExcerptsViewed(session, pairId, rows.map((row) => row.id));
+  return markExcerptsViewed(who, pairId, rows.map((row) => row.id));
 }
 
 describe("reason taxonomy", () => {
@@ -148,11 +150,15 @@ describe("recordDecision", () => {
       notes: { timeline: "Supervision probe, then a migration ask 4 minutes later." },
     });
 
+    // The second reviewer reads it themselves. Pair.humanViewedAt is already
+    // set by the proposer and says nothing about who, so a concurrence that
+    // trusted it would be one person reading twice.
+    await readEverything("pair_4f2a", second);
     const upheld = await recordDecision({
       session: second,
       pairId: "pair_4f2a",
       decision: "report",
-      reasonCode: "propose.online_enticement",
+      reasonCode: "uphold.independent_agreement",
       notes: { timeline: "Read independently and reached the same ordered pattern." },
       concurrence: {
         proposalReviewId: proposal.review.id,
@@ -178,7 +184,7 @@ describe("recordDecision", () => {
         session,
         pairId: "pair_4f2a",
         decision: "report",
-        reasonCode: "propose.online_enticement",
+        reasonCode: "uphold.independent_agreement",
         notes: { timeline: "Same person, second seat." },
         concurrence: {
           proposalReviewId: proposal.review.id,
@@ -367,6 +373,127 @@ describe("the only pair-tier write path", () => {
     for (const rel of ALLOWED) {
       expect(statSync(join(srcRoot, rel)).isFile()).toBe(true);
     }
+  });
+});
+
+/*
+ * The concurrence path: the only route to tier T3, and the one the console
+ * could not reach at all until the panel existed.
+ *
+ * pair_91c7 carries a fixture proposal from rev_mo, so these run against the
+ * shape a second reviewer actually meets rather than one built inside the test.
+ */
+describe("answering a proposal", () => {
+  const other = { ...session, reviewerId: "rev_mo", displayName: "M. Osei" };
+  const PROPOSAL = "rvw_91c7_propose";
+
+  async function answer(
+    who: Session,
+    upheld: boolean,
+    reasonCode = upheld ? "uphold.independent_agreement" : "overturn.evidence_does_not_support",
+  ) {
+    return recordDecision({
+      session: who,
+      pairId: "pair_91c7",
+      decision: "report",
+      reasonCode,
+      notes: { timeline: "Read the timeline myself." },
+      concurrence: { proposalReviewId: PROPOSAL, proposerReviewerId: "rev_mo", upheld },
+    });
+  }
+
+  it("carries the open proposal on the queue row and on the case", async () => {
+    const page = await listQueue(session);
+    const row = page.cases.find((c) => c.pairId === "pair_91c7");
+    expect(row?.proposal?.reviewId).toBe(PROPOSAL);
+    expect(row?.proposal?.mine).toBe(false);
+    // It sorts above the critical T2, which nothing else in the queue does.
+    expect(page.cases[0]!.pairId).toBe("pair_91c7");
+  });
+
+  it("writes T3 when a second reviewer upholds it, and closes the proposal", async () => {
+    await readEverything("pair_91c7");
+    const result = await answer(session, true);
+    expect(result.resultTier).toBe("T3");
+    expect(result.state).toBe("upheld");
+
+    const data = await getMockData();
+    expect(data.reviews.find((r) => r.id === PROPOSAL)?.state).toBe("upheld");
+    expect(data.pairs.find((p) => p.queue.pairId === "pair_91c7")?.queue.proposal).toBeNull();
+  });
+
+  it("returns the pair to T2 on an overturn, and writes no report", async () => {
+    await readEverything("pair_91c7");
+    const result = await answer(session, false);
+    expect(result.resultTier).toBe("T2");
+    expect(result.state).toBe("overturned");
+  });
+
+  it("refuses the proposer answering their own proposal", async () => {
+    await readEverything("pair_91c7", other);
+    await expect(answer(other, true)).rejects.toMatchObject({
+      code: "t3_requires_second_person",
+    });
+  });
+
+  /*
+   * Pair.humanViewedAt is set by whoever read first and records nobody, so a
+   * concurrence that trusted it would be the proposer reading twice.
+   */
+  it("refuses a concurrence from a reviewer who has read nothing themselves", async () => {
+    await readEverything("pair_91c7", other);
+    await expect(answer(session, true)).rejects.toMatchObject({
+      code: "concurrence_without_own_read",
+    });
+  });
+
+  it("refuses a second answer to a proposal somebody already answered", async () => {
+    await readEverything("pair_91c7");
+    await answer(session, true);
+    await expect(answer(session, true)).rejects.toMatchObject({ code: "proposal_not_open" });
+  });
+
+  it("refuses an uphold carried by an overturn reason, and a proposal reason on either", async () => {
+    await readEverything("pair_91c7");
+    await expect(
+      answer(session, true, "overturn.evidence_does_not_support"),
+    ).rejects.toMatchObject({ code: "concurrence_side_mismatch" });
+    await expect(answer(session, true, "propose.online_enticement")).rejects.toMatchObject({
+      code: "proposal_reason_on_concurrence",
+    });
+  });
+
+  it("refuses a proposal stated in a concurrence reason", async () => {
+    await readEverything("pair_4f2a");
+    await expect(
+      recordDecision({
+        session,
+        pairId: "pair_4f2a",
+        decision: "report",
+        reasonCode: "uphold.independent_agreement",
+        notes: { timeline: "Supervision probe, then a migration ask." },
+      }),
+    ).rejects.toMatchObject({ code: "concurrence_reason_without_proposal" });
+  });
+
+  it("lets the proposer withdraw, and nobody else", async () => {
+    await expect(withdrawProposal(session, PROPOSAL)).rejects.toMatchObject({
+      code: "not_your_proposal",
+    });
+    const { pairId } = await withdrawProposal(other, PROPOSAL);
+    expect(pairId).toBe("pair_91c7");
+
+    const data = await getMockData();
+    expect(data.reviews.find((r) => r.id === PROPOSAL)?.state).toBe("withdrawn");
+    expect(data.pairs.find((p) => p.queue.pairId === "pair_91c7")?.queue.proposal).toBeNull();
+  });
+
+  it("refuses a withdrawal of a proposal that has been answered", async () => {
+    await readEverything("pair_91c7");
+    await answer(session, true);
+    await expect(withdrawProposal(other, PROPOSAL)).rejects.toMatchObject({
+      code: "proposal_not_open",
+    });
   });
 });
 

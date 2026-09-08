@@ -26,12 +26,14 @@ import {
 import { StagePath } from "@/components";
 import { Card } from "@/components";
 import {
+  concurAction,
   markExcerptsViewedAction,
   designateReportSubjectAction,
   recordDraftExportAction,
   redraftForIncidentTypeAction,
   submitDecisionAction,
   undoDecisionAction,
+  withdrawProposalAction,
 } from "./actions";
 import styles from "@/components/case/Case.module.css";
 
@@ -229,10 +231,13 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
         targetBandLabel={bandWord(detail.queue.targetBand.band)}
         reportedSubjectUid={detail.reportedSubjectUid}
         onDesignateSubject={designateReportSubjectAction}
+        proposal={detail.proposal}
         claimedBy={claimedBy}
         leaveHref="/cases"
         onSubmit={submitDecisionAction}
         onUndo={undoDecisionAction}
+        onConcur={concurAction}
+        onWithdraw={withdrawProposalAction}
         onIncidentType={redraftForIncidentTypeAction}
         onExcerptsViewed={markExcerptsViewedAction}
         onExportDraft={recordDraftExportAction}

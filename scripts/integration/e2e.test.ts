@@ -610,13 +610,22 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
       });
       expect((await db.pair.findUniqueOrThrow({ where: { id: pairId } })).tier).toBe("T2");
 
+      // The pair carries the open proposal, which is how a second reviewer
+      // learns there is one: it writes no tier, so without this the case sits
+      // in the queue as an ordinary T2.
+      const open = await db.review.findFirstOrThrow({ where: { pairId, state: "proposed" } });
+      expect({ id: open.id, by: open.reviewerId }).toEqual({
+        id: proposal.review.id,
+        by: reviewerA.reviewerId,
+      });
+
       // Rule 6, second half: the same reviewer cannot be the second reviewer.
       await expect(
         recordDecision({
           session: reviewerA,
           pairId,
           decision: "report",
-          reasonCode: "propose.online_enticement",
+          reasonCode: "uphold.independent_agreement",
           notes,
           concurrence: {
             proposalReviewId: proposal.review.id,
@@ -626,11 +635,34 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
         }),
       ).rejects.toThrow(/second reviewer cannot be/i);
 
+      /*
+       * And the second reviewer has to have read it themselves. Pair
+       * humanViewedAt is already set by reviewerA and records nobody, so the
+       * check is against reviewerB's own evidence.read entries on the chain.
+       */
+      await expect(
+        recordDecision({
+          session: reviewerB,
+          pairId,
+          decision: "report",
+          reasonCode: "uphold.independent_agreement",
+          notes,
+          concurrence: {
+            proposalReviewId: proposal.review.id,
+            proposerReviewerId: reviewerA.reviewerId,
+            upheld: true,
+          },
+        }),
+      ).rejects.toThrow(/have not opened an excerpt/i);
+
+      const readAgain = await markExcerptsViewed(reviewerB, pairId, excerptIds);
+      expect(readAgain).toEqual(excerptIds);
+
       const upheld = await recordDecision({
         session: reviewerB,
         pairId,
         decision: "report",
-        reasonCode: "propose.online_enticement",
+        reasonCode: "uphold.independent_agreement",
         notes,
         viewedExcerptCount: marked.length,
         concurrence: {
@@ -648,6 +680,20 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
       expect({ tier: confirmed.tier, retention: confirmed.retention }).toEqual({
         tier: "T3",
         retention: "CASE_1Y",
+      });
+
+      // The proposal is closed in the same transaction that answered it, and
+      // the answer names it. Nothing is left open for a third reviewer to
+      // answer a second time.
+      const answered = await db.review.findUniqueOrThrow({ where: { id: proposal.review.id } });
+      expect(answered.state).toBe("upheld");
+      expect(
+        await db.review.findFirst({ where: { pairId, state: "proposed" } }),
+      ).toBeNull();
+      const concurrenceRow = await db.review.findUniqueOrThrow({ where: { id: upheld.review.id } });
+      expect({ state: concurrenceRow.state, parent: concurrenceRow.parentReviewId }).toEqual({
+        state: "upheld",
+        parent: proposal.review.id,
       });
 
       const reviewer: ReviewerContext = {

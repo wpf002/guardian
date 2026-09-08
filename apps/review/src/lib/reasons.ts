@@ -35,6 +35,14 @@ export interface Reason {
   definition: string;
   /** Reasons that carry an operand the caller must collect. */
   detail?: "token" | "case_id" | "stages" | "free_text";
+  /**
+   * Set on the reasons a second reviewer picks from. They ride on decision
+   * "report" like a proposal does, because a concurrence is an answer to one,
+   * but they must never appear in the propose list: the first reviewer is
+   * choosing a CyberTipline incident type and the second is saying whether the
+   * evidence carries it. `reasonsFor` filters them out for that reason.
+   */
+  concurrence?: "uphold" | "overturn";
 }
 
 const RAW_REASONS: Reason[] = [
@@ -197,6 +205,57 @@ const RAW_REASONS: Reason[] = [
     label: "Child sexual molestation",
     definition: "The CyberTipline incident type of the same name.",
   },
+
+  // A second reviewer answering a proposal. Uphold writes T3 and starts the
+  // one-year hold; overturn returns the pair to T2 and writes no report.
+  {
+    code: "uphold.independent_agreement",
+    decision: "report",
+    concurrence: "uphold",
+    label: "Same reading from the evidence",
+    definition:
+      "I read the timeline myself and reached the incident type the proposal names.",
+  },
+  {
+    code: "uphold.critical_signal_stands",
+    decision: "report",
+    concurrence: "uphold",
+    label: "The critical signal is in the evidence",
+    definition:
+      "The signal that forced this into review is present in the excerpts and reads the way the detector read it.",
+  },
+  {
+    code: "overturn.evidence_does_not_support",
+    decision: "report",
+    concurrence: "overturn",
+    label: "The evidence does not carry it",
+    definition:
+      "The timeline does not support the incident type the proposal names. The pair returns to T2.",
+  },
+  {
+    code: "overturn.band_unverified",
+    decision: "report",
+    concurrence: "overturn",
+    label: "The age gap rests on an unverified band",
+    definition:
+      "A report turns on the gap, and the band behind it is a role reading rather than a verified one.",
+  },
+  {
+    code: "overturn.lawful_relationship",
+    decision: "report",
+    concurrence: "overturn",
+    label: "No unlawful gap between these accounts",
+    definition:
+      "Both accounts sit where no gap makes this unlawful. The largest false-positive class, and the eval suite has a control for it.",
+  },
+  {
+    code: "overturn.wrong_incident_type",
+    decision: "report",
+    concurrence: "overturn",
+    label: "Wrong incident type",
+    definition:
+      "The pattern is there and the proposal names the wrong CyberTipline type. Returning it to T2 lets it be proposed again correctly.",
+  },
 ];
 
 /** Labels and definitions are hand-written literals, so they throw at import. */
@@ -211,7 +270,12 @@ export type ReasonCode = string;
 const REASON_BY_CODE = new Map(REASONS.map((r) => [r.code, r]));
 
 export function reasonsFor(decision: ReviewDecision): Reason[] {
-  return REASONS.filter((r) => r.decision === decision);
+  return REASONS.filter((r) => r.decision === decision && r.concurrence === undefined);
+}
+
+/** What a second reviewer picks from, on one side of the answer or the other. */
+export function concurrenceReasons(side: "uphold" | "overturn"): Reason[] {
+  return REASONS.filter((r) => r.concurrence === side);
 }
 
 /** The write path validates a posted code against this. */

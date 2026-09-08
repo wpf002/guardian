@@ -7,6 +7,7 @@ import {
   basisClause,
   claimClause,
   dueClause,
+  proposalClause,
   sentenceCase,
   speakerWord,
   trajectoryClause,
@@ -58,9 +59,16 @@ export interface CaseCardProps {
 export function CaseCard({ item, selected, pending, onOpen, onFocus, cardRef }: CaseCardProps) {
   const claimedElsewhere = item.claim.state === "other";
   const resolved = item.resolvedAt !== null;
-  const brief = claimedElsewhere || resolved;
+  /*
+   * A case with an unanswered proposal is never brief, whoever holds the claim.
+   * 91c7 is the case in point: M. Osei has it claimed and has proposed a report
+   * on it, and the claim is the stale fact. A row that a second reviewer has to
+   * answer is not a row to shrink out of the way.
+   */
+  const brief = (claimedElsewhere || resolved) && item.proposal === null;
   const full = item.tier === "T2" || item.tier === "T3";
   const support = item.suggestedPosture === "support";
+  const proposal = item.proposal;
   const due = dueClause(item.tier, item.createdAt, item.slaRemainingMinutes, resolved);
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -80,6 +88,7 @@ export function CaseCard({ item, selected, pending, onOpen, onFocus, cardRef }: 
         className={styles.card}
         data-tier={item.tier}
         data-shape={brief ? "struck" : full ? "full" : "brief"}
+        data-proposal={proposal ? (proposal.mine ? "mine" : "yours") : undefined}
         data-unread={item.unread ? "true" : undefined}
         data-pending={pending ? "true" : undefined}
         aria-busy={pending || undefined}
@@ -93,6 +102,17 @@ export function CaseCard({ item, selected, pending, onOpen, onFocus, cardRef }: 
           itself in a minor band, and a reviewer who reads the headline first
           and the posture second has already read it wrong (ROADMAP S4).
         */}
+        {/*
+          An unanswered proposal goes above everything, including the support
+          reframe. It is the only row in the queue that a second person is
+          required to finish, and it already carries one reviewer's decision.
+        */}
+        {proposal ? (
+          <span className={styles.proposal} data-mine={proposal.mine ? "true" : undefined}>
+            {proposalClause(proposal)}
+          </span>
+        ) : null}
+
         {support && !brief ? <span className={styles.reframe}>{SUPPORT_POSTURE_NOTE}</span> : null}
 
         <span className={styles.headline}>{item.patternClause}</span>

@@ -454,21 +454,6 @@ export function DecisionPanel({
         </p>
       ) : null}
 
-      <div className={styles.escapes}>
-        <Button
-          variant="ghost"
-          disabledReason="Escalating to a second reviewer without deciding needs the concurrence route, which is not built yet."
-        >
-          Escalate
-        </Button>
-        <Button
-          variant="ghost"
-          disabledReason="Requesting context needs the operator message path, which is not built yet."
-        >
-          Request context
-        </Button>
-      </div>
-
       <ProposeDialog
         open={proposeOpen}
         busy={busy === "report"}

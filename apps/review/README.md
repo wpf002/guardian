@@ -7,10 +7,11 @@ The kernel tops out at T2 and the fusion layer enforces that structurally in
 `apps/scorer/src/fusion.ts`; nothing here should ever bypass it.
 
 One code path writes a decision, `src/lib/decisions.ts`. T3 needs a proposal
-from one reviewer and an upheld concurrence from a second, and the second cannot
-be the proposer. `recordDecision` takes that concurrence today; the console has
-no screen that supplies one, which is the largest open item in
-[docs/V1.md](../../docs/V1.md) section 1.
+from one reviewer and an upheld concurrence from a second, the second cannot be
+the proposer, and the second has to have had the timeline rendered to them,
+checked against their own `evidence.read` entries on the chain rather than
+against the pair's read flag, which the proposer already set. `ConcurrencePanel`
+is where that answer is given.
 
 ## Routes
 

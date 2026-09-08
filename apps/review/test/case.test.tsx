@@ -133,10 +133,27 @@ describe("the case detail at /cases/[id]", () => {
   });
 
   it("makes a case claimed by somebody else read only", async () => {
-    await renderCase("pair_91c7");
+    await renderCase("pair_0b3e");
     expect(
       screen.getByRole("heading", { name: "You are reading a case somebody else claimed" }),
     ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Your decision" })).toBeNull();
+  });
+
+  /*
+   * A proposal outranks a claim.
+   *
+   * 91c7 is claimed by M. Osei and proposed for report by M. Osei. Once they
+   * have proposed, they are finished with the case and it is waiting on
+   * somebody else, so the claim is the stale fact. Answering it is not taking
+   * it from them, and a read-only view here would leave the T3 unreachable.
+   */
+  it("offers the concurrence on a claimed case that carries an open proposal", async () => {
+    await renderCase("pair_91c7");
+    expect(screen.getByRole("heading", { name: "A proposal is waiting on you" })).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "You are reading a case somebody else claimed" }),
+    ).toBeNull();
     expect(screen.queryByRole("heading", { name: "Your decision" })).toBeNull();
   });
 

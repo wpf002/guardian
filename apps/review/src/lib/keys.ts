@@ -40,8 +40,6 @@ export const KEY_GROUPS: KeyGroup[] = [
       { keys: "Shift+Space", action: "Reveal every span in this case, after a confirm that says how many" },
       { keys: "x", action: "Open the focused normalization popover. Escape closes it" },
       { keys: "s", action: "Skip with a reason" },
-      { keys: "e", action: "Escalate to a second reviewer without deciding" },
-      { keys: "c", action: "Request context from the operator" },
     ],
   },
   {
@@ -56,7 +54,16 @@ export const KEY_GROUPS: KeyGroup[] = [
       { keys: "Enter", action: "Submit the decision with the highlighted reason. This is the write" },
       { keys: "Escape", action: "Close the list, return focus to the verb, decide nothing" },
       { keys: "Cmd+Z", action: "Undo, for 60 seconds" },
-      { keys: "n", action: "Next case. Only after a decision, a defer or a skip" },
+      { keys: "n", action: "Next case. Only after a decision" },
+    ],
+  },
+  {
+    name: "Answering a proposal",
+    bindings: [
+      { keys: "1", action: "Open the uphold reasons. Upholding writes tier T3" },
+      { keys: "2", action: "Open the overturn reasons. Overturning returns the case to T2" },
+      { keys: "Enter", action: "Record your answer with the highlighted reason" },
+      { keys: "Escape", action: "Close the list, answer nothing" },
     ],
   },
   {

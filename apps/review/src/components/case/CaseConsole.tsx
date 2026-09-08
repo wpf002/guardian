@@ -2,14 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { UNDO_WINDOW_MS } from "@/lib/reasons";
-import type { Tier, TimelineState } from "@/lib/data/types";
+import type { OpenProposal, Tier, TimelineState } from "@/lib/data/types";
 import type {
+  ConcurInput,
   DecisionOutcome,
   SubmitDecisionInput,
   UndoInput,
+  WithdrawInput,
 } from "@/app/cases/[id]/actions";
 import type { FilingReadiness } from "./filing";
 import type { NcmecIncidentType } from "./incident-types";
+import { ConcurrencePanel } from "./ConcurrencePanel";
 import { ConsequenceCopy } from "./ConsequenceCopy";
 import { DecisionPanel } from "./DecisionPanel";
 import { ReopenPanel } from "./ReopenPanel";
@@ -42,11 +45,15 @@ export interface CaseConsoleProps {
   targetBandLabel: string;
   reportedSubjectUid: string | null;
   onDesignateSubject: (pairId: string, uid: string) => Promise<{ draft: string }>;
+  /** An unanswered proposal for report on this pair, if there is one. */
+  proposal: OpenProposal | null;
   /** Set when somebody else holds the claim. The view is read only then. */
   claimedBy?: { who: string; sinceMinutes: number } | null;
   leaveHref: string;
   onSubmit: (input: SubmitDecisionInput) => Promise<DecisionOutcome>;
   onUndo: (input: UndoInput) => Promise<DecisionOutcome>;
+  onConcur: (input: ConcurInput) => Promise<DecisionOutcome>;
+  onWithdraw: (input: WithdrawInput) => Promise<DecisionOutcome>;
   onExcerptsViewed: (pairId: string, excerptIds: string[]) => Promise<string[]>;
   onExportDraft: (pairId: string, method: "copy" | "download") => Promise<{ ok: boolean }>;
   /** Rebuilds the draft under a chosen incident type, on the server. */
@@ -81,10 +88,13 @@ export function CaseConsole({
   targetBandLabel,
   reportedSubjectUid,
   onDesignateSubject,
+  proposal,
   claimedBy = null,
   leaveHref,
   onSubmit,
   onUndo,
+  onConcur,
+  onWithdraw,
   onExcerptsViewed,
   onExportDraft,
   onIncidentType,
@@ -138,7 +148,27 @@ export function CaseConsole({
         />
       ) : null}
 
-      {claimedBy ? (
+      {/*
+        An unanswered proposal replaces the decision panel entirely, and it
+        comes before the claim check.
+        
+        A second reviewer's job on this case is to answer the proposal, not to
+        make a fresh decision: recordDecision refuses a plain dismiss or watch
+        that would overwrite a pair two people are mid-way through. And the
+        claim is the stale fact once a proposal exists, because the proposer has
+        finished with the case. Answering it is not taking it from them.
+      */}
+      {proposal ? (
+        <ConcurrencePanel
+          pairId={pairId}
+          proposal={proposal}
+          timelineAvailable={timelineError === undefined && timeline.state === "ready"}
+          readCount={readCount}
+          onConcur={onConcur}
+          onWithdraw={onWithdraw}
+          leaveHref={leaveHref}
+        />
+      ) : claimedBy ? (
         <section className={styles.panel} aria-label="Read only">
           <h2 className={styles.title}>You are reading a case somebody else claimed</h2>
           <p className={styles.lead}>

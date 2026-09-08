@@ -14,6 +14,7 @@ import {
   DecisionRefused,
   recordDecision,
   undoDecision,
+  withdrawProposal,
   type ProposeAnnotation,
   type ReviewState,
 } from "@/lib/decisions";
@@ -93,6 +94,92 @@ export async function submitDecisionAction(
       error:
         "The decision was not recorded. Nothing changed, and what you typed is still here.",
     };
+  }
+}
+
+export interface ConcurInput {
+  pairId: string;
+  /** The proposal being answered. */
+  proposalReviewId: string;
+  proposerReviewerId: string;
+  upheld: boolean;
+  reasonCode: string;
+  notes?: {
+    timeline?: string;
+    outsideContext?: string;
+    recommendation?: string;
+  };
+  minutesSpent?: number;
+  viewedExcerptCount?: number;
+}
+
+/**
+ * A second reviewer answering a proposal. The only route to tier T3.
+ *
+ * The proposer id is not taken on trust: recordDecision reads the proposal row
+ * and refuses if it names somebody else, and refuses again if the session is
+ * the proposer. What the client sends here decides nothing.
+ */
+export async function concurAction(input: ConcurInput): Promise<DecisionOutcome> {
+  const session = await requireSession();
+  try {
+    const result = await recordDecision({
+      session,
+      pairId: input.pairId,
+      decision: "report",
+      reasonCode: input.reasonCode,
+      notes: input.notes,
+      minutesSpent: input.minutesSpent,
+      viewedExcerptCount: input.viewedExcerptCount,
+      concurrence: {
+        proposalReviewId: input.proposalReviewId,
+        proposerReviewerId: input.proposerReviewerId,
+        upheld: input.upheld,
+      },
+    });
+    revalidatePath(`/cases/${input.pairId}`);
+    revalidatePath("/queue");
+    return {
+      ok: true,
+      summary: result.summary,
+      reviewId: result.review.id,
+      state: result.state,
+      resultTier: result.resultTier,
+      auditSeq: result.auditSeq,
+    };
+  } catch (error) {
+    if (error instanceof DecisionRefused) return { ok: false, error: error.message };
+    return {
+      ok: false,
+      error: "The answer was not recorded. The proposal still stands, and what you typed is still here.",
+    };
+  }
+}
+
+export interface WithdrawInput {
+  pairId: string;
+  proposalReviewId: string;
+}
+
+/**
+ * The proposer takes their own proposal back. Not an undo: a proposal changed
+ * no tier and stays open until somebody answers it, which may be days.
+ */
+export async function withdrawProposalAction(input: WithdrawInput): Promise<DecisionOutcome> {
+  const session = await requireSession();
+  try {
+    const { auditSeq } = await withdrawProposal(session, input.proposalReviewId);
+    revalidatePath(`/cases/${input.pairId}`);
+    revalidatePath("/queue");
+    return {
+      ok: true,
+      auditSeq,
+      summary:
+        "The proposal is withdrawn. The case is back in the queue at its model tier, and no report exists.",
+    };
+  } catch (error) {
+    if (error instanceof DecisionRefused) return { ok: false, error: error.message };
+    return { ok: false, error: "The withdrawal was not recorded. The proposal still stands." };
   }
 }
 

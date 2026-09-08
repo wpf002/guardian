@@ -11,6 +11,7 @@ import { getPrisma, isMockMode } from "../db";
 import { appendAudit, appendAuditInTransaction } from "./audit";
 import { getMockData, bandWord } from "../mock/fixtures";
 import { compose } from "../compose";
+import { reasonLabel } from "../reasons";
 import type { Session } from "../session";
 import type {
   BandReading,
@@ -20,6 +21,7 @@ import type {
   QueueFilters,
   QueuePage,
   QueueSummary,
+  OpenProposal,
   ReviewRecord,
   TimelineRow,
   TimelineState,
@@ -31,11 +33,23 @@ const TIER_WEIGHT: Record<Tier, number> = { T0: 0, T1: 1, T2: 2, T3: 3 };
 /** Under this many minutes of SLA left, a case counts toward breach risk. */
 export const BREACH_RISK_MINUTES = 60;
 
+/**
+ * An open proposal sorts above everything.
+ *
+ * It is the only row in the queue that a second person is required to finish,
+ * and it is already holding one reviewer's decision. The offset is larger than
+ * any tier weight so this is a partition of the list rather than a nudge: no
+ * combination of tier, critical signal and elapsed SLA puts an ordinary case
+ * above a proposal waiting to be answered.
+ */
+const PROPOSAL_RANK = 1000;
+
 function rankScore(row: QueueCase): number {
   const base = TIER_WEIGHT[row.tier] * 100;
   const critical = row.criticalSignals.length > 0 ? 60 : 0;
   const sla = row.slaRemainingMinutes ?? 24 * 60;
-  return base + critical + 600 / Math.max(sla, 5);
+  const proposal = row.proposal ? PROPOSAL_RANK : 0;
+  return proposal + base + critical + 600 / Math.max(sla, 5);
 }
 
 function summarise(partitionName: string, cases: QueueCase[]): QueueSummary {
@@ -176,6 +190,7 @@ function toQueueCase(
   customerName: string,
   actors: Map<string, ActorRow>,
   now: Date,
+  proposal: OpenProposal | null = null,
 ): QueueCase {
   const stages = stagesInOrder(row.firstStageAt).map((s) => s.stage);
   const actor = actors.get(row.actorUid);
@@ -230,8 +245,55 @@ function toQueueCase(
     // read is always unclaimed. Nothing here guesses at ownership.
     claim: { state: "unclaimed" },
     unread: row.humanViewedAt === null,
+    proposal,
     updatedAt: row.updatedAt,
     resolvedAt: row.resolvedAt,
+  };
+}
+
+/**
+ * The open proposals on a set of pairs, keyed by pair.
+ *
+ * One query for the whole page rather than one per row. A pair has at most one
+ * open proposal: recordDecision closes the proposal it answers in the same
+ * transaction, with `state: "proposed"` in the where clause, so a second answer
+ * matches no row and rolls back.
+ */
+async function openProposalsFor(
+  session: Session,
+  pairIds: string[],
+): Promise<Map<string, OpenProposal>> {
+  if (pairIds.length === 0) return new Map();
+  const prisma = await getPrisma();
+  const rows = await prisma.review.findMany({
+    where: { pairId: { in: pairIds }, state: "proposed", pair: { customerId: session.customerId } },
+    orderBy: { createdAt: "asc" },
+  });
+  const found = new Map<string, OpenProposal>();
+  for (const row of rows) {
+    if (found.has(row.pairId)) continue;
+    found.set(row.pairId, toOpenProposal(session, row));
+  }
+  return found;
+}
+
+interface ProposalRow {
+  id: string;
+  reviewerId: string;
+  reason: string | null;
+  createdAt: Date;
+}
+
+function toOpenProposal(session: Session, row: ProposalRow): OpenProposal {
+  return {
+    reviewId: row.id,
+    proposerReviewerId: row.reviewerId,
+    // Pre-SSO the roster is an environment variable, so a display name is only
+    // resolvable for the session's own seat. The id is what the chain carries.
+    proposerName: row.reviewerId,
+    reasonLabel: reasonLabel(row.reason ?? ""),
+    proposedAt: row.createdAt,
+    mine: row.reviewerId === session.reviewerId,
   };
 }
 
@@ -282,9 +344,16 @@ export async function listQueue(
   });
   const actors = new Map<string, ActorRow>(actorRows.map((a) => [a.hashedUid, a as ActorRow]));
 
+  const proposals = await openProposalsFor(session, rows.map((row) => row.id));
   const now = new Date();
   const all = rows.map((row) =>
-    toQueueCase(row as unknown as PairRow, customer?.name ?? session.customerId, actors, now),
+    toQueueCase(
+      row as unknown as PairRow,
+      customer?.name ?? session.customerId,
+      actors,
+      now,
+      proposals.get(row.id) ?? null,
+    ),
   );
   const summary = summarise(customer?.name ?? session.customerId, all);
   const cases = all
@@ -325,12 +394,14 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
   ]);
 
   const actors = new Map<string, ActorRow>(actorRows.map((a) => [a.hashedUid, a as ActorRow]));
+  const proposal = (await openProposalsFor(session, [row.id])).get(row.id) ?? null;
   const now = new Date();
   const queue = toQueueCase(
     row,
     customer?.name ?? session.customerId,
     actors,
     now,
+    proposal,
   );
   const stages = stagesInOrder(row.firstStageAt);
   const actorRow = actors.get(row.actorUid);
@@ -380,6 +451,7 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
     reportedSubjectUid: null,
     // Rule 6: a decision on this pair that produced T3, not the pair's tier.
     reviewerConfirmedT3: reviews.some((r) => r.pairId === row.id && r.resultTier === "T3"),
+    proposal,
     actor: {
       hashedUid: row.actorUid,
       band: queue.actorBand,
@@ -506,11 +578,18 @@ export async function getTimeline(session: Session, pairId: string): Promise<Tim
  * Writes viewedByHuman on the excerpts a person actually read (DESIGN-UI 5.3).
  * Never called on case open, and never by scrolling past a collapsed span.
  *
- * Returns the ids it actually wrote, not a count. The caller has to know which
- * flags landed: a client that adds an id to its own read set before the server
- * agrees will unblock confirm and propose on a write that failed or matched
- * nothing, and the bundle would then say those excerpts were read by nobody
- * while the audit chain says a person read them.
+ * Returns the ids that resolved to rows on this pair, not a count. The caller
+ * has to know which landed: a client that adds an id to its own read set before
+ * the server agrees will unblock confirm and propose on a write that failed or
+ * matched nothing.
+ *
+ * It returns and records an id whose flag was already set, which it did not
+ * used to. `viewedByHuman` is one boolean per excerpt with no reviewer on it,
+ * so once the first reviewer has read a case every later read wrote nothing,
+ * returned nothing and appended nothing: a second reviewer answering a proposal
+ * had no record of having read anything, and the chain is the only place that
+ * records who. The flag stays first-wins, because it answers a different
+ * question. The chain entry is per reviewer and per read.
  *
  * The write goes on the chain, because this is the claim the private-search
  * argument rests on and every other reviewer act is on the chain already.
@@ -528,14 +607,13 @@ export async function markExcerptsViewed(
       (p) => p.queue.pairId === pairId && p.queue.customerId === session.customerId,
     );
     if (!found || found.timeline.state !== "ready") return [];
-    const marked: string[] = [];
+    const rendered: string[] = [];
     for (const row of found.timeline.rows) {
-      if (excerptIds.includes(row.id) && !row.viewedByHuman) {
-        row.viewedByHuman = true;
-        marked.push(row.id);
-      }
+      if (!excerptIds.includes(row.id)) continue;
+      row.viewedByHuman = true;
+      rendered.push(row.id);
     }
-    if (marked.length === 0) return [];
+    if (rendered.length === 0) return [];
     if (found.humanViewedAt === null) found.humanViewedAt = new Date();
     // Unread is derived from humanViewedAt, here as it is against a database.
     found.queue.unread = found.humanViewedAt === null;
@@ -544,11 +622,11 @@ export async function markExcerptsViewed(
       payload: {
         pairId,
         reviewerId: session.reviewerId,
-        excerptIds: marked,
-        excerptCount: marked.length,
+        excerptIds: rendered,
+        excerptCount: rendered.length,
       },
     });
-    return marked;
+    return rendered;
   }
 
   const prisma = await getPrisma();
@@ -558,17 +636,15 @@ export async function markExcerptsViewed(
   });
   if (!bundle) return [];
 
-  const marked: string[] = [];
+  const rendered: string[] = [];
   const timeline = asArray(bundle.timeline).map((raw, index) => {
     const entry = asRecord(raw);
     const id = `${bundle.bundleId}_${index}`;
-    if (excerptIds.includes(id) && entry.viewedByHuman !== true) {
-      marked.push(id);
-      return { ...entry, viewedByHuman: true };
-    }
-    return entry;
+    if (!excerptIds.includes(id)) return entry;
+    rendered.push(id);
+    return entry.viewedByHuman === true ? entry : { ...entry, viewedByHuman: true };
   });
-  if (marked.length === 0) return [];
+  if (rendered.length === 0) return [];
 
   const now = new Date();
   await prisma.$transaction(async (tx) => {
@@ -590,13 +666,13 @@ export async function markExcerptsViewed(
         pairId,
         bundleId: bundle.bundleId,
         reviewerId: session.reviewerId,
-        excerptIds: marked,
-        excerptCount: marked.length,
+        excerptIds: rendered,
+        excerptCount: rendered.length,
       },
       ts: now,
     });
   });
-  return marked;
+  return rendered;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -671,6 +747,8 @@ interface ReviewRowWithPair {
   resultTier: string;
   minutesSpent: number | null;
   viewedExcerptCount: number | null;
+  state: string;
+  parentReviewId: string | null;
   createdAt: Date;
   pair: { expiresAt: Date | null };
 }
@@ -686,7 +764,7 @@ function toReviewRecord(row: ReviewRowWithPair): ReviewRecord {
     reviewerName: row.reviewerId,
     decision: row.decision as ReviewRecord["decision"],
     reasonCode: row.reason ?? "",
-    reasonLabel: row.reason ?? "reason not recorded",
+    reasonLabel: reasonLabel(row.reason ?? ""),
     modelTier: row.modelTier as Tier,
     resultTier: row.resultTier as Tier,
     minutesSpent: row.minutesSpent,
@@ -694,7 +772,8 @@ function toReviewRecord(row: ReviewRowWithPair): ReviewRecord {
     // Review has one nullable reason column and no note fields yet
     // (DESIGN-UI 13.2 gap 3). The notes ride in the audit payload until it does.
     notes: { timeline: null, outsideContext: null, recommendation: null },
-    parentReviewId: null,
+    state: row.state as ReviewRecord["state"],
+    parentReviewId: row.parentReviewId,
     createdAt: row.createdAt,
     retentionDeadline: row.pair.expiresAt,
     auditSeq: null,

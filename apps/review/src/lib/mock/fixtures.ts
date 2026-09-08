@@ -16,6 +16,7 @@
 import { AuditLog, MemoryAuditStore, type AuditEntry, type AuditKind } from "@guardian/audit";
 import { hashUid, sha256Hex, type Tier } from "@guardian/schema";
 import { compose } from "../compose";
+import { MOCK_REVIEWER } from "../session";
 import type {
   ActorContext,
   BandReading,
@@ -399,7 +400,9 @@ function specs(): PairSpec[] {
       soleAutomatedBasis: false,
       channel: "#voice-text",
       slaRemainingMinutes: 220,
-      claim: { state: "unclaimed" },
+      // Claimed and unproposed, which is the other half of the pair with 91c7:
+      // a claim makes a case read only, and an open proposal outranks a claim.
+      claim: { state: "other", who: "M. Osei", sinceMinutes: 12 },
       unread: true,
       openedMinutesAgo: 100,
       features: [
@@ -690,6 +693,9 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
       // Derived, exactly as the database mapper derives it, so a read in mock
       // mode clears the dot the way it does in production.
       unread: humanViewedAt === null,
+      // Filled in by linkProposals once the review rows exist: a proposal is a
+      // review, and the queue reads it the same way the database branch does.
+      proposal: null,
       updatedAt: rows.length > 0 ? rows[rows.length - 1]!.at : start,
       resolvedAt,
     },
@@ -705,6 +711,7 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
     // actor is the one value this must never default to.
     reportedSubjectUid: null,
     reviewerConfirmedT3: spec.tier === "T3",
+    proposal: null,
     actor: {
       hashedUid: hashUid(spec.actorUid, MOCK_SALT),
       band: spec.actorBand,
@@ -818,6 +825,7 @@ function buildReviews(now: Date, seqByPair: Map<string, number>): ReviewRecord[]
         outsideContext: "Two other pairs from this account in the same window.",
         recommendation: "Apply the action this server configured and preserve the excerpts.",
       },
+      state: "upheld",
       parentReviewId: null,
       createdAt: new Date(now.getTime() - 3 * 24 * HOUR),
       retentionDeadline: new Date(now.getTime() + 362 * 24 * HOUR),
@@ -841,10 +849,36 @@ function buildReviews(now: Date, seqByPair: Map<string, number>): ReviewRecord[]
         outsideContext: null,
         recommendation: "Report drafted for the operator to file.",
       },
+      state: "upheld",
       parentReviewId: "rvw_c5e1_propose",
       createdAt: new Date(now.getTime() - 3 * 24 * HOUR + 40 * MINUTE),
       retentionDeadline: new Date(now.getTime() + 362 * 24 * HOUR),
       auditSeq: seqByPair.get("pair_c5e1") ?? null,
+    },
+    {
+      id: "rvw_91c7_propose",
+      pairId: "pair_91c7",
+      shortId: "91c7",
+      reviewerId: "rev_mo",
+      reviewerName: "M. Osei",
+      decision: "report",
+      reasonCode: "propose.online_enticement",
+      reasonLabel: "Online enticement of a child for sexual acts",
+      modelTier: "T2",
+      resultTier: "T2",
+      minutesSpent: 22,
+      viewedExcerptCount: 6,
+      notes: {
+        timeline:
+          "Migration ask 9 minutes after first contact, and the younger account named the app it moved to.",
+        outsideContext: null,
+        recommendation: "Preserve the excerpts while a second reviewer reads them.",
+      },
+      state: "proposed",
+      parentReviewId: null,
+      createdAt: new Date(now.getTime() - 95 * MINUTE),
+      retentionDeadline: new Date(now.getTime() + 27 * 24 * HOUR),
+      auditSeq: seqByPair.get("pair_91c7") ?? null,
     },
     {
       id: "rvw_7d40_dismiss",
@@ -864,6 +898,7 @@ function buildReviews(now: Date, seqByPair: Map<string, number>): ReviewRecord[]
         outsideContext: null,
         recommendation: null,
       },
+      state: "recorded",
       parentReviewId: null,
       createdAt: new Date(now.getTime() - 26 * HOUR),
       retentionDeadline: new Date(now.getTime() - 2 * HOUR),
@@ -912,6 +947,8 @@ async function build(): Promise<MockData> {
   const pairSpecs = specs();
   const { log, store, entries, seqByPair } = await buildAuditChain(pairSpecs, now);
   const pairs = pairSpecs.map((spec) => buildPair(spec, now, seqByPair.get(spec.id) ?? null));
+  const reviews = buildReviews(now, seqByPair);
+  linkProposals(pairs, reviews);
 
   return {
     customer: {
@@ -936,7 +973,7 @@ async function build(): Promise<MockData> {
       endToEndEncrypted: false,
     },
     pairs,
-    reviews: buildReviews(now, seqByPair),
+    reviews,
     guilds: buildGuilds(now),
     auditLog: log,
     auditStore: store,
@@ -944,6 +981,34 @@ async function build(): Promise<MockData> {
     activeSeats: 2,
     now,
   };
+}
+
+/**
+ * Hangs each unanswered proposal on its pair.
+ *
+ * The database branch does this with one query keyed on `state: "proposed"`.
+ * Fixtures build the pairs before the reviews, so the link is made here rather
+ * than duplicating the state machine in a spec field: a proposal is a review
+ * row in both branches, and there is one place that decides what "open" means.
+ */
+function linkProposals(pairs: MockPair[], reviews: ReviewRecord[]): void {
+  for (const review of reviews) {
+    if (review.state !== "proposed") continue;
+    const pair = pairs.find((p) => p.queue.pairId === review.pairId);
+    if (!pair) continue;
+    const proposal = {
+      reviewId: review.id,
+      proposerReviewerId: review.reviewerId,
+      proposerName: review.reviewerName,
+      reasonLabel: review.reasonLabel,
+      proposedAt: review.createdAt,
+      // The mock session is A. Rivera, so a proposal from M. Osei is one this
+      // seat answers rather than one it withdraws.
+      mine: review.reviewerId === MOCK_REVIEWER.id,
+    };
+    pair.queue.proposal = proposal;
+    pair.proposal = proposal;
+  }
 }
 
 /** Memoized, so mutations from a mock decision are visible to the next read. */

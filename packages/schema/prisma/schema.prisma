@@ -154,6 +154,21 @@ enum ReviewDecision {
   report
 }
 
+/// What a decision did, which is not the same as what it was.
+///
+/// A report decision alone is `proposed`: it writes no tier and leaves the pair
+/// in the queue for a second reviewer. Only that second reviewer's row is
+/// `upheld`, and only an upheld row may carry resultTier T3 (CLAUDE.md rule 6).
+/// Without this column an open proposal is not answerable from a query, and the
+/// second reviewer cannot be shown that one is waiting.
+enum ReviewState {
+  recorded
+  proposed
+  upheld
+  overturned
+  withdrawn
+}
+
 model Customer {
   id        String   @id @default(cuid())
   name      String
@@ -369,6 +384,14 @@ model Review {
   pair       Pair     @relation(fields: [pairId], references: [id], onDelete: Restrict)
   reviewerId String
   decision   ReviewDecision
+  /// What the decision did. See ReviewState.
+  state      ReviewState @default(recorded)
+  /// The proposal this row answers, on a concurrence, an overturn or a
+  /// withdrawal. Restrict, for the same reason the pair relation is: the row a
+  /// T3 rests on is never removed while the T3 stands.
+  parentReviewId String?
+  parentReview   Review?  @relation("ReviewAnswers", fields: [parentReviewId], references: [id], onDelete: Restrict)
+  answers        Review[] @relation("ReviewAnswers")
   /// Free text from the reviewer. Feeds the learned fusion model in phase 2.
   reason     String?
   /// Tier the model had assigned when the reviewer opened the case.
@@ -390,6 +413,9 @@ model Review {
 
   @@index([pairId, createdAt])
   @@index([reviewerId, createdAt])
+  /// The open-proposal lookup: one pair, one state.
+  @@index([pairId, state])
+  @@index([parentReviewId])
   @@map("reviews")
 }
 

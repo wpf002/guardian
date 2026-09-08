@@ -162,6 +162,29 @@ export async function listAuditEntries(
   }));
 }
 
+/**
+ * Whether this reviewer has an evidence.read entry on this pair.
+ *
+ * A concurrence is the one write that turns on a second person having read the
+ * evidence themselves. `Pair.humanViewedAt` cannot answer that: it is set by
+ * whoever read first and never says who, so the proposer's own read would clear
+ * the second reviewer. The chain does say who, because `markExcerptsViewed`
+ * appends the reviewer id with every read.
+ *
+ * The scan is bounded and it is the rarest write in the app, one per T3. It
+ * ends the moment it finds a match, and the query is per customer.
+ */
+export async function hasReadEvidence(
+  session: Session,
+  pairId: string,
+  scanLimit = 500,
+): Promise<boolean> {
+  const entries = await listAuditEntries(session, { kind: "evidence.read", limit: scanLimit });
+  return entries.some(
+    (entry) => entry.payload.pairId === pairId && entry.payload.reviewerId === session.reviewerId,
+  );
+}
+
 /** One entry, read only. Every provenance line in the app links here. */
 export async function getAuditEntry(
   session: Session,

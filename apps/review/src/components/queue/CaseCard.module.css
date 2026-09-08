@@ -70,6 +70,32 @@
 }
 
 /*
+ * A proposal nobody has answered.
+ *
+ * The strongest thing on the row, because it is the only row a second person is
+ * required to finish. A proposal writes no tier, so the pair is sitting at T2
+ * looking ordinary, and this line is the whole difference.
+ */
+.proposal {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
+  max-width: var(--measure);
+}
+
+/* Your own proposal is a status, not a call to act. */
+.proposal[data-mine="true"] {
+  color: var(--text-muted);
+  font-weight: var(--weight-regular);
+}
+
+/* A brief row still shows it: it is the reason the row is not brief to you. */
+.card[data-shape="struck"] .proposal {
+  font-size: var(--text-xs);
+}
+
+/*
  * The support posture. It changes how the whole case reads, so it sits above
  * the headline: the account this tier describes is itself in a minor band, and
  * the right response is a welfare referral rather than enforcement.

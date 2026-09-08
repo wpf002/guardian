@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockSession } from "../auth";
 import { getMockData, resetMockData } from "../mock/fixtures";
-import { getAuditEntry, listAuditEntries, verifyAuditChain } from "./audit";
+import { getAuditEntry, hasReadEvidence, listAuditEntries, verifyAuditChain } from "./audit";
 import { getCase, getTimeline, listQueue, markExcerptsViewed } from "./cases";
 import { getDashboardSummary } from "./dashboard";
 import { getGuildConfig, listGuildConfigs, updateGuildConfig } from "./guilds";
@@ -99,12 +99,30 @@ describe("the viewedByHuman write", () => {
     expect(after.rows.filter((row) => row.viewedByHuman).length).toBe(1);
   });
 
-  it("returns nothing the second time, so a repeat cannot inflate a read count", async () => {
+  /*
+   * The flag is first-wins and the chain entry is per reviewer.
+   *
+   * viewedByHuman is one boolean per excerpt with no reviewer on it, so a
+   * second reviewer reading a case the proposer already read moves no flag. It
+   * still has to leave a record, because the chain is the only place that says
+   * who read what and a concurrence turns on the second person having read it
+   * themselves. So a repeat returns the ids and does not double the flags.
+   */
+  it("does not move the flag on a repeat read, and still records the reader", async () => {
     const before = await getTimeline(session, "pair_4f2a");
     if (before.state !== "ready") throw new Error("expected a ready timeline");
     const id = before.rows[0].id;
     expect(await markExcerptsViewed(session, "pair_4f2a", [id])).toEqual([id]);
-    expect(await markExcerptsViewed(session, "pair_4f2a", [id])).toEqual([]);
+    expect(await markExcerptsViewed(session, "pair_4f2a", [id])).toEqual([id]);
+
+    const after = await getTimeline(session, "pair_4f2a");
+    if (after.state !== "ready") throw new Error("expected a ready timeline");
+    expect(after.rows.filter((row) => row.viewedByHuman).length).toBe(1);
+
+    const second = { ...session, reviewerId: "rev_second", displayName: "M. Osei" };
+    expect(await hasReadEvidence(second, "pair_4f2a")).toBe(false);
+    await markExcerptsViewed(second, "pair_4f2a", [id]);
+    expect(await hasReadEvidence(second, "pair_4f2a")).toBe(true);
   });
 
   it("clears the unread marker, which is derived from the same fact", async () => {

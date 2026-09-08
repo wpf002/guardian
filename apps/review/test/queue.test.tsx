@@ -73,10 +73,15 @@ describe("/queue in mock mode", () => {
     expect(container.textContent).not.toContain("%");
   });
 
-  it("ranks T2 above T1 and puts the critical case first", async () => {
+  // An open proposal sorts above everything, because it is the only row a
+  // second person is required to finish and it already holds one reviewer's
+  // decision. Under it, T2 above T1 and the critical case first.
+  it("puts the waiting proposal first, then ranks T2 above T1", async () => {
     await renderQueue();
     const rows = screen.getAllByRole("listitem").map((row) => row.textContent ?? "");
-    expect(rows[0]).toContain("4f2a");
+    expect(rows[0]).toContain("91c7");
+    expect(rows[0]).toContain("Waiting on you");
+    expect(rows[1]).toContain("4f2a");
     const firstT1 = rows.findIndex((row) => row.includes("Watch, no target"));
     const lastT2 = rows.map((row) => row.includes("Due by")).lastIndexOf(true);
     expect(firstT1).toBeGreaterThan(lastT2);
@@ -85,6 +90,23 @@ describe("/queue in mock mode", () => {
   it("shows the claim state a second reviewer already holds", async () => {
     const { container } = await renderQueue();
     expect(container.textContent).toContain("claimed by M. Osei");
+  });
+
+  /*
+   * The proposal line is the whole point of the row.
+   *
+   * A proposal writes no tier, so without it 91c7 sits in the queue as an
+   * ordinary T2 and the second reviewer it is waiting for cannot tell. It also
+   * beats the claim: M. Osei both claimed and proposed it, and a row waiting on
+   * you is not a row to shrink out of the way.
+   */
+  it("names the reader an open proposal is waiting on", async () => {
+    const { container } = await renderQueue();
+    const rows = screen.getAllByRole("listitem").map((row) => row.textContent ?? "");
+    expect(rows[0]).toMatch(/Waiting on you\. Proposed for report \d+ ?(min|h|d) ago/);
+    // Still the pattern and a line of the conversation, not just a status.
+    expect(rows[0]).toContain("Asked the younger account to carry on the conversation somewhere else");
+    expect(isAccusatory(container.textContent ?? "")).toBe(false);
   });
 
   // A query string is not a filter any more. Whatever it says, the page shows
