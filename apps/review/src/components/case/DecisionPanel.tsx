@@ -60,8 +60,13 @@ const VERBS: Verb[] = [
 
 export interface DecisionPanelProps {
   pairId: string;
-  /** The tier the model left the pair at. Undo restores this. */
-  modelTier: Tier;
+  /**
+   * The tier the kernel itself assigned. Null on a pair scored before that
+   * column existed, and the lead sentence says so rather than printing the
+   * pair's current tier, which is a reviewer's after any earlier decision
+   * (ROADMAP S-9).
+   */
+  modelTier: Tier | null;
   /**
    * False when this partition has one reviewer seat.
    *
@@ -365,8 +370,11 @@ export function DecisionPanel({
     <section className={styles.panel} aria-label="Decision">
       <h2 className={styles.title}>Your decision</h2>
       <p className={styles.lead}>
-        Guardian assigned tier {modelTier}. Only a reviewer and a second reviewer together can
-        produce T3. Every decision carries a reason.
+        {modelTier === null
+          ? "This pair was scored before Guardian recorded the model's own tier separately, so the tier on the case is the one it carries now."
+          : `Guardian assigned tier ${modelTier}.`}{" "}
+        Only a reviewer and a second reviewer together can produce T3. Every decision carries a
+        reason.
       </p>
       {!secondSeat ? (
         <p className={styles.lead}>

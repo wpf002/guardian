@@ -26,8 +26,8 @@ function routePages(dir: string, prefix = ""): string[] {
   return out;
 }
 
-/** The one route with no title of its own: it redirects and renders nothing. */
-const REDIRECT_ONLY = new Set(["page.tsx"]);
+/** Routes with no title of their own: they redirect and render nothing. */
+const REDIRECT_ONLY = new Set(["page.tsx", "cases/page.tsx"]);
 
 describe("every route names itself", () => {
   const pages = routePages(appRoot);

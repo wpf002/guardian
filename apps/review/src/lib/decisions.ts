@@ -135,7 +135,7 @@ export class DecisionRefused extends Error {
  */
 export function resolveResultTier(
   decision: ReviewDecision,
-  modelTier: Tier,
+  priorTier: Tier,
   concurrence?: Concurrence,
 ): { tier: Tier; state: ReviewState } {
   switch (decision) {
@@ -148,7 +148,7 @@ export function resolveResultTier(
     case "report":
       if (!concurrence) {
         // A proposal writes no tier. The case stays where the model left it.
-        return { tier: modelTier === "T3" ? "T2" : modelTier, state: "proposed" };
+        return { tier: priorTier === "T3" ? "T2" : priorTier, state: "proposed" };
       }
       return concurrence.upheld
         ? { tier: "T3", state: "upheld" }
@@ -162,9 +162,10 @@ export function resolveResultTier(
  * The reopen panel refuses this in the browser and the server action had no
  * equivalent, so a session that had proposed nothing and read nothing could
  * dismiss a reported case: one person removing a tier two people were required
- * to create, and the review row it wrote recorded `modelTier: "T3"`, which the
- * schema documents as the tier the model had assigned. The hash chain then
+ * to create, and the review row it wrote recorded that T3 in the column the
+ * schema documented as the tier the model had assigned. The hash chain then
  * asserted the model reached T3, which is the one thing rule 6 says it cannot.
+ * That column is `priorTier` now and says what it holds (ROADMAP S-9).
  *
  * Retracting a report is a real need and a different act. It is not this one,
  * and building it is a decision about who may do it, not a missing branch here.
@@ -394,9 +395,10 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
     await assertSecondReviewerRead(session, pairId, input.concurrence);
     assertProposalIsOpen(data.reviews, pairId, input.concurrence);
 
-    const modelTier = pair.queue.tier;
-    assertNotOverwritingT3(modelTier, input.concurrence);
-    const { tier: resultTier, state } = resolveResultTier(decision, modelTier, input.concurrence);
+    const priorTier = pair.queue.tier;
+    const modelTier = pair.modelTier;
+    assertNotOverwritingT3(priorTier, input.concurrence);
+    const { tier: resultTier, state } = resolveResultTier(decision, priorTier, input.concurrence);
     assertT3Allowed(resultTier, decision, input.concurrence, session);
 
     const review: ReviewRecord = {
@@ -408,6 +410,7 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
       decision,
       reasonCode: reason.code,
       reasonLabel: reason.label,
+      priorTier,
       modelTier,
       resultTier,
       minutesSpent: input.minutesSpent ?? null,
@@ -447,7 +450,7 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
 
     const { seq } = await appendAudit(session, {
       kind: "review.decision",
-      payload: auditPayload(input, reason, modelTier, resultTier, state),
+      payload: auditPayload(input, reason, priorTier, resultTier, state),
     });
     review.auditSeq = seq;
 
@@ -460,6 +463,7 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
     select: {
       id: true,
       tier: true,
+      modelTier: true,
       retention: true,
       expiresAt: true,
       humanViewedAt: true,
@@ -491,9 +495,10 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
     }
   }
 
-  const modelTier = pair.tier;
-  assertNotOverwritingT3(modelTier, input.concurrence);
-  const { tier: resultTier, state } = resolveResultTier(decision, modelTier, input.concurrence);
+  const priorTier = pair.tier;
+  const modelTier = pair.modelTier;
+  assertNotOverwritingT3(priorTier, input.concurrence);
+  const { tier: resultTier, state } = resolveResultTier(decision, priorTier, input.concurrence);
   assertT3Allowed(resultTier, decision, input.concurrence, session);
 
   const currentRetention = pair.retention;
@@ -521,6 +526,7 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
         state,
         parentReviewId: input.concurrence?.proposalReviewId ?? null,
         reason: reason.code,
+        priorTier,
         modelTier,
         resultTier,
         minutesSpent: input.minutesSpent ?? null,
@@ -561,7 +567,7 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
     const audit = await appendAuditInTransaction(session, tx, {
       kind: "review.decision",
       payload: {
-        ...auditPayload(input, reason, modelTier, resultTier, state),
+        ...auditPayload(input, reason, priorTier, resultTier, state),
         reviewId: row.id,
       },
     });
@@ -579,6 +585,7 @@ export async function recordDecision(input: RecordDecisionInput): Promise<Decisi
       decision,
       reasonCode: reason.code,
       reasonLabel: reason.label,
+      priorTier,
       modelTier,
       resultTier,
       minutesSpent: createdRow.minutesSpent,
@@ -626,7 +633,7 @@ function sealed(value: string | null | undefined): {
 function auditPayload(
   input: RecordDecisionInput,
   reason: Reason,
-  modelTier: Tier,
+  priorTier: Tier,
   resultTier: Tier,
   state: ReviewState,
 ): Record<string, unknown> {
@@ -640,7 +647,7 @@ function auditPayload(
     // stays on the chain as it was.
     reasonDetail: input.reasonDetail ?? null,
     annotations: input.annotations ?? [],
-    modelTier,
+    priorTier,
     resultTier,
     minutesSpent: input.minutesSpent ?? null,
     interrupted: input.interrupted ?? false,
@@ -686,10 +693,10 @@ export async function undoDecision(
       (r) => r.id === reviewId && r.reviewerId === session.reviewerId,
     );
     if (!review) throw new DecisionRefused("not_found", "That decision is not in your log.");
-    assertUndoAllowed(review.modelTier, review.createdAt);
+    assertUndoAllowed(review.priorTier, review.createdAt);
     const pair = data.pairs.find((p) => p.queue.pairId === review.pairId);
     if (pair) {
-      pair.queue.tier = review.modelTier;
+      pair.queue.tier = review.priorTier;
       pair.queue.resolvedAt = null;
     }
     const { seq } = await appendAudit(session, {
@@ -697,10 +704,10 @@ export async function undoDecision(
       payload: {
         compensates: reviewId,
         pairId: review.pairId,
-        restoredTier: review.modelTier,
+        restoredTier: review.priorTier,
       },
     });
-    return { auditSeq: seq, restoredTier: review.modelTier };
+    return { auditSeq: seq, restoredTier: review.priorTier };
   }
 
   const prisma = await getPrisma();
@@ -708,7 +715,7 @@ export async function undoDecision(
     where: { id: reviewId, reviewerId: session.reviewerId, pair: { customerId: session.customerId } },
   });
   if (!review) throw new DecisionRefused("not_found", "That decision is not in your log.");
-  const restoreTier = review.modelTier;
+  const restoreTier = review.priorTier;
   assertUndoAllowed(restoreTier, review.createdAt);
 
   const { seq } = await prisma.$transaction(async (tx) => {

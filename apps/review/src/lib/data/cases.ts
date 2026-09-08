@@ -452,6 +452,7 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
     // Rule 6: a decision on this pair that produced T3, not the pair's tier.
     reviewerConfirmedT3: reviews.some((r) => r.pairId === row.id && r.resultTier === "T3"),
     proposal,
+    modelTier: (row.modelTier as Tier | null) ?? null,
     actor: {
       hashedUid: row.actorUid,
       band: queue.actorBand,
@@ -743,10 +744,11 @@ interface ReviewRowWithPair {
   reviewerId: string;
   decision: string;
   reason: string | null;
-  modelTier: string;
+  modelTier: string | null;
   resultTier: string;
   minutesSpent: number | null;
   viewedExcerptCount: number | null;
+  priorTier: string;
   state: string;
   parentReviewId: string | null;
   createdAt: Date;
@@ -765,7 +767,8 @@ function toReviewRecord(row: ReviewRowWithPair): ReviewRecord {
     decision: row.decision as ReviewRecord["decision"],
     reasonCode: row.reason ?? "",
     reasonLabel: reasonLabel(row.reason ?? ""),
-    modelTier: row.modelTier as Tier,
+    priorTier: row.priorTier as Tier,
+    modelTier: (row.modelTier as Tier | null) ?? null,
     resultTier: row.resultTier as Tier,
     minutesSpent: row.minutesSpent,
     viewedExcerptCount: row.viewedExcerptCount,

@@ -158,6 +158,11 @@ Type sizes used across the whole app: `--text-xs` 12, `--text-sm` 14, `--text-md
 
 ### 5.1 `/queue`
 
+**One list.** There was a second, `/cases`, ranking the same rows under its own
+nav entry with its own row design, so the two disagreed about how a case looks
+while agreeing about which cases there are. `/cases` redirects here; the case
+itself is still `/cases/[id]`.
+
 **Purpose.** See what is waiting and get into the top case without touching the mouse. Most shifts a reviewer skips this screen by pressing Enter.
 
 **Above the fold.** Partition name, count, breach-risk count, then cards. Nothing else: no charts, no trend, no welcome.
@@ -480,6 +485,11 @@ The second reviewer is never the proposer, enforced server side. The first revie
 
 ### 5.7 `/shift`
 
+**Status.** Not built, and the meter and the budget it is drawn around are gone
+from the product (see section 11). What is left of the idea, releasing claimed
+cases explicitly rather than timing them out, needs a claim column first, which
+13.2 gap 1 records as missing. Read the screen below as a design note.
+
 **Purpose.** Make stopping a designed act rather than an interruption.
 
 ```
@@ -773,7 +783,7 @@ export const enum ProposeAnnotation {
 7. "Normalized from a ghost emoji. Lexicon v2, entry migration.snapchat.emoji. Report this token as a false positive."
 8. "This account holds an elevated role on the server. That is context for the reviewer, not a reason to lower the tier."
 9. "This shift: 11 pairs decided, 2 sent to a second reviewer."
-10. "You have 47 minutes of session budget left. The queue stops serving new cases at zero and offers lower-intensity work."
+10. "The evidence timeline could not be loaded. Do not decide on the strip alone when the timeline is unavailable."
 
 ### Five that fail, and why
 

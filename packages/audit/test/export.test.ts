@@ -583,3 +583,70 @@ describe("edges", () => {
     expect(result.ok || result.reason).toBe("format_unsupported");
   });
 });
+
+/*
+ * ROADMAP S-6, rule 8. The version census used to run over the whole range
+ * before the scoping filter, so a scoped export's header carried a per-triple
+ * entry count and seq bounds computed from the other customer's rows. Not their
+ * content, but a usable description of when they scored and what they scored
+ * with, which is a cross-customer join by another name.
+ */
+describe("the version census stops at the scope", () => {
+  async function seedTwoCustomersOnDifferentVersions() {
+    const store = new MemoryAuditStore();
+    const log = new AuditLog(store, SECRET);
+    for (let i = 0; i < 4; i++) {
+      await log.append({
+        kind: "score.assigned",
+        customerId: "cus_1",
+        payload: {
+          tier: "T1",
+          versions: { modelVersion: "m-1", lexiconVersion: "v2", fusionVersion: "rules-v2" },
+        },
+        ts: new Date(1_800_000_000_000 + i * 2000),
+      });
+      await log.append({
+        kind: "score.assigned",
+        customerId: "cus_2",
+        payload: {
+          tier: "T2",
+          versions: { modelVersion: "m-9", lexiconVersion: "v7", fusionVersion: "rules-v9" },
+        },
+        ts: new Date(1_800_000_000_000 + i * 2000 + 1000),
+      });
+    }
+    return { store, log };
+  }
+
+  it("names only the versions the reader's own rows ran under", async () => {
+    const { store } = await seedTwoCustomersOnDifferentVersions();
+    const artifact = await exportChain(store, {
+      customerId: "cus_1",
+      producedBy: "test",
+    });
+
+    expect(artifact.header.versions.map((v) => v.modelVersion)).toEqual(["m-1"]);
+    expect(artifact.header.versions[0]!.entryCount).toBe(4);
+    expect(JSON.stringify(artifact.header.versions)).not.toContain("m-9");
+    expect(JSON.stringify(artifact.header.versions)).not.toContain("rules-v9");
+  });
+
+  // The withheld count stays. It is the number that lets a reader tell a
+  // redacted export from a short one, and a count of rows they cannot see says
+  // nothing about whose they are.
+  it("still declares how many rows were withheld", async () => {
+    const { store } = await seedTwoCustomersOnDifferentVersions();
+    const artifact = await exportChain(store, {
+      customerId: "cus_1",
+      producedBy: "test",
+    });
+    expect(artifact.header.range.withheldCount).toBe(4);
+    expect(artifact.header.range.includedCount).toBe(4);
+  });
+
+  it("counts every version in the range when the export is not scoped", async () => {
+    const { store } = await seedTwoCustomersOnDifferentVersions();
+    const artifact = await exportChain(store, { crossCustomer: true, producedBy: "test" });
+    expect(artifact.header.versions.map((v) => v.modelVersion).sort()).toEqual(["m-1", "m-9"]);
+  });
+});

@@ -161,8 +161,8 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
   return (
     <div className={`container ${styles.page}`}>
       <div className={styles.head}>
-        <Link className={styles.back} href="/cases">
-          Back to cases
+        <Link className={styles.back} href="/queue">
+          Back to the queue
         </Link>
         <span className={styles.sla}>{slaWords(detail.queue.slaRemainingMinutes)}</span>
       </div>
@@ -225,7 +225,8 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
         initialReadCount={initialReadCount}
         totalExcerpts={totalExcerpts}
         missing={missing}
-        modelTier={detail.queue.tier}
+        currentTier={detail.queue.tier}
+        kernelTier={detail.modelTier}
         soleAutomatedBasis={detail.queue.soleAutomatedBasis}
         resolvedAt={detail.queue.resolvedAt}
         retentionDeadline={null}
@@ -241,7 +242,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
         proposal={detail.proposal}
         secondSeat={secondSeat}
         claimedBy={claimedBy}
-        leaveHref="/cases"
+        leaveHref="/queue"
         onSubmit={submitDecisionAction}
         onUndo={undoDecisionAction}
         onConcur={concurAction}

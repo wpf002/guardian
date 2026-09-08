@@ -1,84 +1,15 @@
-import Link from "next/link";
-import { EmptyState, PageHeader, TierBadge } from "@/components";
-import { requireSession } from "@/lib/auth";
-import { listQueue } from "@/lib/data/cases";
-import styles from "./cases.module.css";
-import caseStyles from "@/components/case/Case.module.css";
-
-export const metadata = { title: "Cases" };
+import { redirect } from "next/navigation";
 
 /**
- * The entrance to the case detail.
+ * /cases was a second ranked list of the same rows /queue shows, under its own
+ * nav entry and with its own row design, so the two disagreed about how a case
+ * looks while agreeing about which cases there are. One list, and it is /queue:
+ * the row there carries a line of the conversation, which is the whole point of
+ * the product, and the proposal state a second reviewer needs.
  *
- * Three lines per row, never four, and nothing on a row is a person: the
- * heading names the pair, the middle line names the pattern, and the last line
- * is counts and elapsed time. No excerpt, no handle, no fused score. A list you
- * can read without reading anybody's words is the point.
+ * The route stays as a redirect rather than a 404 because /cases/[id] is still
+ * the case itself and a bookmarked list should land somewhere useful.
  */
-export default async function CasesPage() {
-  const session = await requireSession();
-  const page = await listQueue(session);
-
-  return (
-    <div className={`container ${caseStyles.routeState}`}>
-      <PageHeader
-        title="Cases"
-        meta={
-          <>
-            <span>{page.summary.partitionName}</span>
-            <span>
-              <strong>{page.summary.total}</strong> open
-            </span>
-            <span>
-              <strong>{page.summary.criticalCount}</strong> carrying a critical signal
-            </span>
-          </>
-        }
-      />
-
-      {page.cases.length === 0 ? (
-        <EmptyState
-          title="No case is open in your partition."
-          detail="The scorer keeps writing, and a case appears here when one reaches a tier that needs a person."
-          meta={
-            page.summary.lastArrivalAt
-              ? `Last arrival ${page.summary.lastArrivalAt.toLocaleString()}.`
-              : "Nothing has arrived here yet."
-          }
-        />
-      ) : (
-        <ul className={styles.list}>
-          {page.cases.map((row) => (
-            <li key={row.pairId} className={styles.row} data-tier={row.tier}>
-              <Link className={styles.link} href={`/cases/${row.pairId}`}>
-                <span className={styles.lineOne}>
-                  <TierBadge tier={row.tier} variant="bar" criticalSignals={row.criticalSignals} />
-                  <span className={styles.pair}>Pair {row.shortId}</span>
-                  <span className={styles.where}>
-                    {row.channel ?? "channel not recorded"}
-                  </span>
-                  <span className={styles.claim}>
-                    {row.claim.state === "unclaimed"
-                      ? "unclaimed"
-                      : `claimed by ${row.claim.who}, ${row.claim.sinceMinutes}m ago`}
-                  </span>
-                </span>
-                <span className={styles.lineTwo}>{row.patternClause}</span>
-                <span className={styles.lineThree}>
-                  {row.actorContext} · {row.messageCount} messages over {row.spanHours}h ·{" "}
-                  {row.slaRemainingMinutes === null
-                    ? "no SLA (watch)"
-                    : `${row.slaRemainingMinutes}m left`}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <p className={styles.note}>
-        Resolved cases are not listed here. They are reached from the decision that closed them.
-      </p>
-    </div>
-  );
+export default function CasesPage() {
+  redirect("/queue");
 }

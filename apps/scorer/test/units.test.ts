@@ -379,7 +379,7 @@ describe("evidence bundle", () => {
       reviewerId: "rev_hash_1",
       reviewId: "rvw_1",
       decision: "report" as const,
-      modelTier: "T2" as const,
+      priorTier: "T2" as const,
       resultTier: "T3" as const,
       decidedAt: new Date("2026-09-02T14:00:00Z"),
       reasonCode: "escalation_pattern",
@@ -397,7 +397,7 @@ describe("evidence bundle", () => {
     it("carries who decided, when in local time, what they wrote and how much they read", () => {
       const out = buildEvidenceBundle({ ...base, timezone: "America/New_York", reviewer });
       expect(out.reviewer!.reviewerId).toBe("rev_hash_1");
-      expect(out.reviewer!.modelTier).toBe("T2");
+      expect(out.reviewer!.priorTier).toBe("T2");
       expect(out.reviewer!.resultTier).toBe("T3");
       expect(out.reviewer!.viewedExcerptCount).toBe(2);
       expect(out.reviewer!.notes!.timeline).toContain("migration asks");

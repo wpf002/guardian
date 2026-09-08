@@ -102,7 +102,7 @@ export function reviewer(overrides: Partial<ReviewerContext> = {}): ReviewerCont
     reviewerId: "rev_alice",
     reviewId: "rvw_1",
     decision: "report",
-    modelTier: "T2",
+    priorTier: "T2",
     resultTier: "T3",
     decidedAt: new Date("2026-08-02T08:30:00.000Z"),
     decidedAtLocal: "2026-08-02T03:30:00-05:00",

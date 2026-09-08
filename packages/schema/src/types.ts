@@ -474,8 +474,13 @@ export const reviewerContextSchema = z.object({
   reviewerId: z.string(),
   reviewId: z.string().nullish(),
   decision: reviewDecisionSchema,
-  /** The tier the model had reached when the reviewer opened the case. */
-  modelTier: tierSchema,
+  /**
+   * The tier the pair carried when this reviewer decided. Named for what it
+   * holds: after any earlier decision it is a reviewer's tier and not the
+   * model's, and one field meaning both let a bundle assert the model had
+   * reached T3 (ROADMAP S-9).
+   */
+  priorTier: tierSchema,
   /** The tier the decision produced. Only a human ever puts T3 here. */
   resultTier: tierSchema,
   decidedAt: z.coerce.date(),

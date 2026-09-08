@@ -44,7 +44,7 @@ function renderPanel(proposal: OpenProposal, readCount: number, timelineAvailabl
       readCount={readCount}
       onConcur={onConcur}
       onWithdraw={onWithdraw}
-      leaveHref="/cases"
+      leaveHref="/queue"
     />,
   );
   return { ...view, onConcur, onWithdraw };
@@ -137,7 +137,7 @@ describe("answering a proposal in the console", () => {
         readCount={4}
         onConcur={onConcur}
         onWithdraw={vi.fn()}
-        leaveHref="/cases"
+        leaveHref="/queue"
       />,
     );
     const note = screen.getByLabelText(/What in the timeline led you there/);
@@ -183,7 +183,7 @@ describe("a partition with one reviewer seat", () => {
         openedAt={Date.now()}
         onSubmit={vi.fn()}
         onUndo={vi.fn()}
-        leaveHref="/cases"
+        leaveHref="/queue"
       />,
     );
   }

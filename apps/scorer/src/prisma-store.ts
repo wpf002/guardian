@@ -160,6 +160,12 @@ type PairScoreColumns = {
   actorScore?: number;
   fusedScore?: number;
   tier?: Tier;
+  /**
+   * The kernel's own tier (ROADMAP S-9). `tier` becomes a reviewer's the moment
+   * one decides and stops answering "what did the model say", which is the
+   * question every calibration number is really asking.
+   */
+  modelTier?: Tier;
   criticalSignals?: SignalKind[];
   /** Article 5(1)(d) evidence, computed by isActorScoreSoleBasis in fusion. */
   soleAutomatedBasis?: boolean;
@@ -365,11 +371,22 @@ export class PrismaKernelStore implements KernelStore {
     // A reviewer's own path is unaffected: recordDecision writes the tier
     // through its own transaction in apps/review, not through here.
     const reviewerOwnsTier = existing?.tier === "T3" && result.producedBy !== "reviewer";
+    /*
+     * modelTier is the kernel's own answer and is written every time, including
+     * on a pair whose `tier` a reviewer now owns (ROADMAP S-9). It is what makes
+     * "of the pairs the model called T2, how many did a person confirm" a
+     * question the calibration numbers can answer without counting a reviewer's
+     * own T2 as a model prediction. A reviewer's write goes through
+     * apps/review's own transaction and never through here, so this column is
+     * only ever the model's.
+     */
+    const modelTier = result.producedBy === "reviewer" ? undefined : result.tier;
     const columns: PairScoreColumns & Pick<PairStateColumns, "windowStart" | "windowEnd"> = {
       pairScore: result.pair.score,
       actorScore: result.actor.score,
       fusedScore: result.fusedScore,
       ...(reviewerOwnsTier ? {} : { tier: result.tier }),
+      ...(modelTier === undefined ? {} : { modelTier }),
       criticalSignals: [...result.criticalSignals],
       soleAutomatedBasis: result.soleAutomatedBasis,
       // ROADMAP S4. Without this the posture dies with the request and the

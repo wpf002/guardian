@@ -13,8 +13,8 @@ export default function CaseNotFound() {
         title="This case is not in your queue."
         detail="It may have been decided, released or expired, or it may belong to another partition. Possession of a case link is never the thing that grants access."
         action={
-          <Link className={styles.linkAction} href="/cases">
-            Back to cases
+          <Link className={styles.linkAction} href="/queue">
+            Back to the queue
           </Link>
         }
       />

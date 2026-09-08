@@ -289,6 +289,13 @@ export interface CaseDetail {
   reviewerConfirmedT3: boolean;
   /** The unanswered proposal this case is waiting on, if any. */
   proposal: OpenProposal | null;
+  /**
+   * The kernel's own tier. `queue.tier` becomes a reviewer's the moment one
+   * decides, so this is what the decision panel shows and what a review row
+   * records as the model's answer (ROADMAP S-9). Null on a pair scored before
+   * the column existed.
+   */
+  modelTier: Tier | null;
   priorCases: PriorCase[];
   policy: OperatorPolicy;
   versions: Versions;
@@ -313,7 +320,14 @@ export interface ReviewRecord {
   state: "recorded" | "proposed" | "upheld" | "overturned" | "withdrawn";
   reasonCode: string;
   reasonLabel: string;
-  modelTier: Tier;
+  /**
+   * The tier the pair carried when this decision was made, which is what undo
+   * restores. After any earlier decision it is a reviewer's tier, not the
+   * model's, which is why it is no longer called modelTier (ROADMAP S-9).
+   */
+  priorTier: Tier;
+  /** The kernel's own tier. Null on a pair scored before that column existed. */
+  modelTier: Tier | null;
   resultTier: Tier;
   minutesSpent: number | null;
   viewedExcerptCount: number | null;

@@ -28,7 +28,10 @@ export interface CaseConsoleProps {
   initialReadCount: number;
   totalExcerpts: number;
   missing: string[];
-  modelTier: Tier;
+  /** The tier the pair carries now. Drives the resolved and reopen views. */
+  currentTier: Tier;
+  /** The kernel's own tier, for the decision panel's lead sentence. */
+  kernelTier: Tier | null;
   soleAutomatedBasis: boolean;
   resolvedAt: Date | null;
   retentionDeadline: Date | null;
@@ -77,7 +80,8 @@ export function CaseConsole({
   initialReadCount,
   totalExcerpts,
   missing,
-  modelTier,
+  currentTier,
+  kernelTier,
   soleAutomatedBasis,
   resolvedAt,
   retentionDeadline,
@@ -182,7 +186,7 @@ export function CaseConsole({
         </section>
       ) : resolved ? (
         <ReopenPanel
-          resolvedTier={modelTier}
+          resolvedTier={currentTier}
           resolvedAt={resolvedAt}
           excerptsExpired={timeline.state === "expired"}
           retentionDeadline={retentionDeadline}
@@ -191,7 +195,7 @@ export function CaseConsole({
       ) : (
         <DecisionPanel
           pairId={pairId}
-          modelTier={modelTier}
+          modelTier={kernelTier}
           secondSeat={secondSeat}
           soleAutomatedBasis={soleAutomatedBasis}
           timelineAvailable={timelineError === undefined && timeline.state === "ready"}

@@ -113,7 +113,11 @@ export interface ExportHeader {
     anchorHash: string;
   };
   chainHeadAtExport: { seq: number; hash: string };
-  /** Every distinct version triple recorded on a score row in this range. */
+  /**
+   * Every distinct version triple recorded on a score row this export includes.
+   * On a scoped export that is this customer's rows only: the counts and the
+   * seq bounds describe what is in the artifact, never what was withheld.
+   */
   versions: ObservedVersions[];
   algorithm: ExportAlgorithm;
   redaction: {
@@ -237,7 +241,22 @@ export async function exportChain(
     limit === 0 ? [] : (await store.read(requestedFrom, limit)).filter((e) => e.seq <= upper);
 
   const redactKeys = new Set(opts.redactPayloadKeys ?? []);
-  const versions = collectVersions(source);
+  /*
+   * The version census covers the rows this export includes, and nothing else
+   * (ROADMAP S-6, rule 8).
+   *
+   * It used to run over the whole range before the scoping filter, so a scoped
+   * export's header carried a per-triple entry count, first seq and last seq
+   * derived from other customers' rows: not their content, but a usable
+   * description of their scoring activity, which is a cross-customer join by
+   * another name.
+   *
+   * The withheld count stays in the header, because that is the number a reader
+   * needs to tell a redacted export from a short one, and a count of rows they
+   * cannot see says nothing about who they belong to.
+   */
+  const inScope = scoped ? source.filter((e) => e.customerId === opts.customerId) : source;
+  const versions = collectVersions(inScope);
 
   const rows: ExportRow[] = [];
   let redactedEntryCount = 0;
@@ -681,7 +700,7 @@ function buildVerification(rows: ExportRow[], custodian: string | undefined): Ve
       "4. Compare that value with the entry's hash field and with the same seq in verification.expected. All three agree on an untouched row.",
       "5. Check linkage: entry N's prevHash equals entry N-1's hash. The first entry in a range that starts at seq 1 points at the genesis hash in header.algorithm.genesisHash.",
       "6. Check continuity: seq increases by exactly one across the range. A jump is a removed row.",
-      "7. Rows marked link_only carry less than they were hashed over, either because a payload field was redacted or because the row belongs to another customer and was withheld. Their hash cannot be recomputed here. They are still checked for position and linkage, and the header declares how many there are.",
+      "7. Rows marked link_only carry less than they were hashed over, either because a payload field was redacted or because the row belongs to another customer and was withheld. Their hash cannot be recomputed here. They are still checked for position and linkage, and the header declares how many there are. header.versions describes the included rows only, so on a scoped export it says nothing about what the withheld rows were scored with.",
       "8. A row that fails step 4 while claiming to be recomputable was edited after it was written, unless the key itself is wrong, in which case every recomputable row fails.",
       "9. Steps 5 and 6 compare values that all live inside this file, so they show the artifact is internally consistent and nothing more. Only step 4 uses the key, and only step 4 shows a row's content is what was written. If counts.recomputable is 0, the key was never used and this file proves nothing about the content of any row; the verifier reports that rather than a pass.",
     ],
@@ -756,9 +775,11 @@ function redactPayload(
 }
 
 /**
- * The version triples in force over the range. Read before redaction, because
- * the triple is the first thing an auditor asks for and the last thing that
- * should go missing from a redacted export.
+ * The version triples in force over the rows the caller gets. Read before
+ * redaction, because the triple is the first thing an auditor asks for and the
+ * last thing that should go missing from a redacted export, and read after
+ * scoping, because a census of rows the caller may not see is a description of
+ * another customer's activity (ROADMAP S-6).
  */
 function collectVersions(entries: AuditEntry[]): ObservedVersions[] {
   const seen = new Map<string, ObservedVersions>();

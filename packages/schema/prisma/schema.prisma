@@ -327,6 +327,13 @@ model Pair {
   actorScore Float    @default(0)
   fusedScore Float    @default(0)
   tier       Tier     @default(T0)
+  /// The last tier the kernel itself assigned, which `tier` stops being the
+  /// moment a reviewer decides (ROADMAP S-9). Written only by recordTier and
+  /// never by a reviewer, so calibration can ask "of the pairs the model called
+  /// T2, how many did a person confirm" without counting a reviewer's own T2 as
+  /// a model prediction. Null on a row written before the column existed; that
+  /// is not the same as T0 and nothing may read it as one.
+  modelTier  Tier?
   /// Set when a critical signal forced the tier, so a reviewer sees why.
   criticalSignals String[] @default([])
   /// True when the per-actor score alone stood behind the tier, with no
@@ -394,8 +401,14 @@ model Review {
   answers        Review[] @relation("ReviewAnswers")
   /// Free text from the reviewer. Feeds the learned fusion model in phase 2.
   reason     String?
-  /// Tier the model had assigned when the reviewer opened the case.
-  modelTier  Tier
+  /// The tier the pair carried when this decision was made, which is what undo
+  /// restores. Named for what it is: after any earlier decision it is a
+  /// reviewer's tier and not the model's, and calling it modelTier meant the
+  /// chain could assert the model had reached T3 (ROADMAP S-9).
+  priorTier  Tier
+  /// The tier the kernel itself had assigned, copied from Pair.modelTier at the
+  /// moment of the decision. Null where the pair predates that column.
+  modelTier  Tier?
   /// Tier after the decision. Only a confirm or report may set T3.
   resultTier Tier
   /// Minutes the reviewer spent. Reviewer minutes per 1,000 users is a

@@ -712,6 +712,9 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
     reportedSubjectUid: null,
     reviewerConfirmedT3: spec.tier === "T3",
     proposal: null,
+    // Fixtures score every pair, so the model's tier is the pair's tier except
+    // where a reviewer produced T3, which the model cannot (rule 6).
+    modelTier: spec.tier === "T3" ? "T2" : spec.tier,
     actor: {
       hashedUid: hashUid(spec.actorUid, MOCK_SALT),
       band: spec.actorBand,
@@ -815,6 +818,7 @@ function buildReviews(now: Date, seqByPair: Map<string, number>): ReviewRecord[]
       decision: "report",
       reasonCode: "propose.online_enticement",
       reasonLabel: "Online enticement of a child for sexual acts",
+      priorTier: "T2",
       modelTier: "T2",
       resultTier: "T2",
       minutesSpent: 17,
@@ -840,6 +844,7 @@ function buildReviews(now: Date, seqByPair: Map<string, number>): ReviewRecord[]
       decision: "report",
       reasonCode: "propose.online_enticement",
       reasonLabel: "Online enticement of a child for sexual acts",
+      priorTier: "T2",
       modelTier: "T2",
       resultTier: "T3",
       minutesSpent: 9,
@@ -864,6 +869,7 @@ function buildReviews(now: Date, seqByPair: Map<string, number>): ReviewRecord[]
       decision: "report",
       reasonCode: "propose.online_enticement",
       reasonLabel: "Online enticement of a child for sexual acts",
+      priorTier: "T2",
       modelTier: "T2",
       resultTier: "T2",
       minutesSpent: 22,
@@ -889,6 +895,7 @@ function buildReviews(now: Date, seqByPair: Map<string, number>): ReviewRecord[]
       decision: "dismiss",
       reasonCode: "dismiss.lexicon_false_positive",
       reasonLabel: "Lexicon false positive",
+      priorTier: "T1",
       modelTier: "T1",
       resultTier: "T0",
       minutesSpent: 1,

@@ -46,6 +46,9 @@ export async function getDashboardSummary(
       pairsByTier[pair.queue.tier] += 1;
     }
     const reviews = data.reviews.filter((r) => r.createdAt >= since);
+    // Model-T2 only (ROADMAP S-9). This read the column that held the tier at
+    // the moment of the decision, so a pair a reviewer had already confirmed at
+    // T2 counted toward the denominator as though the model had predicted it.
     const t2Reviews = reviews.filter((r) => r.modelTier === "T2");
     const minutes = reviews.reduce((sum, r) => sum + (r.minutesSpent ?? 0), 0);
     const activeUsers = opts.activeUsers ?? 4200;

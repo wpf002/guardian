@@ -13,6 +13,7 @@ import {
   undoDecision,
   withdrawProposal,
 } from "./decisions";
+import { listAuditEntries } from "./data/audit";
 import { listQueue, markExcerptsViewed } from "./data/cases";
 import { getMockData, resetMockData } from "./mock/fixtures";
 
@@ -383,6 +384,89 @@ describe("the only pair-tier write path", () => {
  * pair_91c7 carries a fixture proposal from rev_mo, so these run against the
  * shape a second reviewer actually meets rather than one built inside the test.
  */
+/*
+ * ROADMAP S-9. reviews.modelTier was documented as the tier the model assigned
+ * and was set from pairs.tier, which is a reviewer's tier after any earlier
+ * decision. One column, two meanings, and the second one let the hash chain
+ * assert the model had reached T3.
+ */
+describe("prior tier and model tier are different facts", () => {
+  it("records the tier at the decision and the kernel's own tier separately", async () => {
+    await readEverything("pair_4f2a");
+    const first = await recordDecision({
+      session,
+      pairId: "pair_4f2a",
+      decision: "confirm",
+      reasonCode: "confirm.progression_pattern",
+      notes: { timeline: "Supervision probe, then a migration ask." },
+    });
+    expect({ prior: first.review.priorTier, model: first.review.modelTier }).toEqual({
+      prior: "T2",
+      model: "T2",
+    });
+
+    // A second decision on the same pair sits on a reviewer's T2, not a
+    // model's. priorTier moves with the pair; modelTier does not.
+    const data = await getMockData();
+    const pair = data.pairs.find((p) => p.queue.pairId === "pair_4f2a")!;
+    pair.queue.resolvedAt = null;
+    pair.queue.tier = "T2";
+    pair.modelTier = "T1";
+
+    const later = await recordDecision({
+      session: second,
+      pairId: "pair_4f2a",
+      decision: "watch",
+      reasonCode: "watch.insufficient_context",
+      notes: { timeline: "Holding it while a band is verified." },
+    });
+    expect({ prior: later.review.priorTier, model: later.review.modelTier }).toEqual({
+      prior: "T2",
+      model: "T1",
+    });
+  });
+
+  it("restores the tier the pair carried, not the kernel's", async () => {
+    await readEverything("pair_aa19");
+    const data = await getMockData();
+    const pair = data.pairs.find((p) => p.queue.pairId === "pair_aa19")!;
+    pair.modelTier = "T0";
+
+    const decided = await recordDecision({
+      session,
+      pairId: "pair_aa19",
+      decision: "dismiss",
+      reasonCode: "dismiss.teen_romance_lawful",
+    });
+    expect(decided.review.priorTier).toBe("T1");
+    expect(decided.review.modelTier).toBe("T0");
+
+    const { restoredTier } = await undoDecision(session, decided.review.id);
+    expect(restoredTier).toBe("T1");
+    expect(
+      (await getMockData()).pairs.find((p) => p.queue.pairId === "pair_aa19")?.queue.tier,
+    ).toBe("T1");
+  });
+
+  // The chain records what the pair carried, under a name that says so. It used
+  // to say modelTier, and on a T3 pair that was the chain asserting the model
+  // had reached a tier rule 6 says it cannot.
+  it("names the tier on the chain for what it is", async () => {
+    await readEverything("pair_aa19");
+    const decided = await recordDecision({
+      session,
+      pairId: "pair_aa19",
+      decision: "watch",
+      reasonCode: "watch.insufficient_context",
+    });
+    const entry = (await listAuditEntries(session, { kind: "review.decision", limit: 5 })).find(
+      (e) => e.seq === decided.auditSeq,
+    );
+    expect(entry?.payload.priorTier).toBe("T1");
+    expect(entry?.payload).not.toHaveProperty("modelTier");
+  });
+});
+
 describe("answering a proposal", () => {
   const other = { ...session, reviewerId: "rev_mo", displayName: "M. Osei" };
   const PROPOSAL = "rvw_91c7_propose";

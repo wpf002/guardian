@@ -700,7 +700,7 @@ live(`ingest to scorer to postgres (${skipReason ?? "live"})`, () => {
         reviewerId: reviewerB.reviewerId,
         reviewId: upheld.review.id,
         decision: "report",
-        modelTier: "T2",
+        priorTier: "T2",
         resultTier: "T3",
         decidedAt: upheld.review.createdAt,
         reasonCode: "propose.online_enticement",

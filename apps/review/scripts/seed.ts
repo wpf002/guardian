@@ -120,6 +120,7 @@ async function main(): Promise<void> {
           lexiconVersion: pair.versions.lexiconVersion,
           fusionVersion: pair.versions.fusionVersion,
           humanViewedAt: pair.humanViewedAt,
+          modelTier: pair.modelTier,
           retention,
           expiresAt: expiresAt(retention),
           resolvedAt: pair.queue.resolvedAt,
@@ -130,11 +131,17 @@ async function main(): Promise<void> {
     for (const review of data.reviews) {
       await prisma.review.create({
         data: {
+          // Explicit, because a concurrence row references its proposal by id
+          // and cuid would break that link the moment it was written.
+          id: review.id,
           pairId: review.pairId,
           reviewerId: review.reviewerId,
           decision: review.decision,
           reason: review.reasonCode,
+          priorTier: review.priorTier,
           modelTier: review.modelTier,
+          state: review.state,
+          parentReviewId: review.parentReviewId,
           resultTier: review.resultTier,
           minutesSpent: review.minutesSpent,
           feedbackSource: "reviewer",
