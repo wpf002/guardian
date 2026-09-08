@@ -1,4 +1,5 @@
 import type { AuditLog } from "@guardian/audit";
+import { NoStreamRetention, type StreamRetention } from "./queue.js";
 
 /**
  * Retention enforcement (CLAUDE.md rule 7, DESIGN.md 7, 9).
@@ -9,7 +10,11 @@ import type { AuditLog } from "@guardian/audit";
  *
  *   1. Drops raw text from T0 events older than 24 hours, keeping the features.
  *   2. Deletes any row past its expiry, oldest class first.
- *   3. Records what it deleted in the audit chain, because a defence motion
+ *   3. Trims the event streams to the same 24 hour cutoff (ROADMAP S-4). A
+ *      queued event is raw text Guardian is holding, and Redis Streams keep an
+ *      entry after it is acknowledged, so without this a quiet partition held
+ *      every message it had ever carried.
+ *   4. Records what it deleted in the audit chain, because a defence motion
  *      will ask when data went and who said so.
  *
  * It lives beside ingest because ingest is what stamps the class on write. It
@@ -36,7 +41,14 @@ export interface RetentionDelegate {
   deleteExpiredDeliveries(now: Date): Promise<number>;
 }
 
-export type SweepStep = "text" | "events" | "pairs" | "actors" | "bundles" | "deliveries";
+export type SweepStep =
+  | "text"
+  | "events"
+  | "pairs"
+  | "actors"
+  | "bundles"
+  | "deliveries"
+  | "streams";
 
 export interface SweepResult {
   textCleared: number;
@@ -45,6 +57,12 @@ export interface SweepResult {
   actorsDeleted: number;
   bundlesDeleted: number;
   deliveriesDeleted: number;
+  /**
+   * Stream entries trimmed past the text cutoff. Not a health signal: an entry
+   * stays in the stream after it is consumed, so on a working system nearly
+   * everything counted here has already been scored and persisted.
+   */
+  streamEntriesTrimmed: number;
   /**
    * Steps that threw. The step still counts as run, its count is 0, and the
    * other steps proceed: one bad row must not stop the rest of the sweep.
@@ -60,6 +78,7 @@ export async function runRetentionSweep(
   delegate: RetentionDelegate,
   audit: AuditLog,
   now = new Date(),
+  streams: StreamRetention = new NoStreamRetention(),
 ): Promise<SweepResult> {
   const textCutoff = new Date(now.getTime() - TEXT_WINDOW_MS);
   const errors: SweepResult["errors"] = [];
@@ -84,6 +103,10 @@ export async function runRetentionSweep(
   const deliveriesDeleted = await step("deliveries", () =>
     delegate.deleteExpiredDeliveries(now),
   );
+  // Same cutoff as the text step, because it is the same rule about the same
+  // words: rule 7 says T0 raw text is gone within 24 hours, and a queued event
+  // is raw text whichever store is holding it.
+  const streamEntriesTrimmed = await step("streams", () => streams.trimBefore(textCutoff));
 
   const result: SweepResult = {
     textCleared,
@@ -92,6 +115,7 @@ export async function runRetentionSweep(
     actorsDeleted,
     bundlesDeleted,
     deliveriesDeleted,
+    streamEntriesTrimmed,
     errors,
     ranAt: now,
   };
@@ -254,9 +278,10 @@ export function scheduleRetentionSweep(
   delegate: RetentionDelegate,
   audit: AuditLog,
   intervalMs = 60 * 60 * 1000,
+  streams: StreamRetention = new NoStreamRetention(),
 ): () => void {
   const timer = setInterval(() => {
-    runRetentionSweep(delegate, audit)
+    runRetentionSweep(delegate, audit, new Date(), streams)
       .then((result) => {
         if (result.errors.length > 0) {
           console.warn(

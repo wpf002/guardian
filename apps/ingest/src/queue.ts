@@ -8,8 +8,16 @@ import type { Event } from "@guardian/schema";
  * latency but not memory. Every append trims the stream to roughly `maxLen`
  * entries, and the edge stops accepting for a customer whose partition is
  * near that cap, so a stalled scorer or a runaway producer cannot grow one
- * key until Redis fails for everyone. Trimming also bounds how long a queued
- * event's raw text sits in Redis (rule 7).
+ * key until Redis fails for everyone.
+ *
+ * The count cap is not a retention control, which is what the comment here used
+ * to claim (ROADMAP S-4). Redis Streams do not remove an entry when it is
+ * acknowledged: XACK clears the pending list and the entry, raw text and all,
+ * stays in the stream until something trims it. A busy partition therefore
+ * turns its text over in hours and a 40-person guild sending fifty messages a
+ * day keeps every one of them for years, which is rule 7 with no exception
+ * written for it. `RedisStreamRetention` is the time-based trim, and it runs in
+ * the retention sweep beside every other class.
  */
 
 export interface EventQueue {
@@ -96,5 +104,63 @@ export class MemoryEventQueue implements EventQueue {
 
   eventsFor(customerId: string): Event[] {
     return this.published.filter((p) => p.customerId === customerId).map((p) => p.event);
+  }
+}
+
+/**
+ * The retention sweep's step over the event streams (ROADMAP S-4, decided).
+ *
+ * Rule 7 says T0 raw text is gone within 24 hours, and a queued event is raw
+ * text Guardian is holding. Which store it sits in does not change what it is,
+ * so the rule covers the queue and the sweep gained a step rather than the rule
+ * gaining an exception.
+ *
+ * MINID is exact rather than approximate here. `~` lets Redis stop at a node
+ * boundary, which is the right trade for a size cap and the wrong one for a
+ * deletion deadline: it would leave entries older than the cutoff in place for
+ * as long as their node had a younger neighbour.
+ *
+ * The count it returns is not a health signal. Entries stay in the stream after
+ * they are consumed, so on a working system almost everything trimmed here has
+ * already been scored and persisted. An entry that had not been consumed is
+ * dropped with the rest, which is the correct direction: an event nobody has
+ * read for a day is a scorer that has been down for a day, and holding a
+ * child's words to wait for it is the thing rule 7 forbids.
+ */
+export interface StreamRetention {
+  trimBefore(cutoff: Date): Promise<number>;
+}
+
+/** Minimal slice of ioredis the trim needs. */
+export interface RedisTrimLike {
+  xtrim(key: string, strategy: string, threshold: string): Promise<number>;
+}
+
+export class RedisStreamRetention implements StreamRetention {
+  constructor(
+    private readonly redis: RedisTrimLike,
+    /** The partitions to sweep. One key per customer, as streamKey builds them. */
+    private readonly listCustomerIds: () => Promise<string[]>,
+  ) {}
+
+  async trimBefore(cutoff: Date): Promise<number> {
+    const ids = await this.listCustomerIds();
+    // A stream id is `<ms>-<seq>`, so the cutoff in milliseconds is a valid
+    // MINID and removes every entry appended before it.
+    const minId = String(cutoff.getTime());
+    let trimmed = 0;
+    for (const customerId of ids) {
+      // One partition failing is not a reason to leave the others full. The
+      // sweep records the step as failed if any of them threw.
+      trimmed += await this.redis.xtrim(streamKey(customerId), "MINID", minId);
+    }
+    return trimmed;
+  }
+}
+
+/** Trims nothing and says so. For fixtures mode and for tests with no Redis. */
+export class NoStreamRetention implements StreamRetention {
+  async trimBefore(): Promise<number> {
+    return 0;
   }
 }

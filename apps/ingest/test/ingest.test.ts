@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryCustomerStore } from "../src/customers.js";
 import { MemoryEventQueue, RedisEventQueue } from "../src/queue.js";
 import { prismaRetentionDelegate, runRetentionSweep } from "../src/retention-job.js";
+import { RedisStreamRetention, streamKey } from "../src/queue.js";
 import { buildServer, SourceRateLimiter, type ServerDeps } from "../src/server.js";
 
 const API_KEY = "gk_test_key";
@@ -535,6 +536,95 @@ describe("retention sweep", () => {
     const swept = entries.find((e) => e.kind === "retention.deleted");
     expect(swept).toBeDefined();
     expect(swept!.payload.eventsDeleted).toBe(5);
+  });
+
+  /*
+   * ROADMAP S-4, decided: rule 7 covers the queue.
+   *
+   * A queued event is raw text Guardian is holding, and which store it sits in
+   * does not change what it is. Redis Streams keep an entry after it is
+   * acknowledged, so the MAXLEN on append bounded a partition's size and not
+   * how long a message sat in it: a 40-person guild sending fifty messages a
+   * day kept every one of them indefinitely.
+   */
+  it("trims the event streams at the same cutoff it clears T0 text at", async () => {
+    const { audit, store } = setup();
+    const trims: Array<[string, string, string]> = [];
+    const redis = {
+      async xtrim(key: string, strategy: string, threshold: string) {
+        trims.push([key, strategy, threshold]);
+        return 7;
+      },
+    };
+    const streams = new RedisStreamRetention(redis, async () => ["cus_1", "cus_2"]);
+    const noop = {
+      clearExpiredText: async () => 0,
+      deleteExpiredEvents: async () => 0,
+      deleteExpiredPairs: async () => 0,
+      deleteExpiredActors: async () => 0,
+      deleteExpiredBundles: async () => 0,
+      deleteExpiredDeliveries: async () => 0,
+    };
+
+    const now = new Date("2026-09-02T12:00:00Z");
+    const cutoff = new Date("2026-09-01T12:00:00Z");
+    const result = await runRetentionSweep(noop, audit, now, streams);
+
+    expect(result.streamEntriesTrimmed).toBe(14);
+    expect(trims).toEqual([
+      [streamKey("cus_1"), "MINID", String(cutoff.getTime())],
+      [streamKey("cus_2"), "MINID", String(cutoff.getTime())],
+    ]);
+
+    const swept = (await store.read()).find((e) => e.kind === "retention.deleted");
+    expect(swept!.payload.streamEntriesTrimmed).toBe(14);
+  });
+
+  /*
+   * MINID exact, not MINID ~. The tilde lets Redis stop at a node boundary,
+   * which is the right trade for a size cap and the wrong one for a deletion
+   * deadline: it leaves entries older than the cutoff in place for as long as
+   * their node has a younger neighbour.
+   */
+  it("trims exactly, so nothing older than the cutoff survives on a node boundary", async () => {
+    const strategies: string[] = [];
+    const streams = new RedisStreamRetention(
+      {
+        async xtrim(_key: string, strategy: string) {
+          strategies.push(strategy);
+          return 0;
+        },
+      },
+      async () => ["cus_1"],
+    );
+    await streams.trimBefore(new Date("2026-09-01T12:00:00Z"));
+    expect(strategies).toEqual(["MINID"]);
+  });
+
+  it("records the streams step as failed rather than stopping the sweep", async () => {
+    const { audit } = setup();
+    const streams = new RedisStreamRetention(
+      {
+        xtrim: () => Promise.reject(new Error("READONLY")),
+      },
+      async () => ["cus_1"],
+    );
+    const result = await runRetentionSweep(
+      {
+        clearExpiredText: async () => 2,
+        deleteExpiredEvents: async () => 0,
+        deleteExpiredPairs: async () => 0,
+        deleteExpiredActors: async () => 0,
+        deleteExpiredBundles: async () => 0,
+        deleteExpiredDeliveries: async () => 0,
+      },
+      audit,
+      new Date("2026-09-02T12:00:00Z"),
+      streams,
+    );
+    expect(result.textCleared).toBe(2);
+    expect(result.streamEntriesTrimmed).toBe(0);
+    expect(result.errors).toEqual([{ step: "streams", error: "Error" }]);
   });
 
   it("logs a sweep that deleted nothing, so a gap means the job stopped", async () => {

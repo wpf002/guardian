@@ -2,7 +2,7 @@ import { AuditLog, PrismaAuditStore, type AppendInput, type AuditEntry } from "@
 import { createPrismaClient } from "@guardian/schema/db";
 import { Redis } from "ioredis";
 import { PrismaCustomerStore } from "./prisma-customers.js";
-import { RedisEventQueue } from "./queue.js";
+import { RedisEventQueue, RedisStreamRetention } from "./queue.js";
 import { prismaRetentionDelegate, scheduleRetentionSweep } from "./retention-job.js";
 import { buildServer } from "./server.js";
 
@@ -77,7 +77,26 @@ async function start(): Promise<void> {
     logger: true,
   });
 
-  const stopSweep = scheduleRetentionSweep(prismaRetentionDelegate(db), audit, sweepIntervalMs);
+  /*
+   * The sweep trims the event streams to the same 24 hour cutoff it clears T0
+   * text at (ROADMAP S-4). Redis Streams keep an entry after it is
+   * acknowledged, so the MAXLEN on append bounds a partition's size and not how
+   * long a message sits in it: a busy guild turned its text over in hours and a
+   * quiet one kept every message it had ever carried.
+   *
+   * The partition list is the customer list, because streamKey is keyed on the
+   * customer id. A sentinel row has no stream and XTRIM on a missing key is a
+   * no-op, so they need no filtering.
+   */
+  const streams = new RedisStreamRetention(redis, async () =>
+    (await db.customer.findMany({ select: { id: true } })).map((row) => row.id),
+  );
+  const stopSweep = scheduleRetentionSweep(
+    prismaRetentionDelegate(db),
+    audit,
+    sweepIntervalMs,
+    streams,
+  );
 
   let stopping = false;
   const shutdown = async (signal: string): Promise<void> => {

@@ -169,6 +169,28 @@ pings them, and describes a grooming trajectory. The send now tests
 `@everyone`'s ViewChannel on the resolved channel, which is the question the
 rule is actually asking.
 
+**S-4, rule 7 covers the queue.** The question was whether a Redis Stream
+entry is a stored row. It is: a queued event is raw text Guardian is
+holding, and which store it sits in does not change what it is. So the
+sweep gained a step rather than the rule gaining an exception.
+
+The MAXLEN on append was never a retention control, whatever the comment on
+`RedisEventQueue` claimed. Redis Streams do not remove an entry when it is
+acknowledged; XACK clears the pending list and the entry stays. Verified
+against the running Redis: three entries, one acked, XLEN still three. So a
+busy partition turned its text over in hours and a 40-person guild sending
+fifty messages a day kept every one of them for as long as the deployment
+lived, which is rule 7 with nothing written for it.
+
+`RedisStreamRetention.trimBefore` runs as a `streams` step in the sweep, at
+the same 24 hour cutoff the T0 text step uses, because it is the same rule
+about the same words. MINID exact rather than `MINID ~`: the tilde stops at
+a node boundary, which is the right trade for a size cap and the wrong one
+for a deletion deadline. An entry nobody has consumed is trimmed with the
+rest, which is the correct direction. An event unread for a day is a scorer
+that has been down for a day, and holding a child's words to wait for it is
+the thing the rule forbids.
+
 **S-2, the band now records where it came from.** Both columns existed from
 the September 4 migration and nothing but the dev seed ever wrote them, so
 every real case would have read "provenance unknown" beside a band the case
@@ -196,7 +218,6 @@ Still open, and why:
 
 | | Finding | Why it is open |
 |---|---|---|
-| S-4 | Raw message text sits in Redis for as long as the stream is retained; no sweep step touches the queue. | Rule 7 covers stored rows and a queue is arguably not one. Either the rule needs a sentence or the sweep needs a step, and that is a call about what the rule means. |
 | S-6 | A scoped audit export leaks a per-version census of the rows it withheld. | Rule 8, medium. A count of another customer's rows is not their content, and removing it costs a reader the ability to tell a redacted export from a short one. |
 | S-9 | `modelTier` on a review row is documented as the tier the model assigned and is set from `pair.tier` at open time, which can be a reviewer's T3. | Unreachable through the lone-reviewer path now that a T3 pair refuses a plain decision, but the column still means two things. Renaming it is a migration. |
 
