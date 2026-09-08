@@ -2,6 +2,8 @@
 
 The build order comes from DESIGN.md section 11. This page tracks it: what each phase delivers, what is done, what research changed, and what is next. Every milestone is a commit on main.
 
+**What is left to finish version 1 is [V1.md](V1.md), not this page.** This one is a log and it grows; that one is the plan and it shrinks. Read it first, and if an answer about what to do next disagrees with it, fix the page rather than the answer.
+
 Status legend: done, in progress, planned, blocked (with the blocker), decide (needs a call from Will).
 
 ## Phase 1: kernel v0 and Discord bot

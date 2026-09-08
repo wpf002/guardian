@@ -1,29 +1,45 @@
 # review
 
-Next.js reviewer queue. Phase 2 (DESIGN.md section 11), not built yet.
+Next.js reviewer queue. Phase 2 (DESIGN.md section 11), built.
 
 This is the only thing in Guardian that can produce tier T3 (CLAUDE.md rule 6).
 The kernel tops out at T2 and the fusion layer enforces that structurally in
 `apps/scorer/src/fusion.ts`; nothing here should ever bypass it.
 
-## What it has to do
+One code path writes a decision, `src/lib/decisions.ts`. T3 needs a proposal
+from one reviewer and an upheld concurrence from a second, and the second cannot
+be the proposer. `recordDecision` takes that concurrence today; the console has
+no screen that supplies one, which is the largest open item in
+[docs/V1.md](../../docs/V1.md) section 1.
 
-- Reviewer queue ordered by tier and age, with a 4 hour target on T2.
-- Evidence timeline: text excerpts, timestamps, stage annotations, media
-  hashes and the operator's scanner verdict. Never imagery. Guardian holds no
-  image or video bytes and the reviewer never sees one, which is also what the
-  reviewer wellness commitment in DESIGN.md section 9 rests on.
-- One-click decisions: dismiss, watch, confirm, report. Each writes a `Review`
-  row carrying the reviewer id, the model's tier, the resulting tier, the reason,
-  and minutes spent. Reviewer minutes per 1,000 users is a first-class metric.
-- Every decision goes through the audit chain as `review.decision`.
-- Every string on screen passes `assertNoAccusation` from `@guardian/schema`.
-  The queue describes conversations and tiers, never a kind of person.
+## Routes
 
-## Scaffold
+| Route | What it is |
+|---|---|
+| `/queue` | The ranked list. One column, three shapes, a line of the conversation on every row. |
+| `/cases`, `/cases/[id]` | The case: severity strip, why sentence, evidence timeline, decision panel, report draft and trail. |
+| `/dashboard` | Operator numbers. Handling time is never shown per person and never compared between people. |
+| `/guilds`, `/guilds/[guildId]` | Discord owner setup, mirroring the slash commands. |
+| `/audit`, `/audit/[seq]` | The hash chain, and the regulator export. |
+| `/settings` | The seat, the lexicon extension, the webhook, retention. |
+
+## Running it
 
 ```bash
-pnpm create next-app@latest . --ts --app --no-tailwind
+pnpm --filter @guardian/review run dev:mock
 ```
 
-Then wire `@guardian/schema` for the types and `@guardian/audit` for the chain.
+Fixtures mode on port 3100, no database. It is never inferred in production and
+every page says so while it is on.
+
+## What holds
+
+- Confirm and propose stay disabled until an excerpt has actually been rendered
+  to this reviewer. `markExcerptsViewed` is the only thing that sets
+  `humanViewedAt`, and the server checks its own record rather than the
+  browser's claim.
+- The Review row, the pair update and the chain entry are one transaction.
+- Every string on screen passes `assertNoAccusation` from `@guardian/schema`.
+  The queue describes conversations and tiers, never a kind of person.
+- The theme's contrast pairs are re-checked against the shipped stylesheet in
+  `src/styles/theme.test.ts`.
