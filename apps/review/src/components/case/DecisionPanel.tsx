@@ -62,6 +62,15 @@ export interface DecisionPanelProps {
   pairId: string;
   /** The tier the model left the pair at. Undo restores this. */
   modelTier: Tier;
+  /**
+   * False when this partition has one reviewer seat.
+   *
+   * A T3 needs two people. A 40-person server has one moderator, and that is
+   * the segment this product is for, so the honest thing is to say at the
+   * decision that no proposal here can be upheld, rather than letting the
+   * operator find out after they have made one (ROADMAP D-3).
+   */
+  secondSeat: boolean;
   soleAutomatedBasis: boolean;
   /** False when the evidence timeline could not be loaded. */
   timelineAvailable: boolean;
@@ -141,6 +150,7 @@ function useMinutesOnCase(openedAt: number): number {
 export function DecisionPanel({
   pairId,
   modelTier,
+  secondSeat,
   soleAutomatedBasis,
   timelineAvailable,
   readCount,
@@ -189,6 +199,9 @@ export function DecisionPanel({
   const blocked = useCallback(
     (decision: ReviewDecision): string | undefined => {
       if (decided) return "This case already carries a decision from you.";
+      if (decision === "report" && !secondSeat) {
+        return "This partition has one reviewer seat, so a proposal here cannot be upheld and Guardian will not record a T3. Confirm the T2, and file the drafted bundle yourself on the CyberTipline public form.";
+      }
       if (decision === "report" && soleAutomatedBasis) {
         return "This tier rests on the per-actor score alone, with no conversational fact on the pair. A report cannot be proposed from it.";
       }
@@ -202,7 +215,7 @@ export function DecisionPanel({
       }
       return undefined;
     },
-    [decided, readCount, soleAutomatedBasis, timelineAvailable],
+    [decided, readCount, secondSeat, soleAutomatedBasis, timelineAvailable],
   );
 
   const openList = useCallback(
@@ -355,6 +368,13 @@ export function DecisionPanel({
         Guardian assigned tier {modelTier}. Only a reviewer and a second reviewer together can
         produce T3. Every decision carries a reason.
       </p>
+      {!secondSeat ? (
+        <p className={styles.lead}>
+          There is one reviewer seat on this partition, so the T3 path ends here. Confirm what you
+          find, and the drafted bundle is what you file, on the CyberTipline public form under your
+          own name. Guardian does not file it for you and does not record a tier nobody upheld.
+        </p>
+      ) : null}
 
       <div className={styles.verbs}>
         {VERBS.map((verb) => {

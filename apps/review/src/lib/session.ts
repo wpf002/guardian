@@ -49,6 +49,24 @@ export const MOCK_REVIEWER: ReviewerRecord = {
   token: "mock",
 };
 
+/**
+ * The second seat on the mock partition.
+ *
+ * The fixtures have always described two people: M. Osei holds a claim, edited
+ * the policy, and proposes the report the concurrence panel answers. The roster
+ * returned one, so hasSecondSeat was false and the console said a T3 could not
+ * complete on a partition whose own fixtures complete one. Fixtures mode signs
+ * in as A. Rivera and never as this seat; it exists so the seat count matches
+ * what the data says.
+ */
+export const MOCK_SECOND_REVIEWER: ReviewerRecord = {
+  id: "rev_mo",
+  name: "M. Osei",
+  role: "reviewer",
+  customerId: "cus_northwood",
+  token: "mock-second",
+};
+
 function sessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
   if (secret && secret.length >= 16) return secret;
@@ -67,7 +85,7 @@ function isRole(value: unknown): value is Role {
 
 /** Parses REVIEWERS. A malformed entry is dropped rather than crashing sign-in for everyone. */
 export function loadReviewers(raw = process.env.REVIEWERS): ReviewerRecord[] {
-  if (!raw) return isMockMode() ? [MOCK_REVIEWER] : [];
+  if (!raw) return isMockMode() ? [MOCK_REVIEWER, MOCK_SECOND_REVIEWER] : [];
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);

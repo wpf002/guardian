@@ -47,6 +47,8 @@ export interface CaseConsoleProps {
   onDesignateSubject: (pairId: string, uid: string) => Promise<{ draft: string }>;
   /** An unanswered proposal for report on this pair, if there is one. */
   proposal: OpenProposal | null;
+  /** False when this partition has one reviewer seat, so no proposal can complete. */
+  secondSeat: boolean;
   /** Set when somebody else holds the claim. The view is read only then. */
   claimedBy?: { who: string; sinceMinutes: number } | null;
   leaveHref: string;
@@ -89,6 +91,7 @@ export function CaseConsole({
   reportedSubjectUid,
   onDesignateSubject,
   proposal,
+  secondSeat,
   claimedBy = null,
   leaveHref,
   onSubmit,
@@ -189,6 +192,7 @@ export function CaseConsole({
         <DecisionPanel
           pairId={pairId}
           modelTier={modelTier}
+          secondSeat={secondSeat}
           soleAutomatedBasis={soleAutomatedBasis}
           timelineAvailable={timelineError === undefined && timeline.state === "ready"}
           readCount={readCount}

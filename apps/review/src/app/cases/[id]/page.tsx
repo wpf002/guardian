@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireSession, roleAllows } from "@/lib/auth";
 import { getCase, getTimeline } from "@/lib/data/cases";
 import { getReportTrail } from "@/lib/data/reports";
-import { getCustomerSettings } from "@/lib/data/settings";
+import { getCustomerSettings, hasSecondSeat } from "@/lib/data/settings";
 import { bandWord } from "@/lib/mock/fixtures";
 import type { CustomerSettings, TimelineState } from "@/lib/data/types";
 import {
@@ -106,6 +106,13 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
   if (timelineError) missing.push("the excerpts, because the timeline did not load");
 
   const isOwner = roleAllows(session.role, "owner");
+  /*
+   * A T3 needs two people, and a 40-person server has one moderator. Below two
+   * seats no proposal on this partition can ever be upheld, so the console says
+   * that where the decision is made rather than letting it be discovered at the
+   * proposal (ROADMAP D-3).
+   */
+  const secondSeat = hasSecondSeat(session);
   // Rule 6, at the one place it decides something. The tier is not the test:
   // the model assigns T2 by itself, so a case at T2 has had no decision at all.
   // This used to be `tier === "T2" || tier === "T3"`, which drafted a federal
@@ -133,7 +140,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
     // The report side: what a recipient needs to route and act on the filing.
     // A settings read that failed reads as nothing on file, which overstates
     // the gaps and never understates them.
-    readiness = filingReadiness({ detail, timeline, settings, incident });
+    readiness = filingReadiness({ detail, timeline, settings, incident, secondSeat });
     // What happened after the draft left, as far as Guardian holds it.
     trail = await getReportTrail(session, detail.queue.pairId);
     draft = buildReportDraft({
@@ -232,6 +239,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
         reportedSubjectUid={detail.reportedSubjectUid}
         onDesignateSubject={designateReportSubjectAction}
         proposal={detail.proposal}
+        secondSeat={secondSeat}
         claimedBy={claimedBy}
         leaveHref="/cases"
         onSubmit={submitDecisionAction}

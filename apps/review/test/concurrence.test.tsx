@@ -13,6 +13,8 @@ vi.mock("next/link", () => ({
 }));
 
 const { ConcurrencePanel } = await import("@/components/case/ConcurrencePanel");
+const { DecisionPanel } = await import("@/components/case/DecisionPanel");
+const { filingReadiness } = await import("@/components/case/filing");
 
 const THEIRS: OpenProposal = {
   reviewId: "rvw_91c7_propose",
@@ -155,5 +157,84 @@ describe("answering a proposal in the console", () => {
     unmount();
     const second = renderPanel(MINE, 4);
     expect(isAccusatory(second.container.textContent ?? "")).toBe(false);
+  });
+});
+
+/*
+ * ROADMAP D-3, decided: a partition with one reviewer seat ends at the drafted
+ * bundle and the operator files it themselves on the CyberTipline public form.
+ *
+ * A T3 needs two people and a 40-person server has one moderator, which is the
+ * segment this product is for. The wrong answer is to leave Propose T3 live and
+ * let them find out after they have made a proposal nobody can ever answer.
+ */
+describe("a partition with one reviewer seat", () => {
+  function renderDecision(secondSeat: boolean) {
+    return render(
+      <DecisionPanel
+        pairId="pair_4f2a"
+        modelTier="T2"
+        secondSeat={secondSeat}
+        soleAutomatedBasis={false}
+        timelineAvailable
+        readCount={4}
+        totalExcerpts={8}
+        missing={[]}
+        openedAt={Date.now()}
+        onSubmit={vi.fn()}
+        onUndo={vi.fn()}
+        leaveHref="/cases"
+      />,
+    );
+  }
+
+  it("blocks the proposal and names the drafted bundle as the path", () => {
+    renderDecision(false);
+    expect(screen.getByRole("button", { name: /Propose T3/ })).toHaveProperty("disabled", true);
+    expect(screen.getByText(/one reviewer seat, so a proposal here cannot be upheld/)).toBeTruthy();
+    expect(screen.getByText(/the T3 path ends here/)).toBeTruthy();
+    // Confirm still works. A one-seat operator can still record a T2.
+    expect(screen.getByRole("button", { name: /Confirm T2/ })).toHaveProperty("disabled", false);
+  });
+
+  it("leaves the proposal live where there is a second seat", () => {
+    renderDecision(true);
+    expect(screen.getByRole("button", { name: /Propose T3/ })).toHaveProperty("disabled", false);
+    expect(screen.queryByText(/the T3 path ends here/)).toBeNull();
+  });
+
+  it("says nothing about a person on either branch", () => {
+    const { container, unmount } = renderDecision(false);
+    expect(isAccusatory(container.textContent ?? "")).toBe(false);
+    unmount();
+    expect(isAccusatory(renderDecision(true).container.textContent ?? "")).toBe(false);
+  });
+
+  /*
+   * The filing readiness card is the other place the operator reads it, and it
+   * has to say the same thing: telling a one-seat operator to have a second
+   * reviewer uphold it names a person who does not exist.
+   */
+  it("tells the filing card the same thing", () => {
+    const detail = {
+      reviewerConfirmedT3: false,
+      reportedSubjectUid: "abc",
+      queue: { criticalSignals: [] },
+    } as never;
+    const input = {
+      detail,
+      timeline: { state: "ready", rows: [], messageCount: 0, collapsedThirdParty: 0 },
+      settings: { jurisdictionCountry: "US" },
+      incident: { incidentType: "online_enticement", source: "signals" },
+    } as never;
+
+    const one = filingReadiness({ ...(input as object), secondSeat: false } as never);
+    const two = filingReadiness({ ...(input as object), secondSeat: true } as never);
+    const gapOf = (r: { gaps: Array<{ what: string; gather: string }> }) =>
+      r.gaps.find((g) => g.what.includes("tier T3"))!.gather;
+
+    expect(gapOf(one)).toMatch(/one reviewer seat/);
+    expect(gapOf(one)).toMatch(/file it yourself/);
+    expect(gapOf(two)).toMatch(/a second reviewer has to uphold it/);
   });
 });

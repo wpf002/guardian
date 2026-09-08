@@ -68,9 +68,10 @@ describe("the settings page", () => {
     expect(screen.getByText("24 hours")).toBeDefined();
     expect(screen.getByText("1 year")).toBeDefined();
 
-    // The one seat in the fixture roster cannot complete a T3 on its own, and
-    // the page says so rather than leaving it to be discovered at the proposal.
-    expect(screen.getByText(/A T3 needs two people/)).toBeDefined();
+    // Two seats on the fixture roster, which is what the fixtures describe:
+    // M. Osei holds a claim and proposes the report A. Rivera answers. The
+    // one-seat wording is the other branch, and DecisionPanel covers it.
+    expect(screen.getByText(/Two or more seats are active/)).toBeDefined();
   });
 
   it("prints the merged lexicon version a score row would record", async () => {

@@ -45,10 +45,20 @@ export interface FilingReadinessInput {
   timeline: TimelineState;
   settings: CustomerSettings | null;
   incident: IncidentChoice;
+  /**
+   * Whether this partition has a second reviewer seat at all.
+   *
+   * A T3 needs two people, and a 40-person server has one moderator, which is
+   * the segment this product is for. Telling that operator to have a second
+   * reviewer uphold it names a person who does not exist. What is true for them
+   * is that the drafted bundle is the end of the path and they file it
+   * themselves on the public form (ROADMAP D-3).
+   */
+  secondSeat?: boolean;
 }
 
 export function filingReadiness(input: FilingReadinessInput): FilingReadiness {
-  const { detail, timeline, settings, incident } = input;
+  const { detail, timeline, settings, incident, secondSeat = true } = input;
   const gaps: FilingGap[] = [];
 
   // Jurisdiction is the one number NCMEC publishes about report quality, and
@@ -69,8 +79,9 @@ export function filingReadiness(input: FilingReadinessInput): FilingReadiness {
     gaps.push({
       severity: "blocking",
       what: "No reviewer decision has produced tier T3 on this case",
-      gather:
-        "A report is built from a reviewer-confirmed T3 and nothing else. Propose it, and a second reviewer has to uphold it. The model tops out at T2 and cannot make this decision.",
+      gather: secondSeat
+        ? "A report is built from a reviewer-confirmed T3 and nothing else. Propose it, and a second reviewer has to uphold it. The model tops out at T2 and cannot make this decision."
+        : "This partition has one reviewer seat, so no proposal here can be upheld and Guardian will not record a T3. The drafted bundle below is the end of the path: file it yourself on the CyberTipline public form. The model tops out at T2 and cannot make this decision.",
     });
   }
 
