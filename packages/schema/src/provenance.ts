@@ -43,6 +43,69 @@ export const ageBandProvenanceSchema = z.enum(AGE_BAND_PROVENANCES);
 export const ageBandConfidenceSchema = z.number().min(0).max(1);
 
 /**
+ * How strong a claim each source is, weakest first.
+ *
+ * The order is the point of the enum. A band read off a Discord role is a guess
+ * from a name somebody typed; a band from a government document is a document.
+ * `platform_default` is nobody having said anything at all, one step above
+ * `unknown` only because the platform picked it deliberately.
+ * `customer_declared` is the operator asserting it, which outranks a role they
+ * did not set but is still a claim rather than a measurement. `os_bracket` is
+ * the device's own age bracket, `facial_estimate` an estimation system, and
+ * `government_id` a document. The UK Online Safety Act's highly effective age
+ * assurance test lives at the top of this list, not at the bottom.
+ */
+const PROVENANCE_STRENGTH: Record<AgeBandProvenance, number> = {
+  unknown: 0,
+  platform_default: 1,
+  server_role: 2,
+  customer_declared: 3,
+  os_bracket: 4,
+  facial_estimate: 5,
+  government_id: 6,
+};
+
+/**
+ * One reading of an account's age: the band, where it came from, how sure.
+ *
+ * Named for the band rather than called BandReading because the review console
+ * has its own BandReading, which is the display shape and carries a narrowed
+ * band union. This one is the kernel's.
+ */
+export interface AgeBandReading {
+  band: string;
+  provenance: AgeBandProvenance;
+  /** Null where the source published no calibrated number. Never read as zero. */
+  confidence: number | null;
+}
+
+/**
+ * The ratchet. A reading replaces a stored one only when its source is at least
+ * as strong, so a later `unknown` cannot overwrite a government id.
+ *
+ * Two things move together on purpose. The band and its provenance are one
+ * fact, and accepting a band from a weak source while keeping a strong source's
+ * label would make the row claim a document said something it did not. So a
+ * refused reading changes neither.
+ *
+ * Equal strength is accepted, which is what makes a re-read from the same
+ * source refresh a confidence. And a reading whose band is UNKNOWN is never
+ * accepted over a known one whatever its provenance: "we did not find out" is
+ * not a finding.
+ */
+export function resolveBandReading(
+  stored: AgeBandReading,
+  incoming: AgeBandReading,
+): AgeBandReading {
+  if (incoming.band === "UNKNOWN") return stored;
+  if (stored.band === "UNKNOWN" && stored.provenance === "unknown") return incoming;
+  if (PROVENANCE_STRENGTH[incoming.provenance] < PROVENANCE_STRENGTH[stored.provenance]) {
+    return stored;
+  }
+  return incoming;
+}
+
+/**
  * Under whose authority Guardian processes a customer's traffic.
  *
  * provider_2258a: the customer is the electronic service provider and the

@@ -2,6 +2,7 @@ import { loadScriptCorpus } from "@guardian/schema";
 import { describe, expect, it } from "vitest";
 import {
   emptyActorState,
+  readBand,
   fanIn,
   fanOut,
   observeActor,
@@ -525,5 +526,88 @@ describe("evidence bundle", () => {
       expect(text).toContain("Report fields still unfilled");
       expect(text).toContain("reporter_jurisdiction");
     });
+  });
+});
+
+/*
+ * ROADMAP S-2. The provenance columns existed since the September 4 migration
+ * and nothing but the dev seed ever wrote them, so every real case would have
+ * rendered "provenance unknown" beside a band the console presents as evidence.
+ *
+ * The ratchet is the part that needed deciding rather than typing: bands arrive
+ * on every message and a customer can fill one in later, so without an order on
+ * the sources the last message wins and a role guess silently replaces a
+ * document.
+ */
+describe("age band provenance", () => {
+  const gov = { band: "A21_PLUS", provenance: "government_id", confidence: 0.99 } as const;
+  const role = { band: "A13_15", provenance: "server_role", confidence: 0.4 } as const;
+  const nothing = { band: "A16_17", provenance: "unknown", confidence: null } as const;
+
+  it("takes a stronger source over a weaker one", () => {
+    const state = readBand(emptyActorState("UNKNOWN"), role);
+    const next = readBand(state, gov);
+    expect(next.actorBand).toBe("A21_PLUS");
+    expect(next.bandProvenance).toBe("government_id");
+    expect(next.bandConfidence).toBe(0.99);
+  });
+
+  it("refuses a weaker source, band and provenance together", () => {
+    const state = readBand(emptyActorState("UNKNOWN"), gov);
+    const next = readBand(state, role);
+    expect(next.actorBand).toBe("A21_PLUS");
+    expect(next.bandProvenance).toBe("government_id");
+    expect(next.bandConfidence).toBe(0.99);
+  });
+
+  it("refuses an unstated source over any stated one", () => {
+    const state = readBand(emptyActorState("UNKNOWN"), role);
+    const next = readBand(state, nothing);
+    expect(next.actorBand).toBe("A13_15");
+    expect(next.bandProvenance).toBe("server_role");
+  });
+
+  /*
+   * Equal strength is accepted, which is what lets a source correct itself.
+   * Otherwise a role that changed in the guild could never update the band.
+   */
+  it("accepts a re-read from the same source, including its confidence", () => {
+    const state = readBand(emptyActorState("UNKNOWN"), role);
+    const next = readBand(state, {
+      band: "A16_17",
+      provenance: "server_role",
+      confidence: 0.71,
+    });
+    expect(next.actorBand).toBe("A16_17");
+    expect(next.bandConfidence).toBe(0.71);
+  });
+
+  it("never lets UNKNOWN replace a band somebody read", () => {
+    const state = readBand(emptyActorState("UNKNOWN"), gov);
+    const next = readBand(state, {
+      band: "UNKNOWN",
+      provenance: "government_id",
+      confidence: 1,
+    });
+    expect(next.actorBand).toBe("A21_PLUS");
+    expect(next.bandProvenance).toBe("government_id");
+  });
+
+  it("fills an empty state from any source, including an unstated one", () => {
+    const next = readBand(emptyActorState("UNKNOWN"), nothing);
+    expect(next.actorBand).toBe("A16_17");
+    expect(next.bandProvenance).toBe("unknown");
+    expect(next.bandConfidence).toBeNull();
+  });
+
+  // A missing confidence means the source published no calibrated number. It is
+  // not a low one, and nothing may read it as zero.
+  it("keeps an absent confidence absent", () => {
+    const next = readBand(emptyActorState("UNKNOWN"), {
+      band: "A9_12",
+      provenance: "platform_default",
+      confidence: null,
+    });
+    expect(next.bandConfidence).toBeNull();
   });
 });

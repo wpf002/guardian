@@ -21,6 +21,11 @@ export interface ConversationOptions {
   accountAgeHours?: number;
   role?: Event["actorRole"];
   channel?: string;
+  /** Where each side's band came from, when the test is about that (ROADMAP S-2). */
+  actorBandProvenance?: Event["actorBandProvenance"];
+  actorBandConfidence?: Event["actorBandConfidence"];
+  targetBandProvenance?: Event["targetBandProvenance"];
+  targetBandConfidence?: Event["targetBandConfidence"];
 }
 
 export function makeEvent(
@@ -48,6 +53,10 @@ export function makeEvent(
       : null,
     actorBand: fromActor ? opts.actorBand : opts.targetBand,
     targetBand: fromActor ? opts.targetBand : opts.actorBand,
+    actorBandProvenance: fromActor ? opts.actorBandProvenance : opts.targetBandProvenance,
+    actorBandConfidence: fromActor ? opts.actorBandConfidence : opts.targetBandConfidence,
+    targetBandProvenance: fromActor ? opts.targetBandProvenance : opts.actorBandProvenance,
+    targetBandConfidence: fromActor ? opts.targetBandConfidence : opts.actorBandConfidence,
     actorRole: fromActor ? (opts.role ?? "unknown") : "unknown",
     actorAccountAgeHours: fromActor ? (opts.accountAgeHours ?? null) : null,
     deviceHints: null,

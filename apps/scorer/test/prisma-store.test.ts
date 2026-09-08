@@ -1,6 +1,12 @@
 import type { Tier, TierResult } from "@guardian/schema";
 import { describe, expect, it } from "vitest";
-import { emptyActorState, observeActor, observeInbound, type ActorState } from "../src/actor.js";
+import {
+  emptyActorState,
+  observeActor,
+  observeInbound,
+  readBand,
+  type ActorState,
+} from "../src/actor.js";
 import type { PairState } from "../src/pair.js";
 import {
   PrismaKernelStore,
@@ -371,6 +377,40 @@ describe("PrismaKernelStore pairs", () => {
     expect(actors.row(TARGET).customerId).toBe(CUS);
     // A stub has no state yet.
     expect(await store.getActor(CUS, TARGET)).toBeNull();
+  });
+
+  /*
+   * ROADMAP S-2. Both columns existed since the September 4 migration and
+   * nothing but the dev seed wrote them, so a real case read "provenance
+   * unknown" beside a band the console presents as evidence.
+   */
+  it("writes the band provenance and confidence, and reads them back", async () => {
+    const { store, actors } = makeStore();
+    const state = readBand(sampleActor(), {
+      band: "A16_17",
+      provenance: "government_id",
+      confidence: 0.94,
+    });
+    await store.putActor(CUS, ACTOR, state);
+    expect(actors.row(ACTOR).ageBandProvenance).toBe("government_id");
+    expect(actors.row(ACTOR).ageBandConfidence).toBe(0.94);
+
+    const back = await store.getActor(CUS, ACTOR);
+    expect(back?.bandProvenance).toBe("government_id");
+    expect(back?.bandConfidence).toBe(0.94);
+  });
+
+  // A row written before the migration has neither column. It hydrates to the
+  // absent values rather than throwing or reading a missing confidence as zero.
+  it("hydrates a row that predates the provenance columns", async () => {
+    const { store, actors } = makeStore();
+    await store.putActor(CUS, ACTOR, sampleActor());
+    delete (actors.row(ACTOR) as Record<string, unknown>).ageBandProvenance;
+    delete (actors.row(ACTOR) as Record<string, unknown>).ageBandConfidence;
+
+    const back = await store.getActor(CUS, ACTOR);
+    expect(back?.bandProvenance).toBe("unknown");
+    expect(back?.bandConfidence).toBeNull();
   });
 
   it("does not touch an existing actor row when writing a pair", async () => {

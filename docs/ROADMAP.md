@@ -169,11 +169,33 @@ pings them, and describes a grooming trajectory. The send now tests
 `@everyone`'s ViewChannel on the resolved channel, which is the question the
 rule is actually asking.
 
+**S-2, the band now records where it came from.** Both columns existed from
+the September 4 migration and nothing but the dev seed ever wrote them, so
+every real case would have read "provenance unknown" beside a band the case
+page presents as the evidence for an age gap. `ActorState` carries
+`bandProvenance` and `bandConfidence`, both call sites in the kernel apply
+the event's reading, and `PrismaKernelStore` writes and hydrates the two
+columns.
+
+The part that needed deciding rather than typing is the ratchet. Bands
+arrive on every message and a customer fills them in as an integration
+matures, so under the old `preferKnown` the last non-UNKNOWN band won and a
+role guess silently replaced a document. `resolveBandReading` orders the
+seven sources and refuses a weaker one, and it moves the band and the
+provenance together so a row can never claim a document said what a role
+guess said. Equal strength is accepted, which is what lets a source correct
+itself. An UNKNOWN band never replaces a known one.
+
+The pair's cached bands went the same way. They had their own `preferKnown`,
+and leaving it would have split the two: a customer sending a role guess
+after a verified reading would downgrade the band the age gap is computed
+from while the console kept showing the verified one off the actor row, so a
+reviewer would see a gap the score never applied.
+
 Still open, and why:
 
 | | Finding | Why it is open |
 |---|---|---|
-| S-2 | Actor band provenance and confidence are never written; the only writer is the dev seed, so every real case shows provenance unknown. The console's sole source for all three is that row. | Needs provenance threaded through `ActorState` and a ratchet so a later unknown cannot overwrite a government id. A schema-adjacent change, and the UK Online Safety Act's age-assurance test turns on the distinction, so it wants doing properly rather than quickly. |
 | S-4 | Raw message text sits in Redis for as long as the stream is retained; no sweep step touches the queue. | Rule 7 covers stored rows and a queue is arguably not one. Either the rule needs a sentence or the sweep needs a step, and that is a call about what the rule means. |
 | S-6 | A scoped audit export leaks a per-version census of the rows it withheld. | Rule 8, medium. A count of another customer's rows is not their content, and removing it costs a reader the ability to tell a redacted export from a short one. |
 | S-9 | `modelTier` on a review row is documented as the tier the model assigned and is set from `pair.tier` at open time, which can be a reviewer's T3. | Unreachable through the lone-reviewer path now that a T3 pair refuses a plain decision, but the column still means two things. Renaming it is a migration. |

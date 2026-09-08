@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { runConversation, type Line } from "./helpers.js";
+import { Kernel } from "../src/kernel.js";
+import { MemoryKernelStore } from "../src/store.js";
+import { makeEvent, runConversation, type Line } from "./helpers.js";
 
 /**
  * These are the shapes from DESIGN.md section 3, written as conversations.
@@ -250,5 +252,84 @@ describe("hard rules", () => {
     for (const r of childAsActor) {
       expect(r.result.tier).toBe("T0");
     }
+  });
+});
+
+/*
+ * ROADMAP S-2, end to end. The columns existed and nothing but the dev seed
+ * wrote them, so a reviewer would have read "provenance unknown" beside a band
+ * the case page presents as evidence for an age gap.
+ */
+describe("age band provenance reaches the actor state", () => {
+  const LINES: Line[] = [
+    { from: "actor", at: 0, text: "hey you were funny in vc last night" },
+    { from: "target", at: 2, text: "haha thanks" },
+  ];
+
+  it("records where each side's band came from, on both sides of the pair", async () => {
+    const { store } = await runConversation(LINES, {
+      actorBand: "A21_PLUS",
+      targetBand: "A13_15",
+      actorBandProvenance: "government_id",
+      actorBandConfidence: 0.97,
+      targetBandProvenance: "server_role",
+      targetBandConfidence: 0.42,
+    });
+
+    const actor = await store.getActor("cus_test", "actor-hash");
+    expect(actor?.bandProvenance).toBe("government_id");
+    expect(actor?.bandConfidence).toBe(0.97);
+
+    const target = await store.getActor("cus_test", "target-hash");
+    expect(target?.bandProvenance).toBe("server_role");
+    expect(target?.bandConfidence).toBe(0.42);
+  });
+
+  /*
+   * The ratchet, through the kernel rather than the unit. The customer sends a
+   * verified reading, then a later message carries only the role guess, which
+   * is the ordinary shape: bands get filled in as an integration matures and
+   * the weaker source keeps arriving on every message afterwards.
+   */
+  it("does not let a later weaker source downgrade the band", async () => {
+    const store = new MemoryKernelStore();
+    const kernel = new Kernel({ store });
+
+    await kernel.score(
+      makeEvent(LINES[0]!, 0, {
+        actorBand: "A21_PLUS",
+        targetBand: "A13_15",
+        actorBandProvenance: "government_id",
+        actorBandConfidence: 0.97,
+      }),
+    );
+    await kernel.score(
+      makeEvent({ from: "actor", at: 5, text: "what are you up to" }, 1, {
+        actorBand: "A16_17",
+        targetBand: "A13_15",
+        actorBandProvenance: "server_role",
+        actorBandConfidence: 0.3,
+      }),
+    );
+
+    const actor = await store.getActor("cus_test", "actor-hash");
+    expect(actor?.actorBand).toBe("A21_PLUS");
+    expect(actor?.bandProvenance).toBe("government_id");
+
+    // And the pair scores off the same band, rather than the one on the last
+    // message. Splitting the two would show a reviewer an age gap the score
+    // never applied.
+    const pair = await store.getPair("cus_test", "actor-hash", "target-hash");
+    expect(pair?.actorBand).toBe("A21_PLUS");
+  });
+
+  it("leaves provenance unknown when the customer sends none", async () => {
+    const { store } = await runConversation(LINES, {
+      actorBand: "A21_PLUS",
+      targetBand: "A13_15",
+    });
+    const actor = await store.getActor("cus_test", "actor-hash");
+    expect(actor?.bandProvenance).toBe("unknown");
+    expect(actor?.bandConfidence).toBeNull();
   });
 });

@@ -5,6 +5,7 @@ import {
   signalHitSchema,
   textRetainedForTier,
   type AgeBand,
+  type AgeBandProvenance,
   type FanInSummary,
   type RetentionClass,
   type SignalHit,
@@ -130,6 +131,10 @@ export interface ActorRow {
   customerId: string;
   hashedUid: string;
   ageBand: AgeBand;
+  /** Nullable in the type, not in the column: a row read before the September 4
+   *  migration ran carries neither, and both hydrate to their absent value. */
+  ageBandProvenance?: AgeBandProvenance | null;
+  ageBandConfidence?: number | null;
   role: ActorState["role"];
   accountAgeHours: number | null;
   firstSeen: Date;
@@ -187,6 +192,13 @@ export type PairUpdate = Partial<PairStateColumns> & PairScoreColumns & Retentio
 
 type ActorStateColumns = {
   ageBand: AgeBand;
+  /**
+   * ROADMAP S-2. Columns since the September 4 migration, written by nothing
+   * but the dev seed until now, so every real case rendered "provenance
+   * unknown" while the fixtures showed a role reading with a confidence.
+   */
+  ageBandProvenance: AgeBandProvenance;
+  ageBandConfidence: number | null;
   role: ActorState["role"];
   accountAgeHours: number | null;
   firstSeen?: Date;
@@ -405,7 +417,14 @@ export class PrismaKernelStore implements KernelStore {
     });
   }
 
-  /** Put the side on record without touching an existing actor row. */
+  /**
+   * Put the side on record without touching an existing actor row.
+   *
+   * The stub carries no provenance because this write knows none: it exists to
+   * satisfy the pair's foreign key, and the row it creates is filled in by
+   * putActor on the same event. The column defaults to `unknown`, which is the
+   * truthful value for a row nobody has read a band for.
+   */
   private async ensureActor(
     customerId: string,
     hashedUid: string,
@@ -498,6 +517,8 @@ function pairStateFromRow(row: PairRow): PairState {
 function actorColumns(state: ActorState): ActorStateColumns {
   const columns: ActorStateColumns = {
     ageBand: state.actorBand,
+    ageBandProvenance: state.bandProvenance ?? "unknown",
+    ageBandConfidence: state.bandConfidence ?? null,
     role: state.role,
     accountAgeHours: state.accountAgeHours,
     hints: [...state.hints],
@@ -523,6 +544,8 @@ function actorStateFromRow(row: ActorRow): ActorState | null {
   const graph = row.graphState as Partial<GraphState>;
   return {
     actorBand: row.ageBand,
+    bandProvenance: row.ageBandProvenance ?? "unknown",
+    bandConfidence: row.ageBandConfidence ?? null,
     role: row.role,
     accountAgeHours: row.accountAgeHours,
     firstSeenAt: row.firstSeen.toISOString(),

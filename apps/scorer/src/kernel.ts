@@ -12,6 +12,7 @@ import {
   emptyActorState,
   observeActor,
   observeInbound,
+  readBand,
   scoreActor,
   scoreFanIn,
   NO_FANIN,
@@ -141,11 +142,21 @@ export class Kernel {
     // the payment-after-media join never sees the inbound media.
     if (!replay) await this.applyReverse(event);
 
-    const previous = stored ?? emptyPairState(event.actorBand, event.targetBand);
-
-    // Bands can be filled in later by the customer; always take the latest known value.
-    previous.actorBand = preferKnown(previous.actorBand, event.actorBand);
-    previous.targetBand = preferKnown(previous.targetBand, event.targetBand);
+    /*
+     * The pair takes the bands the actor rows resolved, not the ones on this
+     * message.
+     *
+     * Both were `preferKnown(stored, event.band)`, latest non-UNKNOWN wins, and
+     * that is what the ratchet on the actor row replaced. Leaving it here would
+     * have split the two: a customer who sends a role guess after a verified
+     * reading would downgrade the band the age gap is computed from while the
+     * console kept showing the verified one off the actor row, so the reviewer
+     * would see a gap the score never applied.
+     */
+    const targetBandNow = await this.resolveTargetBand(event);
+    const previous = stored ?? emptyPairState(actorState.actorBand, targetBandNow);
+    previous.actorBand = actorState.actorBand;
+    previous.targetBand = targetBandNow;
 
     const message: PairMessage = {
       externalId: event.externalId,
@@ -255,9 +266,18 @@ export class Kernel {
   private async applyReverse(event: Event): Promise<void> {
     if (!event.targetUid) return;
     const stored = await this.store.getPair(event.customerId, event.targetUid, event.actorUid);
-    const state = stored ?? emptyPairState(event.targetBand, event.actorBand);
-    state.actorBand = preferKnown(state.actorBand, event.targetBand);
-    state.targetBand = preferKnown(state.targetBand, event.actorBand);
+    // The reverse pair is the same two accounts with the roles swapped, so it
+    // takes the same two resolved bands the forward pair does.
+    const actorState = await this.store.getActor(event.customerId, event.actorUid);
+    const forwardActorBand = readBand(actorState ?? emptyActorState(event.actorBand), {
+      band: event.actorBand,
+      provenance: event.actorBandProvenance ?? "unknown",
+      confidence: event.actorBandConfidence ?? null,
+    }).actorBand;
+    const forwardTargetBand = await this.resolveTargetBand(event);
+    const state = stored ?? emptyPairState(forwardTargetBand, forwardActorBand);
+    state.actorBand = forwardTargetBand;
+    state.targetBand = forwardActorBand;
 
     const next = applyMessage(state, {
       externalId: event.externalId,
@@ -272,6 +292,21 @@ export class Kernel {
   }
 
   /**
+   * The target's band as its own actor row holds it, after this message's
+   * reading is applied under the ratchet. Read only: observeTargetInbound does
+   * the write, and applies the same reading, so the two agree.
+   */
+  private async resolveTargetBand(event: Event): Promise<AgeBand> {
+    if (!event.targetUid) return event.targetBand;
+    const stored = await this.store.getActor(event.customerId, event.targetUid);
+    return readBand(stored ?? emptyActorState(event.targetBand), {
+      band: event.targetBand,
+      provenance: event.targetBandProvenance ?? "unknown",
+      confidence: event.targetBandConfidence ?? null,
+    }).actorBand;
+  }
+
+  /**
    * Record this event on the target's own actor state as an inbound contact
    * (ROADMAP S1). The target is an actor in its own right; this only touches
    * the inbound list, so nothing here inflates the target's fan-out.
@@ -279,8 +314,11 @@ export class Kernel {
   private async observeTargetInbound(event: Event, flagged: boolean): Promise<void> {
     if (!event.targetUid) return;
     const stored = await this.store.getActor(event.customerId, event.targetUid);
-    const state = stored ?? emptyActorState(event.targetBand);
-    state.actorBand = preferKnown(state.actorBand, event.targetBand);
+    const state = readBand(stored ?? emptyActorState(event.targetBand), {
+      band: event.targetBand,
+      provenance: event.targetBandProvenance ?? "unknown",
+      confidence: event.targetBandConfidence ?? null,
+    });
 
     const next = observeInbound(state, {
       ts: event.ts,
@@ -310,8 +348,11 @@ export class Kernel {
   /** Observe the actor even when there is no pair, so fan-out still accrues. */
   private async updateActor(event: Event, flagged: boolean) {
     const stored = await this.store.getActor(event.customerId, event.actorUid);
-    const state = stored ?? emptyActorState(event.actorBand);
-    state.actorBand = preferKnown(state.actorBand, event.actorBand);
+    const state = readBand(stored ?? emptyActorState(event.actorBand), {
+      band: event.actorBand,
+      provenance: event.actorBandProvenance ?? "unknown",
+      confidence: event.actorBandConfidence ?? null,
+    });
 
     const hints = [event.deviceHints?.deviceIdHash, event.deviceHints?.ipHash].filter(
       (h): h is string => typeof h === "string" && h.length > 0,
@@ -334,10 +375,6 @@ export class Kernel {
   get versionTriple(): Versions {
     return this.versions;
   }
-}
-
-function preferKnown(current: AgeBand, incoming: AgeBand): AgeBand {
-  return incoming === "UNKNOWN" ? current : incoming;
 }
 
 /**

@@ -1,4 +1,11 @@
-import { bandGap, isMinorBand, type ActorScore, type AgeBand } from "@guardian/schema";
+import {
+  bandGap,
+  isMinorBand,
+  resolveBandReading,
+  type ActorScore,
+  type AgeBand,
+  type AgeBandProvenance,
+} from "@guardian/schema";
 
 /**
  * Per-actor skew and graph features (DESIGN.md 5, 6.3).
@@ -15,6 +22,23 @@ import { bandGap, isMinorBand, type ActorScore, type AgeBand } from "@guardian/s
 
 export interface ActorState {
   actorBand: AgeBand;
+  /**
+   * Where the band came from and how sure that source was (ROADMAP S-2).
+   *
+   * The band alone is not an auditable claim. A band read off a Discord role is
+   * a guess from a name somebody typed and a band from a document is a
+   * document, and the UK Online Safety Act's highly effective age assurance
+   * test turns on that difference. Both fields were columns on the actor row
+   * from the September 4 migration and nothing but the dev seed ever wrote
+   * them, so every real case rendered "provenance unknown" while the fixtures
+   * showed a role reading with a confidence.
+   *
+   * Optional so a row written before this field existed still hydrates. Treat
+   * an absent provenance as "unknown" and an absent confidence as unpublished,
+   * never as zero.
+   */
+  bandProvenance?: AgeBandProvenance;
+  bandConfidence?: number | null;
   role: "member" | "moderator" | "trusted_adult" | "unknown";
   accountAgeHours: number | null;
   firstSeenAt: string | null;
@@ -53,9 +77,15 @@ export type InboundContact = {
   flagged: boolean;
 };
 
-export function emptyActorState(actorBand: AgeBand): ActorState {
+export function emptyActorState(
+  actorBand: AgeBand,
+  bandProvenance: AgeBandProvenance = "unknown",
+  bandConfidence: number | null = null,
+): ActorState {
   return {
     actorBand,
+    bandProvenance,
+    bandConfidence,
     role: "unknown",
     accountAgeHours: null,
     firstSeenAt: null,
@@ -439,5 +469,38 @@ export function scoreActor(
     score: Number(score.toFixed(4)),
     rationale,
     altCluster,
+  };
+}
+
+/**
+ * Apply an incoming band reading to an actor's state, under the ratchet.
+ *
+ * The one place either side of a pair takes a band from an event. It replaced a
+ * `preferKnown` in the kernel that took any non-UNKNOWN band from the latest
+ * message, which meant a customer sending a role guess after a verified reading
+ * silently downgraded it, and the row said nothing about which had happened
+ * because the provenance columns were never written at all.
+ *
+ * `resolveBandReading` refuses a source weaker than the stored one and moves
+ * the band and its provenance together, so a row can never claim a document
+ * said something a role guess said.
+ */
+export function readBand(
+  state: ActorState,
+  incoming: { band: AgeBand; provenance: AgeBandProvenance; confidence: number | null },
+): ActorState {
+  const resolved = resolveBandReading(
+    {
+      band: state.actorBand,
+      provenance: state.bandProvenance ?? "unknown",
+      confidence: state.bandConfidence ?? null,
+    },
+    { band: incoming.band, provenance: incoming.provenance, confidence: incoming.confidence },
+  );
+  return {
+    ...state,
+    actorBand: resolved.band as AgeBand,
+    bandProvenance: resolved.provenance,
+    bandConfidence: resolved.confidence,
   };
 }
