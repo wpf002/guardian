@@ -29,11 +29,8 @@ import styles from "@/components/settings/settings.module.css";
 
 export const metadata: Metadata = {
   title: "Settings",
-  description: "Your seat and the customer configuration behind it.",
+  description: "Your account and your organization's configuration.",
 };
-
-/** Rotation off the T2 queue, DESIGN-UI 11. The interval is the org's to set. */
-const ROTATION_WEEKS = 12;
 
 const ROLE_WORD: Record<string, string> = {
   reviewer: "Reviewer",
@@ -75,17 +72,19 @@ export default async function SettingsPage() {
     <div className={`container ${styles.page}`}>
       <PageHeader
         title="Settings"
-        meta="Your seat, then the configuration behind it"
-        about={
-          <p>
-            Everything an operator changes here is written to the audit chain, with who changed it
-            and when.
-          </p>
-        }
+        meta="Your account, then everything your organization has set up"
+        about={<p>Every change here is recorded, with who made it and when.</p>}
       />
 
       <div className={styles.sections}>
-        <Card title="Your seat">
+        {/*
+          One card for the person, one for how they work, then the operator's
+          configuration. It was seven cards deep with a paragraph of
+          explanation under nearly every row, which is a page you scroll rather
+          than a page you use: somebody who came to change the theme read four
+          notes about tier semantics on the way.
+        */}
+        <Card title="Your Account">
           <div className={styles.rows}>
             <div className={styles.row}>
               <span className={styles.rowLabel}>Name</span>
@@ -94,55 +93,30 @@ export default async function SettingsPage() {
             <div className={styles.row}>
               <span className={styles.rowLabel}>Role</span>
               <span className={styles.rowValue}>{ROLE_WORD[session.role] ?? session.role}</span>
-              <p className={styles.rowNote}>
-                A reviewer can decide up to a T3 proposal. Only a second reviewer upholding that
-                proposal produces T3, and no model can.
-              </p>
             </div>
             <div className={styles.row}>
-              <span className={styles.rowLabel}>Customer</span>
-              <span className={styles.rowValue}>
-                {customer?.name ?? session.customerId}
-              </span>
+              <span className={styles.rowLabel}>Organization</span>
+              <span className={styles.rowValue}>{customer?.name ?? session.customerId}</span>
             </div>
             <div className={styles.row}>
-              <span className={styles.rowLabel}>Seat id</span>
-              <span className={`${styles.rowValue} ${styles.version}`}>{session.reviewerId}</span>
-              <p className={styles.rowNote}>
-                Sign-in is pre-SSO on this deployment. Your decisions reference this id until single
-                sign-on and a reviewer table replace it.
-              </p>
-            </div>
-            <div className={styles.row}>
-              <span className={styles.rowLabel}>Seats on this partition</span>
+              <span className={styles.rowLabel}>Reviewers</span>
               <span className={styles.rowValue}>{seats.length}</span>
               <p className={styles.rowNote}>
                 {secondSeat
-                  ? "Two or more seats are active, so a proposal can reach a second reviewer and a T3 can complete."
-                  : "A T3 needs two people. With one seat a proposal cannot be upheld, and the path ends in a drafted bundle an operator files."}
-              </p>
-            </div>
-            <div className={styles.row}>
-              <span className={styles.rowLabel}>Rotation</span>
-              <span className={styles.rowValue}>Every {ROTATION_WEEKS} weeks</span>
-              <p className={styles.rowNote}>
-                Rotation off the T2 queue. Your own date is not recorded on this deployment yet, so
-                ask your operator when yours falls.
+                  ? "Enough to confirm a report. Two people have to agree before Guardian files anything."
+                  : "Not enough to file. Two people have to agree before a report exists, so cases here end with a draft you send to NCMEC yourself."}
               </p>
             </div>
           </div>
         </Card>
 
-        <Card title="Theme">
+        <Card title="How You Work">
           <ThemePicker />
-        </Card>
-
-        <Card title="Keyboard shortcuts">
           <KeyboardHelp />
         </Card>
 
         {isOperator ? (
-          <Card title="Lexicon extension" aside={lexicon ? lexicon.mergedVersion : undefined}>
+          <Card title="Custom Phrases" aside={lexicon ? lexicon.mergedVersion : undefined}>
             {lexiconFailed || !lexicon ? (
               <ErrorState
                 title="The lexicon could not be read."
@@ -175,7 +149,7 @@ export default async function SettingsPage() {
           </Card>
         ) : null}
 
-        <Card title="Retention">
+        <Card title="How Long Data Is Kept">
           <p className={`${styles.rowNote} ${styles.introNote}`}>
             Read only. Deletion is a scheduled job on the class a row was written with, and every
             stored row carries a customer and a class.
@@ -184,7 +158,7 @@ export default async function SettingsPage() {
         </Card>
 
         {session.role === "owner" ? (
-          <Card title="Wording guard">
+          <Card title="Wording Guard">
             <div className={styles.rows}>
               <div className={styles.row}>
                 <span className={styles.rowLabel}>Strings withheld</span>

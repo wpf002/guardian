@@ -51,13 +51,12 @@ describe("the settings page", () => {
 
     // Every section an owner sees.
     for (const title of [
-      "Your seat",
-      "Theme",
-      "Keyboard shortcuts",
-      "Lexicon extension",
+      "Your Account",
+      "How You Work",
+      "Custom Phrases",
       "Webhook",
-      "Retention",
-      "Wording guard",
+      "How Long Data Is Kept",
+      "Wording Guard",
     ]) {
       expect(screen.getByRole("heading", { name: title })).toBeDefined();
     }
@@ -71,7 +70,7 @@ describe("the settings page", () => {
     // Two seats on the fixture roster, which is what the fixtures describe:
     // M. Osei holds a claim and proposes the report A. Rivera answers. The
     // one-seat wording is the other branch, and DecisionPanel covers it.
-    expect(screen.getByText(/Two or more seats are active/)).toBeDefined();
+    expect(screen.getByText(/Enough to confirm a report/)).toBeDefined();
   });
 
   it("prints the merged lexicon version a score row would record", async () => {
