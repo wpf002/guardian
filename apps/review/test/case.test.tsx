@@ -79,7 +79,7 @@ describe("the case detail at /cases/[id]", () => {
     expect(screen.getByText(/matched/)).toBeTruthy();
     expect(screen.getByText("migration.snapchat.emoji")).toBeTruthy();
 
-    const show = screen.getByRole("button", { name: "Show the weights" });
+    const show = screen.getByRole("button", { name: "Show the Weights" });
     expect(screen.queryByText(/Fusion term 0\.31/)).toBeNull();
     fireEvent.click(show);
     expect(screen.getByText(/Fusion term 0\.31/)).toBeTruthy();

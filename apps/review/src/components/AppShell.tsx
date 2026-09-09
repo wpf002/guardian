@@ -14,6 +14,13 @@ import styles from "./AppShell.module.css";
 
 export type { ThemeChoice } from "@/lib/theme";
 
+/** The seat's role, as a word rather than the value the roster stores. */
+const ROLE_WORD: Record<string, string> = {
+  reviewer: "Reviewer",
+  operator: "Operator",
+  owner: "Owner",
+};
+
 export interface NavItem {
   href: string;
   label: string;
@@ -98,7 +105,7 @@ export function AppShell({ session, nav, railFoot, mock = false, children }: App
             </span>
           ) : null}
           <span className={styles.who}>
-            {session.displayName} &middot; {session.role}
+            {session.displayName} &middot; {ROLE_WORD[session.role] ?? session.role}
             {session.customerName ? ` · ${session.customerName}` : ""}
           </span>
         </div>

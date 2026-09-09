@@ -78,7 +78,7 @@ describe("the chain export panel", () => {
     fireEvent.change(screen.getByLabelText("Why This Export Is Being Produced"), {
       target: { value: "Regulator request 2026-09" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Produce an export" }));
+    fireEvent.click(screen.getByRole("button", { name: "Produce an Export" }));
 
     await waitFor(() => expect(saved).toHaveLength(1));
     expect(action).toHaveBeenCalledWith("Regulator request 2026-09");
@@ -106,7 +106,7 @@ describe("the chain export panel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Produce an export" }));
+    fireEvent.click(screen.getByRole("button", { name: "Produce an Export" }));
     await waitFor(() => {
       expect(screen.getByText("The export could not be produced.")).toBeTruthy();
     });
@@ -123,9 +123,9 @@ describe("the chain export panel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Produce an export" }));
+    fireEvent.click(screen.getByRole("button", { name: "Produce an Export" }));
     await waitFor(() => expect(screen.getByText("The export did not run.")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Produce an export" })).toHaveProperty(
+    expect(screen.getByRole("button", { name: "Produce an Export" })).toHaveProperty(
       "disabled",
       false,
     );

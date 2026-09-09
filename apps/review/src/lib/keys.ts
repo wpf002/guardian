@@ -23,7 +23,7 @@ export interface KeyGroup {
 
 export const KEY_GROUPS: KeyGroup[] = [
   {
-    name: "In the queue",
+    name: "In the Queue",
     bindings: [
       { keys: "j / k", action: "Move selection down or up. Does not open, does not claim" },
       { keys: "Enter or o", action: "Claim and open the selected case" },
@@ -31,7 +31,7 @@ export const KEY_GROUPS: KeyGroup[] = [
     ],
   },
   {
-    name: "In a case",
+    name: "In a Case",
     bindings: [
       { keys: "t", action: "Jump to the timeline" },
       { keys: "g then p, a, y or v", action: "Go to pair context, actor context, policy or versions" },
@@ -58,7 +58,7 @@ export const KEY_GROUPS: KeyGroup[] = [
     ],
   },
   {
-    name: "Answering a proposal",
+    name: "Answering a Proposal",
     bindings: [
       { keys: "1", action: "Open the uphold reasons. Upholding writes tier T3" },
       { keys: "2", action: "Open the overturn reasons. Overturning returns the case to T2" },

@@ -164,30 +164,41 @@ export function basisClause(criticalSignals: string[]): string {
   if (criticalSignals.length === 0) {
     return compose(
       "queue.basisClause.none",
-      "Nothing here forces a review on its own. This is the model's reading.",
+      "Nothing here is serious enough on its own. Guardian flagged the shape of it.",
     );
   }
   const named = criticalSignals.map(signalWord).join(", ");
   return compose(
     "queue.basisClause.critical",
-    `A ${named} puts this in review on its own.`,
+    `A ${named} is enough on its own.`,
   );
 }
 
 /** How far it went and over how long. The trajectory, which is the signal. */
 export function trajectoryClause(stagesReached: number, spanHours: number): string {
   if (stagesReached <= 1) {
-    return compose("queue.trajectory.single", "One stage. No progression recorded.");
+    return compose("queue.trajectory.single", "It got no further than that.");
   }
+  /*
+   * "over 1 hours" was on screen. Rounding a span to whole hours and then
+   * printing the number with a fixed plural gets it wrong for every case that
+   * ran under two hours, which is the compressed pattern this product cares
+   * most about.
+   */
+  const days = Math.round(spanHours / 24);
   const span =
     spanHours <= 0
       ? "in one sitting"
-      : spanHours < 48
-        ? `over ${spanHours} hours`
-        : `over ${Math.round(spanHours / 24)} days`;
+      : spanHours < 1
+        ? "inside an hour"
+        : spanHours < 2
+          ? "over about an hour"
+          : spanHours < 48
+            ? `over ${Math.round(spanHours)} hours`
+            : `over ${days} ${days === 1 ? "day" : "days"}`;
   return compose(
     "queue.trajectory",
-    `${stagesReached} of ${STAGE_COUNT} stages, ${span}.`,
+    `It moved through ${stagesReached} of the ${STAGE_COUNT} grooming stages ${span}.`,
   );
 }
 
@@ -222,17 +233,20 @@ export function agesClause(actor: BandReading, target: BandReading): string {
     return compose("queue.ages.unknown", `${ages}. One side's age was never read.`);
   }
   if (both && verified.includes(both)) {
-    return compose("queue.ages.verified", `${ages}, from the operator's own record.`);
+    return compose("queue.ages.verified", `${ages}, both from your own records.`);
   }
   if (both && estimated.includes(both)) {
-    return compose("queue.ages.estimated", `${ages}, both estimated.`);
+    return compose("queue.ages.estimated", `${ages}, both estimated rather than confirmed.`);
   }
   if (both === "server_role") {
-    return compose("queue.ages.role", `${ages}, both from Discord roles, neither verified.`);
+    return compose(
+      "queue.ages.role",
+      `${ages}. Both come from Discord roles, so neither is confirmed.`,
+    );
   }
   return compose(
     "queue.ages.mixed",
-    `${ages}, ${PROVENANCE_WORDS[actor.provenance]} and ${PROVENANCE_WORDS[target.provenance]}, neither verified.`,
+    `${ages}. One is ${PROVENANCE_WORDS[actor.provenance]} and the other ${PROVENANCE_WORDS[target.provenance]}, so neither is confirmed.`,
   );
 }
 
@@ -306,6 +320,6 @@ export function proposalClause(proposal: OpenProposal, now = new Date()): string
         ? `${Math.round(minutes / 60)}h`
         : `${Math.round(minutes / (24 * 60))}d`;
   return proposal.mine
-    ? `Your proposal for report, waiting ${waited} for a second reviewer`
-    : `Waiting on you. Proposed for report ${waited} ago, and a second reviewer writes the tier`;
+    ? `Your report proposal has been waiting ${waited} for a second reviewer.`
+    : `Waiting on you. ${proposal.proposerName} proposed a report ${waited} ago, and it needs a second person before it can be filed.`;
 }

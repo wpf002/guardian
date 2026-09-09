@@ -46,7 +46,7 @@ describe("operator dashboard", () => {
     expect(screen.getByText("T2 target predictive value")).toBeTruthy();
     expect(screen.getByText("40% or better")).toBeTruthy();
     expect(screen.getByText("Next sweep expected")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Verify now" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Verify Now" })).toBeTruthy();
     expect(screen.getByText("Model")).toBeTruthy();
   });
 
@@ -72,14 +72,14 @@ describe("operator dashboard", () => {
   it("toggles a chart's data table open and closed from the keyboard-reachable control", async () => {
     render(<DashboardView metrics={await metrics()} verify={verifyOk} exportChain={exportOk} />);
 
-    const toggle = screen.getAllByRole("button", { name: "Show the table" })[0]!;
+    const toggle = screen.getAllByRole("button", { name: "Show the Table" })[0]!;
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     const controlled = document.getElementById(toggle.getAttribute("aria-controls")!)!;
     expect(controlled.className).toBe("sr-only");
 
     fireEvent.click(toggle);
 
-    const opened = screen.getAllByRole("button", { name: "Hide the table" })[0]!;
+    const opened = screen.getAllByRole("button", { name: "Hide the Table" })[0]!;
     expect(opened.getAttribute("aria-expanded")).toBe("true");
     expect(document.getElementById(opened.getAttribute("aria-controls")!)!.className).not.toBe(
       "sr-only",
@@ -89,7 +89,7 @@ describe("operator dashboard", () => {
   it("reports a verification result from the chain when the control is used", async () => {
     render(<DashboardView metrics={await metrics()} verify={verifyOk} exportChain={exportOk} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Verify now" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Now" }));
 
     await waitFor(() => {
       expect(screen.getByText(/Chain verified\. 40 entries checked\./)).toBeTruthy();
@@ -107,7 +107,7 @@ describe("operator dashboard", () => {
       });
 
     render(<DashboardView metrics={await metrics()} verify={verifyBroken} exportChain={exportOk} />);
-    fireEvent.click(screen.getByRole("button", { name: "Verify now" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Now" }));
 
     await waitFor(() => {
       expect(screen.getByText(/Chain verification failed at entry 12\./)).toBeTruthy();
@@ -131,7 +131,7 @@ describe("operator dashboard", () => {
       });
 
     render(<DashboardView metrics={await metrics()} verify={verifyBroken} exportChain={exportOk} />);
-    fireEvent.click(screen.getByRole("button", { name: "Verify now" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Now" }));
 
     await waitFor(() => {
       expect(screen.getByText(/Chain verification failed at entry 12\./)).toBeTruthy();
@@ -145,7 +145,7 @@ describe("operator dashboard", () => {
     };
 
     render(<DashboardView metrics={await metrics()} verify={verifyThrows} exportChain={exportOk} />);
-    fireEvent.click(screen.getByRole("button", { name: "Verify now" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Now" }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert").textContent).toContain("Nothing was changed");

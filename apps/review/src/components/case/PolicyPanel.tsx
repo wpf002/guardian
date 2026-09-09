@@ -17,7 +17,7 @@ export function PolicyPanel({ policy }: PolicyPanelProps) {
       : undefined;
 
   return (
-    <Card title={`Policy for ${policy.tier}, set by your operator`} aside={edited} density="padded">
+    <Card title={`Your Policy for ${policy.tier}`} aside={edited} density="padded">
       {policy.criteria ? (
         <p className={styles.why}>{policy.criteria}</p>
       ) : (

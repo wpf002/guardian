@@ -93,7 +93,7 @@ export function ChainExportPanel({ exportChain, save = saveToDisk }: ChainExport
       ) : null}
 
       <Button variant="secondary" loading={running} onClick={() => void run()}>
-        Produce an export
+        Produce an Export
       </Button>
     </div>
   );

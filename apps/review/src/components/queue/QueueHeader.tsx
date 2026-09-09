@@ -27,11 +27,11 @@ export function QueueHeader({ summary, notice }: QueueHeaderProps) {
         <p className={`${styles.counts} tabular`} role="status">
           <span>{summary.partitionName}</span>
           <span>
-            <strong>{summary.total}</strong> waiting
+            <strong>{summary.total}</strong> Waiting
           </span>
           {summary.breachRiskCount > 0 ? (
             <span>
-              <strong>{summary.breachRiskCount}</strong> running out of time
+              <strong>{summary.breachRiskCount}</strong> Running Out of Time
             </span>
           ) : null}
         </p>

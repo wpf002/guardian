@@ -36,7 +36,7 @@ describe("/queue in mock mode", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Dashboard" })).toBeTruthy();
     expect(container.textContent).toContain("Northwood Gaming");
-    expect(container.textContent).toContain("waiting");
+    expect(container.textContent).toContain("6 Waiting");
 
     // Nothing sits between the count and the first case: no paragraph arguing
     // for the sort order, no filter chips, no session budget.
@@ -103,7 +103,7 @@ describe("/queue in mock mode", () => {
   it("names the reader an open proposal is waiting on", async () => {
     const { container } = await renderQueue();
     const rows = screen.getAllByRole("listitem").map((row) => row.textContent ?? "");
-    expect(rows[0]).toMatch(/Waiting on you\. Proposed for report \d+ ?(min|h|d) ago/);
+    expect(rows[0]).toMatch(/Waiting on you\. M\. Osei proposed a report \d+ ?(min|h|d) ago/);
     // Still the pattern and a line of the conversation, not just a status.
     expect(rows[0]).toContain("Asked the younger account to carry on the conversation somewhere else");
     expect(isAccusatory(container.textContent ?? "")).toBe(false);

@@ -133,7 +133,7 @@ export function BarChart({
           aria-controls={tableId}
           onClick={() => setOpen((value) => !value)}
         >
-          {open ? "Hide the table" : "Show the table"}
+          {open ? "Hide the Table" : "Show the Table"}
         </Button>
       </div>
 

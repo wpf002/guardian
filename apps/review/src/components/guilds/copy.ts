@@ -97,7 +97,7 @@ export const READINESS = {
 } as const;
 
 export const MOD_CHANNEL = {
-  title: c("modChannelTitle", "Mod channel"),
+  title: c("modChannelTitle", "Mod Channel"),
   label: c("modChannelLabel", "Channel id for alerts"),
   help: c(
     "modChannelHelp",
@@ -335,11 +335,11 @@ export const BOUNDARIES = {
 } as const;
 
 export const TABLE = {
-  server: c("tableServer", "Server id"),
+  server: c("tableServer", "Server ID"),
   scoring: c("tableScoring", "Scoring"),
   modChannel: c("tableModChannel", "Mod channel"),
-  roles: c("tableRoles", "Roles mapped"),
-  updated: c("tableUpdated", "Last change"),
+  roles: c("tableRoles", "Roles Mapped"),
+  updated: c("tableUpdated", "Last Change"),
   on: c("tableOn", "On"),
   off: c("tableOff", "Off"),
   notSet: c("tableNotSet", "Not set"),

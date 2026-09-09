@@ -43,7 +43,7 @@ export function SignalList({ signals, lexiconVersion }: SignalListProps) {
           aria-expanded={showWeights}
           onClick={() => setShowWeights((value) => !value)}
         >
-          {showWeights ? "Hide the weights" : "Show the weights"}
+          {showWeights ? "Hide the Weights" : "Show the Weights"}
         </Button>
       </div>
 

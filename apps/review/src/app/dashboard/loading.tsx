@@ -10,7 +10,7 @@ import styles from "./page.module.css";
 export default function DashboardLoading() {
   return (
     <div className={`container ${styles.page}`}>
-      <PageHeader title="Health" />
+      <PageHeader title="Reporting" />
       <LoadingState
         label="Reading the queue, the decision log, the retention rollup and the audit chain."
         count={5}

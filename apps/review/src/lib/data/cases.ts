@@ -211,10 +211,13 @@ function toQueueCase(
         )
       : 0;
   const pairsInWindow = actor?.fanOut7d ?? 0;
+  // "actor in 3 pairs this week" is the scorer's vocabulary on a card a
+  // moderator reads. What they want to know is whether this account is doing
+  // this to other children.
   const actorContext =
     pairsInWindow > 1
-      ? `actor in ${pairsInWindow} pairs this week`
-      : "first case for this actor";
+      ? `This account is in ${pairsInWindow} conversations like this one this week.`
+      : "First time Guardian has seen this account.";
 
   return {
     pairId: row.id,

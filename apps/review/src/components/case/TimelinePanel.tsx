@@ -179,7 +179,7 @@ export function TimelinePanel({
   }
 
   return (
-    <section id="timeline" ref={containerRef} aria-label="Evidence timeline">
+    <section id="timeline" ref={containerRef} aria-label="The Conversation">
       <div className={styles.timelineHead}>
         <h2 className={styles.sectionHeading} ref={headingRef} tabIndex={-1}>
           Evidence timeline

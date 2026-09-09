@@ -193,7 +193,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
       <SignalList signals={signals} lexiconVersion={detail.versions.lexiconVersion} />
 
       <div className={styles.columns}>
-        <Card title="This pair" density="padded">
+        <Card title="This Conversation" density="padded">
           <StagePath
             path={detail.stagePath}
             velocityWindow={detail.velocityWindow}

@@ -88,7 +88,7 @@ export function AuditChainPanel({
       ) : null}
 
       <Button variant="secondary" loading={running} onClick={() => void run()}>
-        Verify now
+        Verify Now
       </Button>
     </div>
   );

@@ -143,7 +143,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
           </>
         }
         about={<p>{LEDE}</p>}
-        aboutLabel="What is on this page"
+        aboutLabel="What Is on This Page"
       />
 
       {metrics.isEmpty ? (
@@ -251,7 +251,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
                 caption={`Pairs by tier, over ${metrics.shortWindowDays} and ${metrics.longWindowDays} days`}
                 data={tierBars}
                 valueHeader="Pairs"
-                metaHeader="Share of the window"
+                metaHeader="Share of the Window"
                 emptyMessage="No pair reached a tier in either window."
               />
               <p className={styles.note}>{TIER_NOTE}</p>
@@ -266,7 +266,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
                 caption={`Recorded decisions by kind, over ${metrics.longWindowDays} days`}
                 data={decisionBars}
                 valueHeader="Decisions"
-                metaHeader="Share of decisions"
+                metaHeader="Share of Decisions"
                 emptyMessage="No decision has been recorded in this window."
               />
               <p className={styles.note}>
@@ -375,8 +375,8 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
                 columns={[
                   { key: "endpoint", header: "Endpoint" },
                   { key: "tier", header: "Tier" },
-                  { key: "why", header: "Why it stopped" },
-                  { key: "when", header: "Last attempt" },
+                  { key: "why", header: "Why It Stopped" },
+                  { key: "when", header: "Last Attempt" },
                 ]}
                 rows={deadRows}
                 emptyMessage="No delivery has been given up on in this window."
