@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/queue" }));
@@ -79,14 +79,19 @@ describe("AppShell", () => {
     expect(screen.getByRole("link", { name: /Settings/ }).textContent).not.toContain("0");
   });
 
-  it("persists the theme choice and survives storage being unavailable", () => {
+  /*
+   * The shell has no theme control. There was one in the top-right corner of
+   * every page, cycling system, light and dark, and the word it showed most of
+   * the time was "system theme", which says nothing about the case in front of
+   * the reviewer. The choice lives in settings now and defaults to dark.
+   */
+  it("puts no theme control in the chrome, and applies the stored choice", () => {
     render(
       <AppShell session={{ displayName: "A. Rivera", role: "reviewer" }} nav={nav}>
         <p>case</p>
       </AppShell>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "system theme" }));
-    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
-    expect(window.localStorage.getItem("guardian.theme")).toBe("light");
+    expect(screen.queryByRole("button", { name: /theme/i })).toBeNull();
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
   });
 });

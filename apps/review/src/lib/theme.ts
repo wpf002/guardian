@@ -18,10 +18,19 @@
 
 export const THEME_KEY = "guardian.theme";
 
-export type ThemeChoice = "system" | "light" | "dark";
+/**
+ * Two choices, and dark is the default.
+ *
+ * There was a third, "system", and a control in the header that cycled through
+ * all three. It was the only thing in the top-right corner of every page and
+ * the word it showed most of the time was "system theme", which tells a
+ * reviewer nothing about the case in front of them. A console somebody reads
+ * conversations in at eleven at night has a look; it does not ask.
+ */
+export type ThemeChoice = "light" | "dark";
 
 export function isThemeChoice(value: unknown): value is ThemeChoice {
-  return value === "system" || value === "light" || value === "dark";
+  return value === "light" || value === "dark";
 }
 
 /**
@@ -32,16 +41,16 @@ export function isThemeChoice(value: unknown): value is ThemeChoice {
  */
 export const THEME_BOOT_SCRIPT =
   `try{var t=localStorage.getItem(${JSON.stringify(THEME_KEY)});` +
-  `if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}`;
+  `document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark");}catch(e){}`;
 
 function readStoredTheme(): ThemeChoice {
   try {
     const value = window.localStorage.getItem(THEME_KEY);
     if (isThemeChoice(value)) return value;
   } catch {
-    // A browser with storage blocked still gets a working app on the system theme.
+    // A browser with storage blocked still gets a working app, on the default.
   }
-  return "system";
+  return "dark";
 }
 
 let currentTheme: ThemeChoice | null = null;
@@ -59,15 +68,13 @@ export function themeSnapshot(): ThemeChoice {
   return currentTheme;
 }
 
-/** The server cannot know a browser setting, so it renders the neutral choice. */
+/** The server cannot know a browser setting, so it renders the default. */
 export function themeServerSnapshot(): ThemeChoice {
-  return "system";
+  return "dark";
 }
 
 export function applyTheme(choice: ThemeChoice): void {
-  const root = document.documentElement;
-  if (choice === "system") root.removeAttribute("data-theme");
-  else root.setAttribute("data-theme", choice);
+  document.documentElement.setAttribute("data-theme", choice);
 }
 
 export function setStoredTheme(next: ThemeChoice): void {
@@ -86,14 +93,7 @@ export function resetThemeCache(): void {
   currentTheme = null;
 }
 
-export const NEXT_THEME: Record<ThemeChoice, ThemeChoice> = {
-  system: "light",
-  light: "dark",
-  dark: "system",
-};
-
 export const THEME_WORD: Record<ThemeChoice, string> = {
-  system: "system theme",
-  light: "light theme",
-  dark: "dark theme",
+  light: "Light",
+  dark: "Dark",
 };

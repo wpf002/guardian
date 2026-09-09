@@ -5,10 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { LIVE_REGION_ID } from "@/lib/announce";
 import {
-  NEXT_THEME,
-  THEME_WORD,
   applyTheme,
-  setStoredTheme,
   subscribeToTheme,
   themeServerSnapshot,
   themeSnapshot,
@@ -54,10 +51,6 @@ export function AppShell({ session, nav, railFoot, mock = false, children }: App
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
-
-  function cycleTheme() {
-    setStoredTheme(NEXT_THEME[theme]);
-  }
 
   return (
     <div className={styles.shell}>
@@ -108,9 +101,6 @@ export function AppShell({ session, nav, railFoot, mock = false, children }: App
             {session.displayName} &middot; {session.role}
             {session.customerName ? ` · ${session.customerName}` : ""}
           </span>
-          <button type="button" className={styles.themeButton} onClick={cycleTheme}>
-            {THEME_WORD[theme]}
-          </button>
         </div>
         {/* Written through lib/announce. Sentences about what changed on the
             page, never an event feed and never a person. */}

@@ -5,7 +5,7 @@ import { listGuildConfigs } from "@/lib/data/guilds";
 import styles from "@/components/guilds/Guilds.module.css";
 
 export const metadata = {
-  title: "Discord servers",
+  title: "Connected Servers",
 };
 
 const DATE = new Intl.DateTimeFormat("en", { dateStyle: "medium" });

@@ -19,13 +19,13 @@ export interface NavCounts {
 
 export function navForRole(role: Role, counts: NavCounts = {}): NavItem[] {
   const items: NavItem[] = [
-    { href: "/queue", label: "Queue", count: counts.queue },
-    { href: "/audit", label: "Audit" },
+    { href: "/queue", label: "Dashboard", count: counts.queue },
+    { href: "/audit", label: "Evidence Log" },
   ];
   if (role === "operator" || role === "owner") {
     items.push(
-      { href: "/dashboard", label: "Health", dot: counts.attention ? "attention" : "none" },
-      { href: "/guilds", label: "Guilds", dot: "none" },
+      { href: "/dashboard", label: "Reporting", dot: counts.attention ? "attention" : "none" },
+      { href: "/guilds", label: "Connected Servers", dot: "none" },
       { href: "/settings", label: "Settings", dot: "none" },
     );
   }

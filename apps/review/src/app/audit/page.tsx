@@ -13,7 +13,7 @@ import styles from "./page.module.css";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Audit chain",
+  title: "Evidence Log",
 };
 
 const PAGE_SIZE = 25;
@@ -86,7 +86,7 @@ export default async function AuditPage({
     <div className={styles.page}>
       <header className={styles.header}>
         <PageHeader
-          title="Audit chain"
+          title="Evidence Log"
           meta={
             <>
               <span>{customerName}</span>

@@ -29,18 +29,18 @@ export const SNOWFLAKE_ERROR = c(
 );
 
 export const PAGE = {
-  listTitle: c("listTitle", "Discord servers"),
+  listTitle: c("listTitle", "Connected Servers"),
   listIntro: c(
     "listIntro",
-    "One row per server this account has Guardian in. A server scores nothing until it has a mod channel and scoring is turned on, so a new row starts off.",
+    "Discord is the first place Guardian can watch, because a server owner can invite it themselves. Any other platform connects through the API instead. One row per server, and a new one watches nothing until you pick a channel for alerts and turn it on.",
   ),
-  listCaption: c("listCaption", "Discord servers on this account"),
-  detailTitle: c("detailTitle", "Server setup"),
+  listCaption: c("listCaption", "Servers this account has Guardian in"),
+  detailTitle: c("detailTitle", "Server Setup"),
   detailIntro: c(
     "detailIntro",
     "What Guardian reads in this server, what your roles mean, and what the bot does when a conversation reaches a tier. Every change here is written against this server and this account only.",
   ),
-  backToList: c("backToList", "All servers"),
+  backToList: c("backToList", "All Servers"),
 } as const;
 
 export const STATES = {

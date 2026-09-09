@@ -24,7 +24,7 @@ describe("the audit view", () => {
   it("renders the head, the newest entries and their payloads as key and value", async () => {
     await renderAuditPage();
 
-    expect(screen.getByRole("heading", { name: "Audit chain", level: 1 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Evidence Log", level: 1 })).toBeTruthy();
     expect(screen.getByText(/Northwood Gaming/)).toBeTruthy();
     expect(screen.getByText("Chain entries, newest first, page 1.")).toBeTruthy();
 

@@ -39,7 +39,7 @@ describe("operator dashboard", () => {
   it("renders queue health, cost, calibration, retention and the chain in mock mode", async () => {
     render(<DashboardView metrics={await metrics()} verify={verifyOk} exportChain={exportOk} />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "Health" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Reporting" })).toBeTruthy();
     expect(screen.getByText("Open at T2")).toBeTruthy();
     expect(screen.getByText("Oldest open T2")).toBeTruthy();
     expect(screen.getByText("Reviewer minutes per 1,000 users per day")).toBeTruthy();
@@ -150,7 +150,7 @@ describe("operator dashboard", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert").textContent).toContain("Nothing was changed");
     });
-    expect(screen.getByRole("heading", { level: 1, name: "Health" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Reporting" })).toBeTruthy();
   });
 
   it("renders the empty state rather than a grid of zeroes", async () => {

@@ -23,7 +23,7 @@ export function QueueHeader({ summary, notice }: QueueHeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.main}>
-        <h1 className={styles.title}>Queue</h1>
+        <h1 className={styles.title}>Dashboard</h1>
         <p className={`${styles.counts} tabular`} role="status">
           <span>{summary.partitionName}</span>
           <span>

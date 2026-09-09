@@ -34,7 +34,7 @@ describe("/queue in mock mode", () => {
   it("renders the counts and the ranked cards, and nothing above them", async () => {
     const { container } = await renderQueue();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Queue" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Dashboard" })).toBeTruthy();
     expect(container.textContent).toContain("Northwood Gaming");
     expect(container.textContent).toContain("waiting");
 

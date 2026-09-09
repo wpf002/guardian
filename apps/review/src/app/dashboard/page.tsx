@@ -24,7 +24,7 @@ import {
 import { describeVerification } from "./verification";
 import styles from "./page.module.css";
 
-export const metadata = { title: "Health" };
+export const metadata = { title: "Reporting" };
 
 /**
  * The operator dashboard (RESEARCH 6.9).
@@ -134,7 +134,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
   return (
     <div className={`container ${styles.page}`}>
       <PageHeader
-        title="Health"
+        title="Reporting"
         meta={
           <>
             <span>{metrics.customerName}</span>

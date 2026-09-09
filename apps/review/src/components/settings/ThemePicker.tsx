@@ -11,17 +11,18 @@ import {
 import styles from "./settings.module.css";
 
 /**
- * The theme, chosen in words rather than cycled from the rail.
+ * The theme, chosen here and nowhere else.
  *
- * It reads and writes the one store in lib/theme, which the app shell also
- * uses, so a change made here updates the rail control in the same commit
- * rather than at the next full load.
+ * There used to be a control in the header that cycled system, light and dark,
+ * and it was the only thing in the top-right corner of every page. It is gone,
+ * along with the "system" option: a console somebody reads conversations in
+ * late at night has a look rather than asking about one, and dark is it unless
+ * a reviewer says otherwise here.
  */
 
 const CHOICES: { value: ThemeChoice; label: string; help: string }[] = [
-  { value: "system", label: "Match my system", help: "Follows the setting on this device." },
+  { value: "dark", label: "Dark", help: "The default. Easier on a long evening shift." },
   { value: "light", label: "Light", help: "Ink on an off-white ground." },
-  { value: "dark", label: "Dark", help: "For evening shifts. Both themes are first class." },
 ];
 
 export function ThemePicker() {

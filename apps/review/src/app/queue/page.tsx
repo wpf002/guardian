@@ -5,7 +5,7 @@ import { listQueue } from "@/lib/data/cases";
 import { openCase } from "./actions";
 import styles from "./page.module.css";
 
-export const metadata = { title: "Queue" };
+export const metadata = { title: "Dashboard" };
 
 /** The queue is live. A cached queue is a queue that lies about what is waiting. */
 export const dynamic = "force-dynamic";

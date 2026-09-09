@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import { SignInForm } from "./SignInForm";
 import styles from "./page.module.css";
 
-export const metadata = { title: "Sign in" };
+export const metadata = { title: "Sign In" };
 
 export default async function LoginPage() {
   const session = await getSession();
