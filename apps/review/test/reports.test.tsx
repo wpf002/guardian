@@ -96,7 +96,7 @@ describe("the report trail", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "What happened to this report" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "What Happened to This Report" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "chain entry 12" }).getAttribute("href")).toBe(
       "/audit/12",
     );

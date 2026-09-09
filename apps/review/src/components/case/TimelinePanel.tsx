@@ -214,7 +214,7 @@ export function TimelinePanel({
 
       <Dialog
         open={confirmOpen}
-        title="Reveal every collapsed span in this case?"
+        title="Show Every Hidden Message?"
         onClose={() => setConfirmOpen(false)}
         footer={
           <>

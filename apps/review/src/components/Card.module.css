@@ -1,4 +1,13 @@
-/* One of the two elevation levels in this app: a 1px divider on a surface. */
+/*
+ * A card, and the title that names it.
+ *
+ * Every card on every page carried the same 1px divider on the same surface, so
+ * a screen of seven of them read as one grey field with words in it: nothing
+ * said which was the thing you came for and which was context. The header rule
+ * is what separates them. It is 2px of the accent under the title only, not a
+ * border round the card, because a box inside a box inside a page is three
+ * frames and no hierarchy.
+ */
 .card {
   background: var(--surface);
   border: 1px solid var(--divider);
@@ -15,12 +24,32 @@
 }
 
 .header {
+  position: relative;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
-  margin-block-end: var(--space-3);
+  margin-block-end: var(--space-4);
+  padding-block-end: var(--space-2);
+  border-block-end: 1px solid var(--border);
 }
+
+/*
+ * A short rule in the accent, sitting on the header's own border, so the eye
+ * lands on the title before it reads a word. Two pixels and forty of width is
+ * enough: the job is to mark a start, not to decorate.
+ */
+.header::after {
+  content: "";
+  position: absolute;
+  inset-block-end: -1px;
+  inset-inline-start: 0;
+  inline-size: 40px;
+  block-size: 2px;
+  background: var(--accent);
+}
+
+
 
 /*
  * A card title was the same 17px as the body inside it, so a page of seven

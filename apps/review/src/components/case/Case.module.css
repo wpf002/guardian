@@ -108,27 +108,44 @@
 }
 
 /* A link that carries a control's weight. Same states as Button. */
+/*
+ * The one thing to do on this card, and it looks like it.
+ *
+ * Opening the timeline is the only route to a decision: confirm and propose
+ * stay refused until an excerpt has actually been rendered to this reviewer. It
+ * was a grey outline the same weight as every other border on the page, so the
+ * page had no answer to "what now" beyond reading all of it.
+ */
 .linkAction {
   display: inline-flex;
   align-items: center;
   min-height: 40px;
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--divider);
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--accent);
   border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--text);
+  background: var(--accent);
+  color: var(--accent-fg);
   font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   text-decoration: none;
-  transition: border-color var(--motion-fast) var(--motion-in);
+  transition:
+    background var(--motion-fast) var(--motion-in),
+    border-color var(--motion-fast) var(--motion-in);
 }
 
 .linkAction:hover {
-  border-color: var(--border);
-  color: var(--text);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--accent-fg);
 }
 
 .linkAction:active {
-  background: var(--surface-sunken);
+  background: var(--accent-hover);
+}
+
+.linkAction:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .posture {

@@ -28,16 +28,16 @@ const DECISION_WORD: Record<string, string> = {
  */
 export function ActorPanel({ actor, priorCases }: ActorPanelProps) {
   return (
-    <Card title="This actor" density="padded" aside={actor.hashedUid.slice(0, 12)}>
+    <Card title="This Account" density="padded" aside={actor.hashedUid.slice(0, 12)}>
       <dl className={styles.facts}>
         <div className={styles.fact}>
-          <dt className={styles.factLabel}>Age band</dt>
+          <dt className={styles.factLabel}>Age Band</dt>
           <dd className={styles.factValue}>
             {bandWord(actor.band.band)}, {actor.band.provenance.replace(/_/g, " ")}
           </dd>
         </div>
         <div className={styles.fact}>
-          <dt className={styles.factLabel}>Pairs in the window</dt>
+          <dt className={styles.factLabel}>Conversations in This Window</dt>
           <dd className={styles.factValue}>{actor.pairsInWindow}</dd>
         </div>
         <div className={styles.fact}>
@@ -53,15 +53,15 @@ export function ActorPanel({ actor, priorCases }: ActorPanelProps) {
           </dd>
         </div>
         <div className={styles.fact}>
-          <dt className={styles.factLabel}>Account age</dt>
+          <dt className={styles.factLabel}>Account Age</dt>
           <dd className={styles.factValue}>{days(actor.accountAgeHours)}</dd>
         </div>
         <div className={styles.fact}>
-          <dt className={styles.factLabel}>Accounts clustered with this one</dt>
+          <dt className={styles.factLabel}>Accounts Linked to This One</dt>
           <dd className={styles.factValue}>{actor.altClusterSize}</dd>
         </div>
         <div className={styles.fact}>
-          <dt className={styles.factLabel}>Elevated role</dt>
+          <dt className={styles.factLabel}>Elevated Role</dt>
           <dd className={styles.factValue}>{actor.elevatedRole ?? "none"}</dd>
         </div>
       </dl>
@@ -73,7 +73,7 @@ export function ActorPanel({ actor, priorCases }: ActorPanelProps) {
         </p>
       ) : null}
 
-      <h3 className={styles.subHeading}>Prior cases on this actor</h3>
+      <h3 className={styles.subHeading}>Earlier Cases for This Account</h3>
       {priorCases.length === 0 ? (
         <p className={styles.note}>
           First case for this actor. Nothing earlier has been decided here.

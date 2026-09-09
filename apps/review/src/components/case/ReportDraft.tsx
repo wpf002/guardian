@@ -143,7 +143,7 @@ export function ReportDraft({
 
   return (
     <Card
-      title="Report draft, for filing at the CyberTipline"
+      title="Report Draft for NCMEC"
       aside="owner only"
       density="padded"
     >
@@ -211,7 +211,7 @@ export function ReportDraft({
       </div>
 
       <div className={styles.incident}>
-        <label htmlFor={`incident-${pairId}`}>Incident type on this report</label>
+        <label htmlFor={`incident-${pairId}`}>Incident Type on This Report</label>
         <select
           id={`incident-${pairId}`}
           value={incidentType}

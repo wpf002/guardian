@@ -332,7 +332,7 @@ export function DecisionPanel({
     return (
       <section className={styles.panel} aria-label="Decision recorded" ref={recordedRef} tabIndex={-1}>
         <div className={styles.result}>
-          <h2 className={styles.title}>Decision recorded</h2>
+          <h2 className={styles.title}>Decision Recorded</h2>
           <p className={styles.resultSummary}>{outcome?.summary}</p>
           {/* The undo bar comes before the chain link, because DESIGN-UI 12
               makes Undo the first tab stop after the confirmation region. */}
@@ -358,7 +358,7 @@ export function DecisionPanel({
           {failure ? <p className={styles.failure}>{failure}</p> : null}
           <div className={styles.escapes}>
             <Link className={styles.linkEscape} href={leaveHref}>
-              Next case
+              Next Case
             </Link>
           </div>
         </div>
@@ -368,7 +368,7 @@ export function DecisionPanel({
 
   return (
     <section className={styles.panel} aria-label="Decision">
-      <h2 className={styles.title}>Your decision</h2>
+      <h2 className={styles.title}>Your Decision</h2>
       <p className={styles.lead}>
         {modelTier === null
           ? "This pair was scored before Guardian recorded the model's own tier separately, so the tier on the case is the one it carries now."
@@ -478,7 +478,7 @@ export function DecisionPanel({
 
       {failure ? (
         <p className={styles.failure}>
-          {failure} <Button variant="secondary" onClick={() => setFailure(null)}>Try again</Button>
+          {failure} <Button variant="secondary" onClick={() => setFailure(null)}>Try Again</Button>
         </p>
       ) : null}
 

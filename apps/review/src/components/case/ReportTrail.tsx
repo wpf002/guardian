@@ -15,7 +15,7 @@ import styles from "./Case.module.css";
  */
 export function ReportTrail({ trail }: { trail: Trail }) {
   return (
-    <Card title="What happened to this report" density="padded">
+    <Card title="What Happened to This Report" density="padded">
       <p className={styles.lead}>{trail.headline}</p>
 
       {trail.events.length === 0 ? null : (

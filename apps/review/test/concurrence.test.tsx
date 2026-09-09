@@ -119,7 +119,7 @@ describe("answering a proposal in the console", () => {
     expect(screen.queryByRole("button", { name: /Uphold/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Overturn/ })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Withdraw the proposal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw the Proposal" }));
     await waitFor(() => expect(onWithdraw).toHaveBeenCalledTimes(1));
     expect(onWithdraw.mock.calls[0]![0]).toEqual({
       pairId: "pair_91c7",

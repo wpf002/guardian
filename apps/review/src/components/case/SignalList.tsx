@@ -33,7 +33,7 @@ export function SignalList({ signals, lexiconVersion }: SignalListProps) {
   const [showWeights, setShowWeights] = useState(false);
 
   return (
-    <Card title="Signals" aside={`lexicon ${lexiconVersion}`} density="padded">
+    <Card title="What Fired" aside={`lexicon ${lexiconVersion}`} density="padded">
       <div className={styles.toggleRow}>
         <span className={styles.note}>
           {signals.length} signal{signals.length === 1 ? "" : "s"} on this pair.

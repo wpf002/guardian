@@ -114,7 +114,7 @@ describe("the incident type control", () => {
     const redraft = vi.fn(async () => ({ draft: "REBUILT DRAFT" }));
     render(<ReportDraft {...base} onIncidentType={redraft} />);
 
-    const select = screen.getByLabelText("Incident type on this report") as HTMLSelectElement;
+    const select = screen.getByLabelText("Incident Type on This Report") as HTMLSelectElement;
     expect(select.options).toHaveLength(8);
     expect(select.value).toBe(base.derivedIncidentType);
 
@@ -143,7 +143,7 @@ describe("the incident type control", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Incident type on this report"), {
+    fireEvent.change(screen.getByLabelText("Incident Type on This Report"), {
       target: { value: "Child Sex Tourism" },
     });
     await waitFor(() => {

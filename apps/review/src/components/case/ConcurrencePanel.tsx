@@ -172,7 +172,7 @@ export function ConcurrencePanel({
           ) : null}
           <div className={styles.escapes}>
             <Link className={styles.linkEscape} href={leaveHref}>
-              Next case
+              Next Case
             </Link>
           </div>
         </div>
@@ -202,10 +202,10 @@ export function ConcurrencePanel({
         {failure ? <p className={styles.failure}>{failure}</p> : null}
         <div className={styles.escapes}>
           <Button variant="secondary" loading={busy} onClick={() => void withdraw()}>
-            Withdraw the proposal
+            Withdraw the Proposal
           </Button>
           <Link className={styles.linkEscape} href={leaveHref}>
-            Next case
+            Next Case
           </Link>
         </div>
         <p className={styles.consequence}>

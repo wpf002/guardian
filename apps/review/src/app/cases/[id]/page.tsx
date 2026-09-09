@@ -162,7 +162,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
     <div className={`container ${styles.page}`}>
       <div className={styles.head}>
         <Link className={styles.back} href="/queue">
-          Back to the queue
+          Back to the Queue
         </Link>
         <span className={styles.sla}>{slaWords(detail.queue.slaRemainingMinutes)}</span>
       </div>

@@ -262,14 +262,14 @@ describe("the case detail at /cases/[id]", () => {
   it("drafts nothing on a case the model tiered and nobody decided", async () => {
     await renderCase("pair_4f2a");
     expect(
-      screen.queryByRole("heading", { name: "Report draft, for filing at the CyberTipline" }),
+      screen.queryByRole("heading", { name: "Report Draft for NCMEC" }),
     ).toBeNull();
   });
 
   it("gives an owner a drafted report that says Guardian submits nothing", async () => {
     await renderCase("pair_c5e1");
     expect(
-      screen.getByRole("heading", { name: "Report draft, for filing at the CyberTipline" }),
+      screen.getByRole("heading", { name: "Report Draft for NCMEC" }),
     ).toBeTruthy();
     const link = screen.getByRole("link", { name: "Open report.cybertip.org" });
     expect(link.getAttribute("href")).toBe("https://report.cybertip.org");

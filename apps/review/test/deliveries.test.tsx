@@ -75,7 +75,7 @@ describe("the chain export panel", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Why this export is being produced"), {
+    fireEvent.change(screen.getByLabelText("Why This Export Is Being Produced"), {
       target: { value: "Regulator request 2026-09" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Produce an export" }));

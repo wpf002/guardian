@@ -32,7 +32,7 @@ export function SeverityStrip({ queue }: SeverityStripProps) {
       : null;
 
   return (
-    <Card title="What Guardian recorded" aside={`scored for ${queue.customerName}`} density="padded">
+    <Card title="What Guardian Recorded" aside={`scored for ${queue.customerName}`} density="padded">
       <div className={styles.stripTop}>
         <TierBadge tier={queue.tier} withMeaning criticalSignals={queue.criticalSignals} />
         <span className={styles.criticalWord}>
@@ -68,7 +68,7 @@ export function SeverityStrip({ queue }: SeverityStripProps) {
 
       <div className={styles.stripActions}>
         <a className={styles.linkAction} href="#timeline">
-          Open the timeline
+          Open the Timeline
         </a>
       </div>
     </Card>

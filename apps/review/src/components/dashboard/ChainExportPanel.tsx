@@ -71,7 +71,7 @@ export function ChainExportPanel({ exportChain, save = saveToDisk }: ChainExport
   return (
     <div className={styles.panel}>
       <div className={styles.field}>
-        <label htmlFor="export-purpose">Why this export is being produced</label>
+        <label htmlFor="export-purpose">Why This Export Is Being Produced</label>
         <input
           id="export-purpose"
           type="text"

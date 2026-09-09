@@ -29,7 +29,7 @@ export function WhyPanel({ sentence, features }: WhyPanelProps) {
   const largest = top.reduce((max, f) => Math.max(max, Math.abs(f.weight)), 0);
 
   return (
-    <Card title="Why this is here" density="padded">
+    <Card title="Why This Is Here" density="padded">
       <p className={styles.why}>{sentence}</p>
       {top.length === 0 ? (
         <p className={styles.note}>No fusion term was recorded against this pair.</p>

@@ -93,7 +93,7 @@ export function ProposeDialog({
   return (
     <Dialog
       open={open}
-      title="Propose a report to a second reviewer"
+      title="Send to a Second Reviewer"
       onClose={onClose}
       footer={
         <>
@@ -138,7 +138,7 @@ export function ProposeDialog({
         <ConsequenceCopy context="propose" />
 
         <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>Incident type</legend>
+          <legend className={styles.legend}>Incident Type</legend>
           {reasons.map((reason) => (
             <label key={reason.code} className={styles.radioRow}>
               <input
@@ -203,7 +203,7 @@ export function ProposeDialog({
         </div>
 
         <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>Your claims</legend>
+          <legend className={styles.legend}>Your Claims</legend>
           <label className={styles.check}>
             <input
               type="checkbox"
