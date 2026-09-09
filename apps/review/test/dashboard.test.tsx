@@ -40,9 +40,9 @@ describe("operator dashboard", () => {
     render(<DashboardView metrics={await metrics()} verify={verifyOk} exportChain={exportOk} />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Reporting" })).toBeTruthy();
-    expect(screen.getByText("Open at T2")).toBeTruthy();
-    expect(screen.getByText("Oldest open T2")).toBeTruthy();
-    expect(screen.getByText("Reviewer minutes per 1,000 users per day")).toBeTruthy();
+    expect(screen.getByText("Needs a Person")).toBeTruthy();
+    expect(screen.getByText("Longest Wait")).toBeTruthy();
+    expect(screen.getByText("Review Minutes per 1,000 Members per Day")).toBeTruthy();
     expect(screen.getByText("T2 target predictive value")).toBeTruthy();
     expect(screen.getByText("40% or better")).toBeTruthy();
     expect(screen.getByText("Next sweep expected")).toBeTruthy();
@@ -161,8 +161,8 @@ describe("operator dashboard", () => {
     };
     render(<DashboardView metrics={empty} verify={verifyOk} exportChain={exportOk} />);
 
-    expect(screen.getByText("Nothing has been scored on this partition yet.")).toBeTruthy();
-    expect(screen.queryByText("Open at T2")).toBeNull();
+    expect(screen.getByText("Nothing has been scored yet.")).toBeTruthy();
+    expect(screen.queryByText("Needs a Person")).toBeNull();
   });
 
   it("prints no string that the wording guard would refuse", async () => {

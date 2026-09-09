@@ -140,39 +140,39 @@ export function ChainTools({
 
   return (
     <Card
-      title="Verify and export"
+      title="Check the Record"
       aside={
         chainReadable && headHash ? `head ${headSeq} · ${headHash.slice(0, 12)}...` : undefined
       }
       density="padded"
     >
       <p className={styles.lede}>
-        A verification walks the range entry by entry and checks that each one hashes to what it
-        recorded and points at the one before it. The export carries that verdict, the range, and
-        every entry in it that this seat can read.
+        Checking re-reads each record and confirms nobody altered it after it was written. Do this
+        before you hand anything to police, a lawyer or NCMEC, and download the result so they can
+        confirm it themselves without your help.
       </p>
 
       <div className={styles.range}>
         <Field
           id="audit-from"
-          label="First entry"
+          label="Start At Record"
           type="number"
           inputMode="numeric"
           min={1}
           value={from}
           onChange={(event) => setFrom(event.target.value)}
-          help="Sequence number to start at."
+          help="Leave these alone to check everything on this page."
           error={rangeError ?? undefined}
         />
         <Field
           id="audit-to"
-          label="Last entry"
+          label="End At Record"
           type="number"
           inputMode="numeric"
           min={1}
           value={to}
           onChange={(event) => setTo(event.target.value)}
-          help={`Up to ${MAX_RANGE} entries in one run.`}
+          help={`Up to ${MAX_RANGE} records at a time.`}
         />
       </div>
 
@@ -185,11 +185,11 @@ export function ChainTools({
             (canVerify
               ? undefined
               : (verifyBlockedReason ??
-                "An operator seat verifies a range of the chain. Yours can read it."))
+                "Only an operator can run this check. You can read the records."))
           }
           onClick={() => void runVerify()}
         >
-          Verify this range
+          Check These Records
         </Button>
         <Button
           variant="secondary"
@@ -199,11 +199,11 @@ export function ChainTools({
             (canExport
               ? undefined
               : (exportBlockedReason ??
-                "An operator seat exports the chain. Yours can read and verify it."))
+                "Only an operator can download the record. You can read and check it."))
           }
           onClick={() => void runExport()}
         >
-          Export this range as JSON
+          Download for Counsel
         </Button>
       </div>
 
@@ -216,7 +216,7 @@ export function ChainTools({
         ) : null}
         {!failure && !verdict ? (
           <p className={styles.idle}>
-            No verification has been run on this range in this session.
+            Not checked yet.
           </p>
         ) : null}
       </div>

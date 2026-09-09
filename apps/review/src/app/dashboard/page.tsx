@@ -43,27 +43,27 @@ export const dynamic = "force-dynamic";
 
 const LEDE = assertCopy(
   "dashboard.lede",
-  "Counts of pairs, decisions, signals and minutes on your own partition. The four hour figure is a target for how long a pair waits in the queue, not a stopwatch on a reviewer, and no figure on this page is scoped to one person.",
+  "How much Guardian flagged, how much a person confirmed, and how long cases waited. Nothing on this page measures one reviewer, and nothing on it can be sorted by who is quicker.",
 );
 
 const QUEUE_NOTE = assertCopy(
   "dashboard.queueNote",
-  "Time in queue is measured from the score being assigned to the decision being recorded. Reviewer handling time is not shown here and is not compared between people.",
+  "Timed from when Guardian flagged the conversation to when somebody decided. Nobody's individual speed is recorded or shown.",
 );
 
 const CRITICAL_NOTE = assertCopy(
   "dashboard.criticalNote",
-  "A critical signal forces tier T2 or higher regardless of the fused score. These are counts of pairs a signal fired on, taken from the audit chain, so a pair already resolved still counts toward the window it fired in.",
+  "Some things put a conversation in front of a person no matter what the score says: a threat that matches a known script, a payment demand right after an image, meeting plans across an age gap. These are how often each one happened.",
 );
 
 const PPV_NOTE = assertCopy(
   "dashboard.ppvNote",
-  "These are the targets from the design, not measurements of this partition. The realized figure sits beside them and reads as unavailable until there are enough decisions to compute one.",
+  "The first number is what we are aiming for. The second is what actually happened here, and it stays blank until enough cases have been decided to mean anything.",
 );
 
 const TIER_NOTE = assertCopy(
   "dashboard.tierNote",
-  "Counts of pairs that reached each tier. A rising count after a version change is a measurement artifact until the version history below says otherwise.",
+  "How many conversations reached each level. If this jumps right after a version change, suspect the change before you suspect the traffic.",
 );
 
 const NOT_HERE = assertCopy(
@@ -148,23 +148,23 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
 
       {metrics.isEmpty ? (
         <EmptyState
-          title="Nothing has been scored on this partition yet."
+          title="Nothing has been scored yet."
           detail="The queue is empty, no decision has been recorded, and the audit chain has no entries. That is what a partition looks like before the first event arrives, not a failure."
           meta={`Checked ${stampUtc(metrics.generatedAt)}.`}
         />
       ) : (
         <div className={styles.rows}>
-          <Card title="Queue health" density="padded" aside={`${metrics.shortWindowDays} day window`}>
+          <Card title="Waiting for Review" density="padded" aside={`${metrics.shortWindowDays} day window`}>
             <div className={styles.stats}>
-              <Stat label="Open at T2" value={queue.openT2} />
-              <Stat label="Open at T1" value={queue.openT1} />
+              <Stat label="Needs a Person" value={queue.openT2} />
+              <Stat label="Being Watched" value={queue.openT1} />
               <Stat
-                label="Under an hour left"
+                label="Running Out of Time"
                 value={queue.breachRiskCount}
                 target="a forecast, not a count"
               />
               <Stat
-                label="Unclaimed"
+                label="Nobody Has Started"
                 value={queue.unclaimedCount}
                 target="not persisted yet"
               />
@@ -172,7 +172,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
 
             <div className={`${styles.stats} ${styles.factsSpaced}`}>
               <TargetMeter
-                label="Oldest open T2"
+                label="Longest Wait"
                 value={queue.oldestT2AgeMinutes}
                 display={minutesWords(queue.oldestT2AgeMinutes)}
                 unavailableNote="no T2 is open"
@@ -186,7 +186,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
                 }
               />
               <Stat
-                label="Median score to decision"
+                label="Typical Time to Decide"
                 value={
                   queue.medianMinutesToDecision === null
                     ? null
@@ -204,9 +204,9 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
           </Card>
 
           <div className={styles.pair}>
-            <Card title="Cost" density="padded">
+            <Card title="Reviewer Workload" density="padded">
               <TargetMeter
-                label="Reviewer minutes per 1,000 users per day"
+                label="Review Minutes per 1,000 Members per Day"
                 value={cost.reviewerMinutesPer1kUsers}
                 display={`${cost.reviewerMinutesPer1kUsers} minutes`}
                 unavailableNote="no active user count for this partition"
@@ -226,9 +226,9 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
               </p>
             </Card>
 
-            <Card title="Calibration" density="padded">
+            <Card title="Are We Right?" density="padded">
               <Stat
-                label={`Realized T2 predictive value, ${metrics.shortWindowDays} days`}
+                label={`Flagged Cases a Person Confirmed, Last ${metrics.shortWindowDays} Days`}
                 value={cost.realizedT2Ppv === null ? null : `${Math.round(cost.realizedT2Ppv * 100)}%`}
                 unavailableNote={`fewer than ${cost.minSampleForRate} decisions on T2 pairs in this window`}
                 target={`from ${countWords(cost.ppvSampleSize, "decision on a T2 pair", "decisions on T2 pairs")}`}
@@ -246,7 +246,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
           </div>
 
           <div className={styles.pair}>
-            <Card title="Tier rates" density="padded" aside="7 and 30 days">
+            <Card title="How Much Gets Flagged" density="padded" aside="7 and 30 days">
               <BarChart
                 caption={`Pairs by tier, over ${metrics.shortWindowDays} and ${metrics.longWindowDays} days`}
                 data={tierBars}
@@ -258,7 +258,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
             </Card>
 
             <Card
-              title="Decision mix"
+              title="What Reviewers Decided"
               density="padded"
               aside={`${metrics.longWindowDays} day window`}
             >
@@ -277,7 +277,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
           </div>
 
           <Card
-            title="Critical signals"
+            title="What Forced a Review"
             density="padded"
             aside={`${countWords(metrics.criticalSignalTotal, "hit", "hits")} in ${metrics.shortWindowDays} days`}
           >
@@ -291,7 +291,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
           </Card>
 
           <div className={styles.pair}>
-            <Card title="Retention" density="padded">
+            <Card title="What Gets Deleted, and When" density="padded">
               <BarChart
                 caption="Pairs by retention class"
                 data={retentionBars}
@@ -332,7 +332,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
               </p>
             </Card>
 
-            <Card title="Audit chain" density="padded">
+            <Card title="Tamper Check" density="padded">
               <AuditChainPanel
                 headSeq={audit.headSeq}
                 headHash={shortHash(audit.headHash)}
@@ -350,20 +350,20 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
 
           <div className={styles.pair}>
             <Card
-              title="Webhook delivery"
+              title="Alerts Sent to Your Systems"
               density="padded"
               aside={`${delivery.windowDays} day window`}
             >
               <div className={styles.stats}>
                 <Stat label="Delivered" value={delivery.deliveredCount} />
-                <Stat label="Waiting or in flight" value={delivery.pendingCount} />
+                <Stat label="Still Sending" value={delivery.pendingCount} />
                 <Stat
-                  label="Given up on"
+                  label="Gave Up"
                   value={delivery.deadCount}
                   target="will not retry without a requeue"
                 />
                 <Stat
-                  label="Sent twice"
+                  label="Sent Twice"
                   value={delivery.droppedResults}
                   unavailableNote="nothing has recorded one"
                   target="a worker's result was dropped"
@@ -388,13 +388,13 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
               </p>
             </Card>
 
-            <Card title="Reporting" density="padded">
+            <Card title="Reports to NCMEC" density="padded">
               <div className={styles.stats}>
-                <Stat label="Drafts taken out of the console" value={reports.draftsExported} />
-                <Stat label="Report records" value={reports.drafted + reports.submitted} />
+                <Stat label="Drafts Downloaded" value={reports.draftsExported} />
+                <Stat label="Reports Started" value={reports.drafted + reports.submitted} />
                 <Stat label="Submitted" value={reports.submitted} />
                 <Stat
-                  label="Under preservation"
+                  label="Held for One Year"
                   value={reports.underPreservation}
                   target="one year from submission"
                 />
@@ -409,7 +409,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
           </div>
 
           <div className={styles.pair}>
-            <Card title="Export for a regulator" density="padded">
+            <Card title="Download for a Regulator" density="padded">
               <ChainExportPanel exportChain={exportChain} />
               <p className={styles.note}>
                 The artifact carries the entries, the algorithm and the recomputation recipe, so a
@@ -421,7 +421,7 @@ export function DashboardView({ metrics, verify, exportChain }: DashboardViewPro
             </Card>
           </div>
 
-          <Card title="Versions in production" density="padded">
+          <Card title="What Version Is Running" density="padded">
             <dl className={styles.facts}>
               <div className={styles.fact}>
                 <dt>Model</dt>

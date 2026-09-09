@@ -30,7 +30,7 @@ describe("the audit view", () => {
 
     const head = within(screen.getByRole("region", { name: "Chain head" }));
     expect(head.getByText("#40")).toBeTruthy();
-    expect(head.getByText("Head hash")).toBeTruthy();
+    expect(head.getByText("Fingerprint Of The Latest Record")).toBeTruthy();
 
     // The sequence number is the row's tab stop and links to the one entry view.
     const link = within(screen.getByRole("table")).getByRole("link", { name: "#40" });
@@ -72,10 +72,10 @@ describe("the audit view", () => {
     await renderAuditPage();
 
     expect(
-      screen.getByText("No verification has been run on this range in this session."),
+      screen.getByText("Not checked yet."),
     ).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /Verify this range/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Check These Records/ }));
 
     await waitFor(() => {
       expect(screen.getByText(/Verified\. 25 entries checked from #16/)).toBeTruthy();
@@ -128,7 +128,7 @@ describe("the chain tools", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Verify this range/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Check These Records/ }));
 
     await waitFor(() => {
       expect(screen.getByText(/Entry #17 is where it breaks/)).toBeTruthy();
@@ -149,7 +149,7 @@ describe("the chain tools", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Export this range as JSON/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Download for Counsel/ }));
 
     await waitFor(() => {
       expect(downloaded).toHaveBeenCalledTimes(1);
@@ -171,8 +171,8 @@ describe("the chain tools", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Last entry"), { target: { value: "2" } });
-    fireEvent.click(screen.getByRole("button", { name: /Verify this range/ }));
+    fireEvent.change(screen.getByLabelText("End At Record"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: /Check These Records/ }));
 
     expect(screen.getByText("The last entry has to be at or after the first.")).toBeTruthy();
     expect(onVerify).not.toHaveBeenCalled();
@@ -191,7 +191,7 @@ describe("the chain tools", () => {
       />,
     );
 
-    const button = screen.getByRole("button", { name: /Export this range as JSON/ });
+    const button = screen.getByRole("button", { name: /Download for Counsel/ });
     expect(button.hasAttribute("disabled")).toBe(true);
     expect(screen.getByText(/An operator seat exports the chain for counsel/)).toBeTruthy();
   });

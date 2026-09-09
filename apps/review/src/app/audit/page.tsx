@@ -90,36 +90,37 @@ export default async function AuditPage({
           meta={
             <>
               <span>{customerName}</span>
-              <span>append only</span>
+              <span>nothing here can be edited or deleted</span>
             </>
           }
           about={
             <>
               <p>
-                Every score, every reviewer action and every export is appended here and hashed
-                against the entry before it. The chain carries hashes, tiers, model and lexicon
-                versions, identifiers and decisions. It carries no message text.
+                Every score Guardian gave, every decision a reviewer made and every download is
+                written here, locked to the record before it. Change one and the rest stop
+                matching, which is what makes this hold up when somebody asks whether the
+                evidence was tampered with.
               </p>
               <p>
-                Entries recorded under another customer are not readable from this seat, and
-                sequence numbers are assigned across all of them, so this list can have gaps.
+                It holds decisions and identifiers, never what anyone said. Records belonging to
+                other organizations are invisible to you, so the numbering has gaps.
               </p>
             </>
           }
-          aboutLabel="What the chain holds"
+          aboutLabel="What This Is"
         />
       </header>
 
       <section className={styles.head} aria-label="Chain head">
         <Stat
-          label="Head sequence"
+          label="Records Written"
           value={head ? seqLabel(head.seq) : null}
-          unavailableNote="the head could not be read"
+          unavailableNote="the record could not be read"
         />
-        <Stat label="Entries on this page" value={entries.length} />
+        <Stat label="Shown Here" value={entries.length} />
         <div className={styles.headHash}>
           <span className={styles.headHashValue}>{head ? head.hash : "not available"}</span>
-          <span className={styles.headHashLabel}>Head hash</span>
+          <span className={styles.headHashLabel}>Fingerprint Of The Latest Record</span>
         </div>
       </section>
 
