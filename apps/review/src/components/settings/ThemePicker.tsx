@@ -49,10 +49,7 @@ export function ThemePicker() {
           </div>
         ))}
       </div>
-      <p className={styles.rowNote}>
-        This choice is kept in this browser. It is not part of your seat, so a different machine
-        starts on the system theme.
-      </p>
+      <p className={styles.rowNote}>Saved in this browser only.</p>
     </fieldset>
   );
 }

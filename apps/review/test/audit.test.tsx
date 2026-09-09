@@ -28,17 +28,35 @@ describe("the audit view", () => {
     expect(screen.getByText(/Northwood Gaming/)).toBeTruthy();
     expect(screen.getByText("Chain entries, newest first, page 1.")).toBeTruthy();
 
-    const head = within(screen.getByRole("region", { name: "Chain head" }));
+    /*
+     * One number, and no hash on the page. The head panel carried the sequence,
+     * the count on the page and a 64-character hash at full width, which is
+     * what the check compares rather than something a person compares by eye.
+     */
+    const head = within(screen.getByRole("region", { name: "How much is recorded" }));
     expect(head.getByText("#40")).toBeTruthy();
-    expect(head.getByText("Fingerprint Of The Latest Record")).toBeTruthy();
+    expect(screen.queryByText("Fingerprint Of The Latest Record")).toBeNull();
 
-    // The sequence number is the row's tab stop and links to the one entry view.
-    const link = within(screen.getByRole("table")).getByRole("link", { name: "#40" });
+    // Every row still reaches its own entry, where all of it is kept.
+    const link = within(screen.getByRole("table")).getAllByRole("link", { name: "Details" })[0]!;
     expect(link.getAttribute("href")).toBe("/audit/40");
 
-    // Payloads print as key and value, and none of them carries message text.
-    expect(screen.getAllByText("pairId").length).toBeGreaterThan(0);
+    // The payload dump is gone from the list. It printed pairId and
+    // lexiconVersion beside a note on every row, which is a debugging view of
+    // a page an operator hands to a lawyer. The entry page still shows it all.
+    expect(screen.queryByText("pairId")).toBeNull();
+    expect(screen.queryByText("lexiconVersion")).toBeNull();
     expect(screen.queryByText(/does not carry message text/)).toBeNull();
+  });
+
+  // Three columns. There were six, and four of them were for somebody
+  // debugging Guardian rather than reading its record.
+  it("carries no machine columns in the list", async () => {
+    await renderAuditPage();
+    const headers = within(screen.getByRole("table"))
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim());
+    expect(headers).toEqual(["When", "What Happened", ""]);
   });
 
   it("filters by kind, and says so in the caption", async () => {
@@ -48,7 +66,8 @@ describe("the audit view", () => {
     expect(
       screen.getByText("Chain entries of kind score.assigned, newest first, page 1."),
     ).toBeTruthy();
-    expect(table.getAllByText("score.assigned").length).toBeGreaterThan(0);
+    // In words. The column named the code that wrote the row.
+    expect(table.getAllByText("Guardian scored a conversation").length).toBeGreaterThan(0);
     for (const other of [
       "event.ingested",
       "bundle.exported",

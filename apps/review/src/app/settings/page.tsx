@@ -112,7 +112,16 @@ export default async function SettingsPage() {
 
         <Card title="How You Work">
           <ThemePicker />
-          <KeyboardHelp />
+          {/*
+            The shortcut sheet is forty lines and it was printed inline, which
+            is most of why this page scrolled. Somebody who came to change the
+            theme read every binding in the app on the way past. It is one line
+            until asked for.
+          */}
+          <details className={styles.shortcuts}>
+            <summary className={styles.shortcutsSummary}>Keyboard Shortcuts</summary>
+            <KeyboardHelp />
+          </details>
         </Card>
 
         {isOperator ? (

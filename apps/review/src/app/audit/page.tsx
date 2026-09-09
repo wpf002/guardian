@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AUDIT_KINDS } from "@guardian/audit";
 import { Button, EmptyState, PageHeader, Select, Stat } from "@/components";
-import { AuditEntries, ChainTools, MAX_RANGE, seqLabel } from "@/components/audit";
+import { KIND_WORDS, AuditEntries, ChainTools, MAX_RANGE, seqLabel } from "@/components/audit";
 import { requireSession, roleAllows } from "@/lib/auth";
 import { compose } from "@/lib/compose";
 import { getAuditHead, listAuditEntries } from "@/lib/data/audit";
@@ -111,17 +111,18 @@ export default async function AuditPage({
         />
       </header>
 
-      <section className={styles.head} aria-label="Chain head">
+      {/*
+        One number. There were three, and one of them was a 64-character hash
+        printed at full width above a page somebody reads: it is what the check
+        compares, not something a person compares by eye. The detail page still
+        carries it.
+      */}
+      <section className={styles.head} aria-label="How much is recorded">
         <Stat
           label="Records Written"
           value={head ? seqLabel(head.seq) : null}
           unavailableNote="the record could not be read"
         />
-        <Stat label="Shown Here" value={entries.length} />
-        <div className={styles.headHash}>
-          <span className={styles.headHashValue}>{head ? head.hash : "not available"}</span>
-          <span className={styles.headHashLabel}>Fingerprint Of The Latest Record</span>
-        </div>
       </section>
 
       <ChainTools
@@ -142,13 +143,13 @@ export default async function AuditPage({
         <Select
           id="audit-kind"
           name="kind"
-          label="Kind"
+          label="Show Only"
           defaultValue={kind ?? ""}
           options={[
-            { value: "", label: "Every kind" },
-            ...AUDIT_KINDS.map((value) => ({ value, label: value })),
+            { value: "", label: "Everything" },
+            ...AUDIT_KINDS.map((value) => ({ value, label: KIND_WORDS[value] ?? value })),
           ]}
-          help="One kind at a time. The customer is fixed to your seat."
+          help="One at a time."
         />
         <Button type="submit" variant="secondary">
           Apply

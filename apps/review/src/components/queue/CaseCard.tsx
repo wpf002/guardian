@@ -2,18 +2,7 @@
 
 import type { KeyboardEvent } from "react";
 import type { QueueCase } from "@/lib/data/types";
-import {
-  agesClause,
-  basisClause,
-  claimClause,
-  dueClause,
-  proposalClause,
-  sentenceCase,
-  speakerWord,
-  trajectoryClause,
-  SUPPORT_POSTURE_NOTE,
-  type OpenMode,
-} from "./words";
+import { proposalClause, summaryLine, SUPPORT_POSTURE_NOTE, type OpenMode } from "./words";
 import styles from "./CaseCard.module.css";
 
 export interface CaseCardProps {
@@ -57,7 +46,6 @@ export interface CaseCardProps {
  * driven by the score is the model telling the reviewer what to skip.
  */
 export function CaseCard({ item, selected, pending, onOpen, onFocus, cardRef }: CaseCardProps) {
-  const claimedElsewhere = item.claim.state === "other";
   const resolved = item.resolvedAt !== null;
   /*
    * A case with an unanswered proposal is never brief, whoever holds the claim.
@@ -65,12 +53,10 @@ export function CaseCard({ item, selected, pending, onOpen, onFocus, cardRef }: 
    * on it, and the claim is the stale fact. A row that a second reviewer has to
    * answer is not a row to shrink out of the way.
    */
-  const brief = (claimedElsewhere || resolved) && item.proposal === null;
+  const brief = resolved && item.proposal === null;
   const full = item.tier === "T2" || item.tier === "T3";
   const support = item.suggestedPosture === "support";
   const proposal = item.proposal;
-  const due = dueClause(item.tier, item.createdAt, item.slaRemainingMinutes, resolved);
-
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     // Shift+Enter opens without claiming. Enter alone is the button's own click.
     if (event.key === "Enter" && event.shiftKey) {
@@ -120,37 +106,25 @@ export function CaseCard({ item, selected, pending, onOpen, onFocus, cardRef }: 
         {item.excerpt && !brief ? (
           <span className={styles.excerpt}>
             <q>{item.excerpt.text}</q>
-            <span className={styles.excerptFrom}>{speakerWord(item.excerpt.from)}</span>
           </span>
         ) : null}
 
-        {full && !brief ? (
-          <span className={styles.basis}>
-            <span className={styles.fired}>{basisClause(item.criticalSignals)}</span>{" "}
-            <span className={styles.inferred}>
-              {trajectoryClause(item.stagesReached, item.spanHours)}
-            </span>
-          </span>
-        ) : null}
-
-        {full && !brief ? (
-          <span className={styles.who}>
-            {agesClause(item.actorBand, item.targetBand)}{" "}
-            {sentenceCase(item.actorContext)}
-          </span>
-        ) : null}
+        {/*
+          One line under the quote, and it is the answer to the only question
+          the list has to settle: is this worth opening.
+          
+          There were three. Whether a critical signal fired, how many of six
+          stages were walked and over how long, both ages with the provenance of
+          each, and how many conversations the account is in. All of it is true
+          and all of it belongs on the case, where somebody is deciding. On a
+          list it is four paragraphs a moderator scrolls past.
+        */}
+        {full && !brief ? <span className={styles.basis}>{summaryLine(item)}</span> : null}
 
         <span className={styles.caption}>
-          <span className={styles.captionLeft}>
-            <span>{item.tier}</span>
-            <span className="mono">{item.shortId}</span>
-            {pending ? <span>opening</span> : null}
-            {claimedElsewhere ? <span>{claimClause(item.claim)}</span> : null}
-            {resolved ? <span>resolved</span> : null}
-          </span>
-          <span className={styles.due} data-urgent={due.urgent ? "true" : undefined}>
-            {due.text}
-          </span>
+          <span className="mono">{item.shortId}</span>
+          {pending ? <span>Opening</span> : null}
+          {resolved ? <span>Decided</span> : null}
         </span>
       </button>
     </li>

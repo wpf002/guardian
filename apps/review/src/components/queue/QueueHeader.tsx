@@ -24,16 +24,20 @@ export function QueueHeader({ summary, notice }: QueueHeaderProps) {
     <header className={styles.header}>
       <div className={styles.main}>
         <h1 className={styles.title}>Dashboard</h1>
+        {/*
+          What is here to read, and nothing about how far behind anybody is.
+          
+          This counted a backlog and a breach-risk figure beside it, which turns
+          a page for reading conversations into a page about keeping up with a
+          queue. Rule 6 asks for a person to confirm before a report exists. It
+          does not ask for a service level.
+        */}
         <p className={`${styles.counts} tabular`} role="status">
           <span>{summary.partitionName}</span>
           <span>
-            <strong>{summary.total}</strong> Waiting
+            <strong>{summary.total}</strong>{" "}
+            {summary.total === 1 ? "conversation to read" : "conversations to read"}
           </span>
-          {summary.breachRiskCount > 0 ? (
-            <span>
-              <strong>{summary.breachRiskCount}</strong> Running Out of Time
-            </span>
-          ) : null}
         </p>
         {notice ? (
           <p className={styles.notice} role="status">

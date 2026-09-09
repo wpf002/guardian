@@ -37,21 +37,16 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
 
   return (
     <div className={styles.form}>
+      {/*
+        One row. There were two, each with a paragraph explaining versioning to
+        somebody who came here to add a phrase their server uses.
+      */}
       <div className={styles.rows}>
         <div className={styles.row}>
-          <span className={styles.rowLabel}>Base lexicon</span>
-          <span className={`${styles.rowValue} ${styles.version}`}>{view.baseVersion}</span>
-          <p className={styles.rowNote}>
-            Versioned and append-only. A score row that names an older version keeps resolving to
-            that file.
-          </p>
-        </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>Merged version</span>
+          <span className={styles.rowLabel}>Version in use</span>
           <span className={`${styles.rowValue} ${styles.version}`}>{view.mergedVersion}</span>
           <p className={styles.rowNote}>
-            This is the string every score row records while your extension is in force, so a score
-            can be reproduced from it.
+            Every score records this, so an old one can always be explained.
           </p>
         </div>
       </div>

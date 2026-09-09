@@ -323,3 +323,42 @@ export function proposalClause(proposal: OpenProposal, now = new Date()): string
     ? `Your report proposal has been waiting ${waited} for a second reviewer.`
     : `Waiting on you. ${proposal.proposerName} proposed a report ${waited} ago, and it needs a second person before it can be filed.`;
 }
+
+/**
+ * The one line the list carries under the quote.
+ *
+ * The card had four paragraphs: whether a critical signal fired, how many of
+ * six stages were walked and over how long, both ages with the provenance of
+ * each, and how many conversations the account was in. Every one of them is
+ * true and every one belongs on the case, where somebody is actually deciding.
+ * On a list they are four paragraphs a moderator scrolls past to reach the next
+ * headline.
+ *
+ * What survives is what settles the only question a list has to settle: is this
+ * worth opening. A forced review says so. An account doing this to several
+ * children says so. Otherwise the trajectory does.
+ */
+export function summaryLine(item: {
+  criticalSignals: string[];
+  stagesReached: number;
+  actorContext: string;
+}): string {
+  if (item.criticalSignals.length > 0) {
+    const named = item.criticalSignals.map(signalWord).join(", ");
+    return compose("queue.summary.critical", `A ${named}. Serious on its own.`);
+  }
+  const several = /\b([2-9]|\d\d+) conversations\b/.exec(item.actorContext);
+  if (several) {
+    return compose(
+      "queue.summary.fanout",
+      `This account is in ${several[1]} conversations like this one this week.`,
+    );
+  }
+  if (item.stagesReached <= 1) {
+    return compose("queue.summary.single", "One step, and it went no further.");
+  }
+  return compose(
+    "queue.summary.stages",
+    `It walked ${item.stagesReached} of the ${STAGE_COUNT} grooming steps.`,
+  );
+}

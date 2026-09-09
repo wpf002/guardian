@@ -237,3 +237,20 @@
 .introNote {
   margin-block-end: var(--space-4);
 }
+
+/* The shortcut sheet, one line until asked for. */
+.shortcuts {
+  margin-block-start: var(--space-4);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--divider);
+}
+
+.shortcutsSummary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.shortcutsSummary:hover {
+  color: var(--text);
+}

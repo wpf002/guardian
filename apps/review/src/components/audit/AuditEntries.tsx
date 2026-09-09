@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/components";
 import type { AuditEntryView } from "@/lib/data/types";
-import { PayloadList } from "./PayloadList";
-import { formatUtc, seqLabel, shortHash } from "./format";
+import { formatUtc } from "./format";
+import { KIND_WORDS } from "./kinds";
 import styles from "./AuditEntries.module.css";
 
 /**
@@ -19,45 +19,40 @@ export interface AuditEntriesProps {
   caption: string;
 }
 
+
 export function AuditEntries({ entries, caption }: AuditEntriesProps) {
+  /*
+   * Three columns, and the third is a sentence.
+   *
+   * There were six: the sequence number, the time, the machine name of the
+   * event, the customer id, a key-and-value dump of the payload, and a
+   * truncated hash. Five of those are for somebody debugging Guardian. The
+   * customer is the same on every row, because a seat only ever reads its own.
+   * The hash is what the check verifies and is not something a person compares
+   * by eye. The payload dump printed lexiconVersion beside a note on every row.
+   *
+   * What a moderator wants from this page is when something happened, what
+   * happened in words, and a way into the detail. The detail page still carries
+   * all of it.
+   */
   const columns: Column<AuditEntryView>[] = [
     {
-      key: "seq",
-      header: "Entry",
-      numeric: true,
-      render: (entry) => (
-        <Link className={styles.seq} href={`/audit/${entry.seq}`}>
-          {seqLabel(entry.seq)}
-        </Link>
-      ),
-    },
-    {
       key: "ts",
-      header: "Recorded",
+      header: "When",
       render: (entry) => <span className={styles.when}>{formatUtc(entry.ts)}</span>,
     },
     {
       key: "kind",
-      header: "Kind",
-      render: (entry) => <span className={styles.mono}>{entry.kind}</span>,
+      header: "What Happened",
+      render: (entry) => <span>{KIND_WORDS[entry.kind] ?? entry.kind}</span>,
     },
     {
-      key: "customerId",
-      header: "Customer",
-      render: (entry) => <span className={styles.mono}>{entry.customerId}</span>,
-    },
-    {
-      key: "payload",
-      header: "Payload",
-      render: (entry) => <PayloadList payload={entry.payload} density="compact" />,
-    },
-    {
-      key: "hash",
-      header: "Hash",
+      key: "seq",
+      header: "",
       render: (entry) => (
-        <span className={styles.mono} title={entry.hash}>
-          {shortHash(entry.hash)}
-        </span>
+        <Link className={styles.seq} href={`/audit/${entry.seq}`}>
+          Details
+        </Link>
       ),
     },
   ];

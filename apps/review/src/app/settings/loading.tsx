@@ -10,9 +10,9 @@ import styles from "@/components/settings/settings.module.css";
 export default function SettingsLoading() {
   return (
     <div className={`container ${styles.page}`}>
-      <PageHeader title="Settings" meta="Your seat, then the configuration behind it" />
+      <PageHeader title="Settings" meta="Your account, then everything your organization has set up" />
       <div className={styles.sections}>
-        <LoadingState label="Loading your seat, the lexicon and the webhook." count={4} rowHeight={180} />
+        <LoadingState label="Loading." count={4} rowHeight={180} />
       </div>
     </div>
   );

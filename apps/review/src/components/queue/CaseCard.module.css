@@ -179,12 +179,18 @@
   max-width: 62ch;
 }
 
-/* A byline. Read after the decision, not during it. */
+/*
+ * A byline, and almost nothing in it.
+ *
+ * It carried the tier, the short id, the claim state and a deadline, laid out
+ * across the full width so the eye read a status bar. The tier is already the
+ * rule down the left edge; the claim and the deadline are gone with the rest of
+ * the queue furniture.
+ */
 .caption {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
   align-items: baseline;
   margin-block-start: var(--space-1);
   color: var(--text-subtle);

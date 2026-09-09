@@ -36,10 +36,11 @@ describe("/queue in mock mode", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Dashboard" })).toBeTruthy();
     expect(container.textContent).toContain("Northwood Gaming");
-    expect(container.textContent).toContain("6 Waiting");
+    expect(container.textContent).toContain("6 conversations to read");
 
     // Nothing sits between the count and the first case: no paragraph arguing
-    // for the sort order, no filter chips, no session budget.
+    // for the sort order, no filter chips, no session budget. And nothing on a
+    // row is queue furniture: no deadline, no claim, no service level.
     expect(container.textContent).not.toContain("Why this order");
     expect(container.textContent).not.toContain("The most serious cases come first");
     expect(screen.queryByRole("navigation", { name: "Queue filters" })).toBeNull();
@@ -57,15 +58,15 @@ describe("/queue in mock mode", () => {
     // A card with no critical signal says nothing about it. The tier badge
     // already carries the diamond when one fired, so absence needs no words.
     expect(container.textContent).not.toContain("critical: none");
-    // The headline is the pattern; the bands and provenance sit under it.
+    // The headline is the pattern, and under it one line saying why this is
+    // worth opening. The ages, their provenance, the stage count and the span
+    // moved to the case, where somebody is actually deciding.
     expect(container.textContent).toContain("Asked who supervises the younger account");
-    expect(container.textContent).toContain("Ages 16-17 and 9-12");
-    // Claim state appears only when somebody else holds it. "unclaimed" on
-    // every row is a word that never changes anything.
+    expect(container.textContent).not.toContain("Ages 16-17 and 9-12");
+    expect(container.textContent).toContain("Serious on its own");
     expect(container.textContent).not.toContain("unclaimed");
-    expect(container.textContent).toContain("claimed by M. Osei");
-    expect(container.textContent).toContain("Watch, no target");
-    expect(container.textContent).toMatch(/Due by \d\d:\d\d/);
+    expect(container.textContent).not.toMatch(/Due by/);
+    expect(container.textContent).not.toContain("claimed by");
 
     // No fused score, no percentage, no weight. The word score survives only
     // inside a pattern clause that says the pair has nothing else.
@@ -82,14 +83,20 @@ describe("/queue in mock mode", () => {
     expect(rows[0]).toContain("91c7");
     expect(rows[0]).toContain("Waiting on you");
     expect(rows[1]).toContain("4f2a");
-    const firstT1 = rows.findIndex((row) => row.includes("Watch, no target"));
-    const lastT2 = rows.map((row) => row.includes("Due by")).lastIndexOf(true);
-    expect(firstT1).toBeGreaterThan(lastT2);
+    expect(rows[1]).toContain("4f2a");
   });
 
-  it("shows the claim state a second reviewer already holds", async () => {
+  /*
+   * Will: human review, not a triage queue. Rule 6 asks for a person to confirm
+   * before a report exists; it does not ask for deadlines, claims or a service
+   * level, and all three made a page for reading conversations read as a page
+   * about keeping up.
+   */
+  it("carries no queue furniture on a row", async () => {
     const { container } = await renderQueue();
-    expect(container.textContent).toContain("claimed by M. Osei");
+    expect(container.textContent).not.toMatch(/Due by/);
+    expect(container.textContent).not.toContain("claimed by");
+    expect(container.textContent).not.toMatch(/running out of time/i);
   });
 
   /*
