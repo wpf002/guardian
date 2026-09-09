@@ -3,7 +3,12 @@ import {
   buildEvidenceBundle,
   bundleInputsFor,
   Kernel,
+  persistEvidenceBundle,
+  persistScoredEvent,
+  type BundlePersistClient,
+  type EventPersistClient,
   type ScoredEvent,
+  type TierRecorder,
 } from "@guardian/scorer";
 import {
   expiresAt,
@@ -18,6 +23,7 @@ import {
   type Tier,
 } from "@guardian/schema";
 import { decideAction, type BotAction } from "./actions.js";
+import { describeError } from "./errors.js";
 import { buildModAlert } from "./alerts.js";
 import type { GuildConfig } from "./config.js";
 import { toEvent, type DiscordMessageLike, type MemberBand } from "./mapping.js";
@@ -47,6 +53,25 @@ export interface PipelineDeps {
   reportingIdentity?: CustomerReportingIdentity;
   /** How many recent messages per pair to keep for the bundle. */
   timelineDepth?: number;
+  /**
+   * Where scored events, pair tiers and evidence bundles are written.
+   *
+   * Absent means nothing is persisted, which is what the bot did for every
+   * message it had ever seen: the kernel ran on a MemoryKernelStore, the chain
+   * on a MemoryAuditStore, and nothing wrote the evidence_bundles table at all.
+   * The mod channel got an embed and the reviewer console stayed empty, because
+   * `getTimeline` in apps/review reads that table and only that table. So the
+   * two halves of the product had never been connected in a running process.
+   *
+   * A restart also forgot every trajectory, which is the state a grooming
+   * detector exists to accumulate.
+   */
+  persistence?: Persistence | null;
+}
+
+export interface Persistence {
+  db: EventPersistClient & BundlePersistClient;
+  store: TierRecorder;
 }
 
 interface TimelineRow {
@@ -119,6 +144,22 @@ export class BotPipeline {
     }
 
     const tier = scored.result.tier;
+
+    /*
+     * The event row and the pair tier, so a restart does not forget the
+     * trajectory and the reviewer console has a case to open. A persistence
+     * failure must not cost the mod-channel alert: the operator's own guard is
+     * the thing standing between this message and the next one, and it does not
+     * depend on Guardian's database being reachable.
+     */
+    if (this.deps.persistence) {
+      const { db, store } = this.deps.persistence;
+      try {
+        await persistScoredEvent(db, store, event, scored);
+      } catch (err) {
+        console.error(`guardian persist failed for ${event.externalId}:`, describeError(err));
+      }
+    }
     this.remember(guildId, actorUid, targetUid, {
       ts: inbound.ts,
       channel: inbound.channel,
@@ -165,7 +206,38 @@ export class BotPipeline {
       });
     }
 
+    /*
+     * A bundle for anything the model put at T1 or above, so the case a
+     * reviewer opens carries the conversation rather than an empty timeline.
+     * Written after the alert, for the same reason the event row is: a bundle
+     * that failed to write is a case with no excerpts, and a mod channel that
+     * was not told is a message nobody saw.
+     */
+    if (this.deps.persistence && tier !== "T0") {
+      await this.persistBundle(guildId, actorUid, targetUid, tier, scored.result.rationale);
+    }
+
     return { scored, tier, action, alert };
+  }
+
+  /** Build and store the bundle for a pair the model has put in scope. */
+  private async persistBundle(
+    guildId: string,
+    actorUid: string,
+    targetUid: string,
+    tier: Tier,
+    rationale: string[],
+  ): Promise<void> {
+    const persistence = this.deps.persistence;
+    if (!persistence) return;
+    try {
+      const bundle = await this.buildBundle(guildId, actorUid, targetUid, tier);
+      if (!bundle) return;
+      await persistEvidenceBundle(persistence.db, bundle);
+      void rationale;
+    } catch (err) {
+      console.error(`guardian bundle persist failed for ${actorUid}:`, describeError(err));
+    }
   }
 
   /**
@@ -184,11 +256,42 @@ export class BotPipeline {
     tier: Tier,
     rationale: string[],
   ): Promise<EvidenceBundle | null> {
+    const bundle = await this.buildBundle(guildId, actorUid, targetUid, tier);
+    if (!bundle) return null;
+
+    await this.deps.audit.append({
+      kind: "bundle.exported",
+      customerId: this.deps.customerId,
+      payload: {
+        bundleId: bundle.bundleId,
+        actorUid,
+        targetUid,
+        tier,
+        messages: bundle.timeline.length,
+        rationale,
+      },
+    });
+
+    return bundle;
+  }
+
+  /**
+   * The bundle for one pair in one guild, from the rows this process retained.
+   *
+   * Returns null when this guild has no retained rows for the pair, so a bundle
+   * can never fall back to one built from somewhere else (CLAUDE.md rule 8).
+   */
+  private async buildBundle(
+    guildId: string,
+    actorUid: string,
+    targetUid: string,
+    tier: Tier,
+  ): Promise<EvidenceBundle | null> {
     const rows = this.timelines.get(pairKey(guildId, actorUid, targetUid));
     if (!rows || rows.length === 0) return null;
     const head = await this.deps.audit.head();
 
-    const bundle = buildEvidenceBundle({
+    return buildEvidenceBundle({
       customerId: this.deps.customerId,
       actorUid,
       targetUid,
@@ -209,21 +312,6 @@ export class BotPipeline {
       auditHead: head.hash,
       ...bundleInputsFor(this.deps.reportingIdentity ?? reportingIdentityFrom({})),
     });
-
-    await this.deps.audit.append({
-      kind: "bundle.exported",
-      customerId: this.deps.customerId,
-      payload: {
-        bundleId: bundle.bundleId,
-        actorUid,
-        targetUid,
-        tier,
-        messages: bundle.timeline.length,
-        rationale,
-      },
-    });
-
-    return bundle;
   }
 
   displayIdFor(hashedUid: string): string | null {

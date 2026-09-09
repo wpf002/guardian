@@ -8,9 +8,12 @@ import {
   type AgeBandProvenance,
   type ChannelVisibility,
   type Event,
+  type EvidenceBundle,
+  type LegalBasis,
   type RetentionClass,
   type SignalKind,
   type Stage,
+  type Tier,
   type TierResult,
 } from "@guardian/schema";
 import type { Detection } from "./detectors/index.js";
@@ -244,4 +247,135 @@ function stageColumn(stage: string): Stage | null {
 /** A json round trip drops undefined keys and turns Dates into ISO strings. */
 function toJsonObject(value: Record<string, unknown>): JsonObject {
   return JSON.parse(JSON.stringify(value)) as JsonObject;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Evidence bundles                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Persist an evidence bundle.
+ *
+ * Nothing in the running system wrote one of these. `buildEvidenceBundle`
+ * produced the object, the Discord bot handed it to `/guardian export` as a
+ * text file, and the row was never created, so `scripts/integration/e2e.test.ts`
+ * was the only thing in the repository that had ever written the table. The
+ * consequence was that the reviewer console read an empty timeline for every
+ * case that came from real traffic: `getTimeline` reads this table and only
+ * this table, and the seed script was the only reason the console ever showed
+ * a conversation.
+ *
+ * Keyed on bundleId so a regenerated bundle for the same pair replaces its own
+ * row rather than accumulating. The pair link is by the pair's own id, which is
+ * `customerId:actorUid:targetUid` shaped by the kernel store, and is nullable
+ * in the schema so a bundle whose pair was swept still reads.
+ *
+ * `viewedByHuman` is written false on every row. Only `markExcerptsViewed` in
+ * apps/review sets it true, and a bundle that arrived claiming somebody had
+ * read it would be the console asserting a private search nobody performed.
+ */
+/** The columns this module writes, checked against the generated client. */
+type BundleColumns = {
+  customerId: string;
+  pairId: string | null;
+  actorUid: string;
+  targetUid: string;
+  tier: Tier;
+  /*
+   * Arrays of objects, never a bare null. Prisma's InputJsonValue refuses a
+   * top-level null, and none of these three is ever absent: a bundle with no
+   * signals carries an empty array, which is a different claim from a column
+   * nobody wrote.
+   */
+  timeline: JsonObject[];
+  signals: JsonObject[];
+  provenance: JsonObject[];
+  jurisdictionCountry: string | null;
+  jurisdictionSubdivision: string | null;
+  legalBasis: LegalBasis | null;
+  modelVersion: string;
+  lexiconVersion: string;
+  fusionVersion: string;
+  auditHead: string;
+  retention: RetentionClass;
+  expiresAt: Date | null;
+  generatedAt: Date;
+};
+
+export type BundleCreate = BundleColumns & { bundleId: string };
+
+export interface BundleDelegate {
+  upsert(args: {
+    where: { bundleId: string };
+    create: BundleCreate;
+    update: BundleColumns;
+  }): Promise<unknown>;
+}
+
+/** The pair a bundle belongs to, looked up by its natural key. */
+export interface BundlePairDelegate {
+  findUnique(args: {
+    where: { customerId_actorUid_targetUid: { customerId: string; actorUid: string; targetUid: string } };
+    select: { id: true };
+  }): Promise<{ id: string } | null>;
+}
+
+export interface BundlePersistClient {
+  evidenceBundle: BundleDelegate;
+  pair: BundlePairDelegate;
+}
+
+export async function persistEvidenceBundle(
+  db: BundlePersistClient,
+  bundle: EvidenceBundle,
+  opts: { now?: () => Date } = {},
+): Promise<void> {
+  const now = opts.now?.() ?? new Date();
+  /*
+   * The pair's own row id, resolved from the natural key rather than
+   * constructed. The Pair id is a cuid, not customerId:actor:target, and a
+   * guessed value fails the foreign key and loses the bundle. Null when the
+   * pair has not been written yet, which the column allows: a bundle that has
+   * lost its pair to the retention sweep still reads.
+   */
+  const pair = await db.pair.findUnique({
+    where: {
+      customerId_actorUid_targetUid: {
+        customerId: bundle.customerId,
+        actorUid: bundle.actorUid,
+        targetUid: bundle.targetUid,
+      },
+    },
+    select: { id: true },
+  });
+  const retention = retentionForTier(bundle.tier);
+  const columns: BundleColumns = {
+    customerId: bundle.customerId,
+    pairId: pair?.id ?? null,
+    actorUid: bundle.actorUid,
+    targetUid: bundle.targetUid,
+    tier: bundle.tier,
+    timeline: bundle.timeline.map((row) => ({
+      ...toJsonObject(row as Record<string, unknown>),
+      viewedByHuman: false,
+    })),
+    signals: bundle.signals.map((hit) => toJsonObject(hit as Record<string, unknown>)),
+    provenance: bundle.provenance.map((p) => toJsonObject(p as Record<string, unknown>)),
+    jurisdictionCountry: bundle.jurisdiction?.country ?? null,
+    jurisdictionSubdivision: bundle.jurisdiction?.subdivision ?? null,
+    legalBasis: bundle.legalBasis ?? null,
+    modelVersion: bundle.versions.modelVersion,
+    lexiconVersion: bundle.versions.lexiconVersion,
+    fusionVersion: bundle.versions.fusionVersion,
+    auditHead: bundle.auditHead,
+    retention,
+    expiresAt: expiryFor(retention, now),
+    generatedAt: bundle.generatedAt,
+  };
+
+  await db.evidenceBundle.upsert({
+    where: { bundleId: bundle.bundleId },
+    create: { bundleId: bundle.bundleId, ...columns },
+    update: columns,
+  });
 }

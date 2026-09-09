@@ -4,8 +4,24 @@
     {
       "name": "review",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@guardian/review", "run", "dev:mock"],
+      "runtimeArgs": [
+        "--filter",
+        "@guardian/review",
+        "run",
+        "dev:mock"
+      ],
       "port": 3100
+    },
+    {
+      "name": "review-live",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@guardian/review",
+        "run",
+        "dev:live"
+      ],
+      "port": 3101
     }
   ]
 }

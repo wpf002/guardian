@@ -1,12 +1,12 @@
-import { AuditLog, MemoryAuditStore } from "@guardian/audit";
-import { Kernel, MemoryKernelStore } from "@guardian/scorer";
+import { AuditLog, MemoryAuditStore, PrismaAuditStore } from "@guardian/audit";
+import { Kernel, MemoryKernelStore, PrismaKernelStore } from "@guardian/scorer";
 import {
   hashUid,
   newCustomerSalt,
   reportingIdentityFrom,
   reportingIdentityGaps,
 } from "@guardian/schema";
-import { createPrismaClient } from "@guardian/schema/db";
+import { createPrismaClient, type PrismaClient } from "@guardian/schema/db";
 import {
   AttachmentBuilder,
   ChannelType,
@@ -21,6 +21,7 @@ import {
   type TextChannel,
 } from "discord.js";
 import { timeoutReason } from "./actions.js";
+import { describeError } from "./errors.js";
 import {
   COMMAND_NAME,
   handleCommand,
@@ -31,11 +32,7 @@ import {
 import { MemoryGuildConfigStore, defaultGuildConfig, type GuildConfigStore } from "./config.js";
 import { bandWithProvenance, type DiscordMessageLike, type MemberBand } from "./mapping.js";
 import { BotPipeline } from "./pipeline.js";
-import {
-  PrismaGuildConfigStore,
-  readReportingIdentity,
-  type GuardianDb,
-} from "./prisma-config.js";
+import { PrismaGuildConfigStore, readReportingIdentity } from "./prisma-config.js";
 
 /**
  * Gateway adapter. Everything decision-shaped lives in pipeline.ts and
@@ -149,14 +146,6 @@ export interface HandlerDeps {
   onError?: (where: string, err: unknown) => void;
 }
 
-/** Error class and driver code only. A message can quote a row or name an account. */
-export function describeError(err: unknown): string {
-  if (typeof err !== "object" || err === null) return typeof err;
-  const name = (err as { name?: unknown }).name;
-  const code = (err as { code?: unknown }).code;
-  const base = typeof name === "string" && name.length > 0 ? name : "Error";
-  return typeof code === "string" || typeof code === "number" ? `${base} ${code}` : base;
-}
 
 function report(deps: HandlerDeps, where: string, err: unknown): void {
   if (deps.onError) {
@@ -363,14 +352,40 @@ export async function start(): Promise<void> {
   const customerId = process.env.GUARDIAN_CUSTOMER_ID ?? "cus_discord";
   const idSalt = process.env.GUARDIAN_ID_SALT ?? newCustomerSalt();
   const auditSecret = process.env.AUDIT_CHAIN_SECRET ?? "";
-  const audit = new AuditLog(new MemoryAuditStore(), auditSecret);
-  const kernel = new Kernel({ store: new MemoryKernelStore() });
 
-  // Guild configuration lives in Postgres when there is one, so a restart does
-  // not forget which channel the owner picked. Everything else stays in process
-  // for phase 1 (docs/PHASE1.md, open items).
+  /*
+   * With a database, everything is written: guild configuration, the chain,
+   * the kernel's pair and actor state, the event rows and the evidence
+   * bundles. Without one, all of it is in process and gone on restart.
+   *
+   * Only the first of those used to be persisted. The chain ran on a
+   * MemoryAuditStore, the kernel on a MemoryKernelStore, and nothing wrote the
+   * evidence_bundles table at all, so a restart forgot every trajectory a
+   * grooming detector exists to accumulate, and the reviewer console showed
+   * nothing from real traffic: apps/review reads pairs and bundles from
+   * Postgres, and the bot wrote neither. The mod channel got an embed and the
+   * console stayed empty on fixtures.
+   */
   const databaseUrl = process.env.DATABASE_URL;
-  const db: GuardianDb | null = databaseUrl ? createPrismaClient(databaseUrl) : null;
+  /*
+   * The whole client, not the narrowed GuardianDb. That interface is the slice
+   * prisma-config needs; the audit store, the kernel store and the event and
+   * bundle writers each need their own tables, and every one of them checks its
+   * own delegate shape against the generated client at compile time.
+   */
+  const db: PrismaClient | null = databaseUrl ? createPrismaClient(databaseUrl) : null;
+  if (!db) {
+    console.warn(
+      "DATABASE_URL is not set. Scores, pair state and evidence bundles are held in memory and lost on restart, and the reviewer console will show nothing from this process.",
+    );
+  }
+
+  const audit = new AuditLog(
+    db ? new PrismaAuditStore(db) : new MemoryAuditStore(),
+    auditSecret,
+  );
+  const prismaStore = db ? PrismaKernelStore.fromClient(db) : null;
+  const kernel = new Kernel({ store: prismaStore ?? new MemoryKernelStore() });
 
   // Read once, at startup. A bundle records the identity in force when it was
   // generated, and joining the customer row per export would instead record
@@ -378,7 +393,14 @@ export async function start(): Promise<void> {
   const reportingIdentity = db
     ? await readReportingIdentity(db.customer, customerId)
     : reportingIdentityFrom({});
-  const pipeline = new BotPipeline({ kernel, audit, customerId, idSalt, reportingIdentity });
+  const pipeline = new BotPipeline({
+    kernel,
+    audit,
+    customerId,
+    idSalt,
+    reportingIdentity,
+    persistence: db && prismaStore ? { db, store: prismaStore } : null,
+  });
   for (const gap of reportingIdentityGaps(reportingIdentity)) {
     console.warn(`reporting identity: ${gap}`);
   }

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:seed": "tsx scripts/seed.ts",
-    "dev:mock": "GUARDIAN_MOCK=1 next dev -p 3100"
+    "dev:mock": "GUARDIAN_MOCK=1 next dev -p 3100",
+    "dev:live": "GUARDIAN_MOCK=0 next dev -p 3101"
   },
   "dependencies": {
     "@guardian/audit": "workspace:*",
