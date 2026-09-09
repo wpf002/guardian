@@ -205,6 +205,19 @@ export function agesClause(actor: BandReading, target: BandReading): string {
   const ages = `Ages ${bandWord(actor.band)} and ${bandWord(target.band)}`;
   const both = actor.provenance === target.provenance ? actor.provenance : null;
 
+  /*
+   * Both unknown is the bridged-chat case (ROADMAP 2c). A relayed player is a
+   * name inside somebody else's post rather than a member with roles, so
+   * Guardian has no age for either side. Saying so is the point: the age gap is
+   * the signal this product is built around, and a reviewer who is not told it
+   * was unavailable will read its absence as its absence from the conversation.
+   */
+  if (actor.band === "UNKNOWN" && target.band === "UNKNOWN") {
+    return compose(
+      "queue.ages.neither",
+      "Neither age is known, so the age gap counted for nothing here. This rests on what was said.",
+    );
+  }
   if (actor.band === "UNKNOWN" || target.band === "UNKNOWN") {
     return compose("queue.ages.unknown", `${ages}. One side's age was never read.`);
   }

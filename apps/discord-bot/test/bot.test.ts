@@ -242,6 +242,43 @@ describe("mapping", () => {
 
   // Still refused, and this is what the bot check was really guarding: scoring
   // the alerts Guardian posts is a loop.
+  /*
+   * ROADMAP 2c. Bands come from guild roles and a relayed player has none, so
+   * every one of them used to fall through to the guild default. Both sides of
+   * a bridged pair then matched, the age gap could never fire, and the row
+   * claimed platform_default, which reads as a weak answer rather than as no
+   * answer at all.
+   */
+  it("gives a relayed speaker no age rather than the guild default", () => {
+    const result = toEvent(
+      message({ authorBot: true, webhookId: "wh1", authorName: "PlayerOne", mentionedUserIds: [] }),
+      config(),
+      bands,
+    );
+    expect(result.ok && result.event.actorBand).toBe("UNKNOWN");
+    expect(result.ok && result.event.actorBandProvenance).toBe("unknown");
+  });
+
+  it("gives a relayed target no age either", () => {
+    const result = toEvent(
+      message({ authorBot: true, webhookId: "wh1", authorName: "A", mentionedUserIds: [] }),
+      config(),
+      bands,
+      new Date(),
+      ["webhook:wh1:B"],
+    );
+    expect(result.ok && result.event.targetUid).toBe("webhook:wh1:B");
+    expect(result.ok && result.event.targetBand).toBe("UNKNOWN");
+    expect(result.ok && result.event.targetBandProvenance).toBe("unknown");
+  });
+
+  // A member of the server still gets their role's band. The relay rule is
+  // about people who are not members, not about turning bands off.
+  it("still reads a guild member's band from their roles", () => {
+    const result = toEvent(message({}), config(), bands);
+    expect(result.ok && result.event.actorBandProvenance).not.toBe("unknown");
+  });
+
   it("still refuses an application bot", () => {
     const result = toEvent(message({ authorBot: true }), config(), bands);
     expect(result.ok).toBe(false);

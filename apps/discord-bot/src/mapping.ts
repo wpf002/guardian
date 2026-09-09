@@ -212,8 +212,25 @@ export function toEvent(
 
   const target_ = targetOf(msg, recentOtherAuthors);
   const targetUid = target_.uid;
-  const actor = bandWithProvenance(msg.authorRoleIds, config);
-  const target = targetUid ? memberBands(targetUid) : null;
+  /*
+   * A relayed speaker has no age, and saying otherwise is the worst thing this
+   * mapper could do (ROADMAP 2c).
+   *
+   * Bands come from guild roles, and somebody arriving through a webhook has
+   * none: they are a name inside somebody else's post, not a member. So every
+   * player on a game bridge fell through to the guild default, both sides of
+   * the pair matched, and the age gap that drives the whole kernel could never
+   * fire. Worse, the row claimed platform_default, which reads as a weak answer
+   * rather than as no answer.
+   *
+   * UNKNOWN is the honest value. It costs the gap multiplier, which was never
+   * going to fire on two identical defaults anyway, and it keeps the language
+   * signals and the critical signals, which are what actually catch a bridged
+   * conversation. A bridge that knows its players' ages posts through the API,
+   * where the event schema carries the band and the provenance together.
+   */
+  const actor = relayBand(msg) ?? bandWithProvenance(msg.authorRoleIds, config);
+  const target = targetUid ? (relayBandFor(targetUid) ?? memberBands(targetUid)) : null;
 
   return {
     ok: true,
@@ -265,4 +282,19 @@ export function relayActorUid(msg: DiscordMessageLike): string {
   if (!msg.webhookId) return msg.authorId;
   const name = msg.authorName?.trim();
   return name ? `webhook:${msg.webhookId}:${name}` : `webhook:${msg.webhookId}`;
+}
+
+/** True for a uid this module minted for a relayed speaker. */
+export function isRelayUid(uid: string): boolean {
+  return uid.startsWith("webhook:");
+}
+
+/** The band for the sender, when the sender came through a relay. */
+function relayBand(msg: DiscordMessageLike): MemberBand | null {
+  return msg.webhookId ? { band: "UNKNOWN", provenance: "unknown" } : null;
+}
+
+/** The band for a target, when the target is a relayed speaker. */
+function relayBandFor(uid: string): MemberBand | null {
+  return isRelayUid(uid) ? { band: "UNKNOWN", provenance: "unknown" } : null;
 }

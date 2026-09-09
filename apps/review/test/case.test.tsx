@@ -132,6 +132,25 @@ describe("the case detail at /cases/[id]", () => {
     expect(screen.queryByRole("button", { name: "Reopen this case" })).toBeNull();
   });
 
+  /*
+   * ROADMAP 2c. A relayed player has no age, and the strip has to say so rather
+   * than print "unknown, unknown, no confidence published" beside a tier, which
+   * reads as three fields of evidence.
+   */
+  it("says plainly when Guardian has no age for either account", async () => {
+    const { resetMockData, getMockData } = await import("@/lib/mock/fixtures");
+    resetMockData();
+    const data = await getMockData();
+    const pair = data.pairs.find((p) => p.queue.pairId === "pair_4f2a")!;
+    pair.queue.actorBand = { band: "UNKNOWN", confidence: null, provenance: "unknown" };
+    pair.queue.targetBand = { band: "UNKNOWN", confidence: null, provenance: "unknown" };
+
+    const { container } = await renderCase("pair_4f2a");
+    expect(container.textContent).toContain("not known to Guardian");
+    expect(container.textContent).toContain("the age gap counted for nothing");
+    expect(container.textContent).not.toContain("no confidence published");
+  });
+
   it("makes a case claimed by somebody else read only", async () => {
     await renderCase("pair_0b3e");
     expect(

@@ -3,7 +3,16 @@ import { bandWord } from "@/lib/mock/fixtures";
 import type { BandReading, QueueCase } from "@/lib/data/types";
 import styles from "./Case.module.css";
 
+/*
+ * A band nobody read is said plainly, not dressed as a weak reading.
+ *
+ * "unknown, unknown, no confidence published" is three fields printed beside a
+ * tier, and it reads as evidence. It is the opposite: it is Guardian saying it
+ * has no age for this account, which happens whenever somebody arrives through
+ * a game-chat bridge rather than as a member of the server (ROADMAP 2c).
+ */
 function bandPhrase(reading: BandReading): string {
+  if (reading.band === "UNKNOWN") return "not known to Guardian";
   const confidence =
     reading.confidence === null
       ? "no confidence published"
@@ -53,6 +62,13 @@ export function SeverityStrip({ queue }: SeverityStripProps) {
           <strong>{queue.mediaEventCount}</strong> media event
           {queue.mediaEventCount === 1 ? "" : "s"}. Guardian holds hashes, never bytes.
         </span>
+        {queue.actorBand.band === "UNKNOWN" && queue.targetBand.band === "UNKNOWN" ? (
+          <span className={styles.posture}>
+            Guardian has no age for either account, so the age gap counted for nothing in this
+            tier. That happens when both arrive through a game-chat bridge rather than as members
+            of the server. What is here rests on what was said.
+          </span>
+        ) : null}
         {queue.suggestedPosture === "support" ? (
           <span className={styles.posture}>
             Support posture suggested. No enforcement action is offered on this case.
