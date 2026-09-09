@@ -171,6 +171,9 @@ export class BotPipeline {
       actorAccountAgeHours: inbound.actorAccountAgeHours ?? null,
       deviceHints: inbound.deviceHints ?? null,
       text: inbound.text ?? null,
+      // How the surface knows these two were talking, so a reviewer about to
+      // file can tell a reply from a guess (ROADMAP 2b.3).
+      targetSource: mapped.targetSource,
       retention,
       expiresAt: expiresAt(retention, inbound.ts) ?? new Date(inbound.ts.getTime() + 86_400_000),
     };

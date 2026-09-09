@@ -172,6 +172,20 @@ export const inboundEventSchema = z
     targetBandConfidence: ageBandConfidenceSchema.nullish(),
     targetBandProvenance: ageBandProvenanceSchema.nullish(),
     /**
+     * How the surface knows these two accounts were talking to each other.
+     *
+     * A reply is a statement by the sender. A mention is nearly one. Adjacency
+     * is the surface inferring it because they were the only two people in the
+     * channel, and a case built on that is a weaker claim: it is the difference
+     * between "they replied to the child" and "they were the only two people in
+     * the room", which are different sentences to put in front of somebody
+     * deciding whether to file a federal report.
+     *
+     * Absent where the surface did not say. A platform bridging its own chat
+     * knows which of these applies and should send it.
+     */
+    targetSource: z.enum(["reply", "mention", "adjacency"]).nullish(),
+    /**
      * Public, private or group. Absent is read as private by
      * `treatAsPrivateMessaging`, so the stricter rule applies by default.
      */

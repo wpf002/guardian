@@ -162,6 +162,8 @@ interface PairRow {
   actorUid: string;
   targetUid: string;
   tier: string;
+  /** Null on a pair written before the column, and on a surface that says nothing. */
+  targetSource?: string | null;
   criticalSignals: string[];
   signals: unknown;
   firstStageAt: unknown;
@@ -227,6 +229,7 @@ function toQueueCase(
     targetBand: bandOf(actors.get(row.targetUid)),
     actorContext: compose(`cases.actorContext.${row.id}`, actorContext),
     suggestedPosture: (row.suggestedPosture as "enforcement" | "support" | null) ?? null,
+    targetSource: (row.targetSource as QueueCase["targetSource"]) ?? null,
     soleAutomatedBasis: row.soleAutomatedBasis,
     messageCount: total,
     spanHours,

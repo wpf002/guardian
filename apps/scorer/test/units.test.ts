@@ -10,6 +10,7 @@ import {
   scoreActor,
   skew,
 } from "../src/actor.js";
+import { strongerSource } from "../src/pair.js";
 import { ScriptIndex, jaccard } from "../src/detectors/minhash.js";
 import { buildEvidenceBundle, summarizeBundle } from "../src/bundle.js";
 import { fuse } from "../src/fusion.js";
@@ -609,5 +610,32 @@ describe("age band provenance", () => {
       confidence: null,
     });
     expect(next.bandConfidence).toBeNull();
+  });
+});
+
+/*
+ * ROADMAP 2b.3. A pair keeps the strongest reading of how it was arrived at.
+ * One reply says the pair is real, and twenty later messages with no reply do
+ * not take that back: the reviewer should be told the strongest evidence there
+ * has ever been that these two were addressing each other, not the weakest.
+ */
+describe("how a pair was arrived at", () => {
+  it("keeps a reply over a later adjacency", () => {
+    expect(strongerSource("reply", "adjacency")).toBe("reply");
+  });
+
+  it("upgrades adjacency when a reply finally arrives", () => {
+    expect(strongerSource("adjacency", "reply")).toBe("reply");
+  });
+
+  it("takes the first reading when there was none", () => {
+    expect(strongerSource(null, "adjacency")).toBe("adjacency");
+  });
+
+  // A surface that says nothing must not blank a reading an earlier message
+  // established.
+  it("keeps what it had when a message says nothing", () => {
+    expect(strongerSource("mention", null)).toBe("mention");
+    expect(strongerSource(null, null)).toBeNull();
   });
 });

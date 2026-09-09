@@ -75,6 +75,15 @@ export interface QueueCase {
   /** "actor in 3 pairs this week", "first case for this actor". A count, never a judgment. */
   actorContext: string;
   suggestedPosture: "enforcement" | "support" | null;
+  /**
+   * How Guardian knows these two accounts were talking to each other.
+   *
+   * "reply" is a statement by the sender. "adjacency" is Guardian inferring it
+   * because they were the only two people in the channel, and a case resting on
+   * that is a weaker claim. A reviewer about to propose a federal report has to
+   * be able to tell the difference. Null on a pair scored before the column.
+   */
+  targetSource: "reply" | "mention" | "adjacency" | null;
   soleAutomatedBasis: boolean;
   messageCount: number;
   spanHours: number;

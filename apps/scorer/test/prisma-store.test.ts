@@ -184,6 +184,9 @@ function samplePair(): PairState {
     actorMessages: 7,
     targetMessages: 2,
     actorQuestions: 4,
+    // ROADMAP 2b.3. How the surface knows the two were talking, round-tripped
+    // like every other column: a pair a reply established stays established.
+    targetSource: "reply",
     firstStageAt: { probe: "2026-09-03T11:00:00.000Z", migrate: "2026-09-03T11:30:00.000Z" },
     signals: [
       {

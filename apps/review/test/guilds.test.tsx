@@ -59,6 +59,18 @@ describe("readiness", () => {
 });
 
 describe("/guilds", () => {
+  /*
+ * ROADMAP 2b.2. Every limit here is one an owner would otherwise find by
+ * wondering why a conversation they know about produced nothing.
+ */
+  it("says on the list page what the bot can and cannot see", async () => {
+    const { container } = render(await GuildsPage());
+    expect(container.textContent).toContain("What Guardian Can and Cannot See");
+    expect(container.textContent).toContain("only two people posting in a channel");
+    expect(container.textContent).toContain("Direct messages, ever");
+    expect(container.textContent).toContain("game-chat bridge gets no age at all");
+  });
+
   it("lists both fixture servers with their scoring state", async () => {
     render(await GuildsPage());
 

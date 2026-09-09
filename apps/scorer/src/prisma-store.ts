@@ -111,6 +111,7 @@ export type GraphState = {
 
 /** The columns this store reads back from pairs. */
 export interface PairRow {
+  targetSource?: "reply" | "mention" | "adjacency" | null;
   customerId: string;
   actorUid: string;
   targetUid: string;
@@ -147,6 +148,8 @@ export interface ActorRow {
 }
 
 type PairStateColumns = {
+  /** How the surface knows the two accounts were talking (ROADMAP 2b.3). */
+  targetSource?: "reply" | "mention" | "adjacency" | null;
   firstStageAt: Partial<Record<Stage, string>>;
   signals: StoredSignal[];
   messageCounts?: MessageCounts;
@@ -489,6 +492,9 @@ function pairColumns(state: PairState, existing: PairRow | null): PairStateColum
   const keepText = textRetainedForTier(existing?.tier ?? "T0");
   const alreadyStored = keepText ? new Set<string>() : storedSignalKeys(existing);
   return {
+    // Only written when the state has one, so a surface that says nothing
+    // cannot blank a reading an earlier message established.
+    ...(state.targetSource ? { targetSource: state.targetSource } : {}),
     firstStageAt: { ...state.firstStageAt },
     signals: state.signals.map((hit) => {
       const stored = storedSignal(hit);
@@ -523,6 +529,7 @@ function pairStateFromRow(row: PairRow): PairState {
     signals: signalHitSchema.array().parse(Array.isArray(row.signals) ? row.signals : []),
     lastInboundMediaAt: row.lastInboundMediaAt?.toISOString() ?? null,
     knownCsamMatch: counts.knownCsamMatch ?? false,
+    targetSource: row.targetSource ?? null,
     firstSeenAt: row.windowStart?.toISOString() ?? null,
     lastSeenAt: row.windowEnd?.toISOString() ?? null,
     recentExternalIds: Array.isArray(counts.recentExternalIds)

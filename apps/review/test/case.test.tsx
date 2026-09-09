@@ -151,6 +151,39 @@ describe("the case detail at /cases/[id]", () => {
     expect(container.textContent).not.toContain("no confidence published");
   });
 
+  /*
+   * ROADMAP 2b.3. "They replied to the child" and "they were the only two
+   * people in the channel" are different sentences to put in front of somebody
+   * about to propose a federal report, and adjacency can be wrong in a way a
+   * reply cannot: two people posting in a quiet channel are not necessarily
+   * talking to each other.
+   */
+  it("says a reply was a reply", async () => {
+    const { container } = await renderCase("pair_4f2a");
+    expect(container.textContent).toContain("These two were replying to each other");
+  });
+
+  it("warns when the pair was inferred from who else was in the channel", async () => {
+    const { resetMockData, getMockData } = await import("@/lib/mock/fixtures");
+    resetMockData();
+    const data = await getMockData();
+    data.pairs.find((p) => p.queue.pairId === "pair_4f2a")!.queue.targetSource = "adjacency";
+
+    const { container } = await renderCase("pair_4f2a");
+    expect(container.textContent).toContain("only people talking in this channel");
+    expect(container.textContent).toContain("read the timeline before you treat this as one conversation");
+  });
+
+  it("says so when nothing recorded how the pair was made", async () => {
+    const { resetMockData, getMockData } = await import("@/lib/mock/fixtures");
+    resetMockData();
+    const data = await getMockData();
+    data.pairs.find((p) => p.queue.pairId === "pair_4f2a")!.queue.targetSource = null;
+
+    const { container } = await renderCase("pair_4f2a");
+    expect(container.textContent).toContain("was not recorded");
+  });
+
   it("makes a case claimed by somebody else read only", async () => {
     await renderCase("pair_0b3e");
     expect(

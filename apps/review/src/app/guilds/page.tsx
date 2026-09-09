@@ -1,4 +1,4 @@
-import { EmptyState, PageHeader } from "@/components";
+import { Card, EmptyState, PageHeader } from "@/components";
 import { GuildTable, guildCopy, isGuildReady, type GuildRow } from "@/components/guilds";
 import { requireRole } from "@/lib/auth";
 import { listGuildConfigs } from "@/lib/data/guilds";
@@ -32,8 +32,24 @@ export default async function GuildsPage() {
         title={guildCopy.PAGE.listTitle}
         meta={`${rows.length} ${rows.length === 1 ? "server" : "servers"}`}
         about={<p>{guildCopy.PAGE.listIntro}</p>}
-        aboutLabel="How a server starts scoring"
+        aboutLabel="How a Server Starts Scoring"
       />
+
+      {/*
+        The limits, on the page where somebody turns scoring on (ROADMAP 2b.2).
+        Every line is something an owner would otherwise discover by wondering
+        why a conversation they know about produced nothing at all.
+      */}
+      <Card title={guildCopy.PAGE.seesTitle}>
+        <div className={styles.sees}>
+          <p className={styles.seesCan}>
+            <strong>It reads:</strong> {guildCopy.PAGE.seesCan}
+          </p>
+          <p className={styles.seesCannot}>
+            <strong>It does not:</strong> {guildCopy.PAGE.seesCannot}
+          </p>
+        </div>
+      </Card>
 
       {rows.length === 0 ? (
         <EmptyState

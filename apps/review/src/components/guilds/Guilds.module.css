@@ -383,3 +383,28 @@
     gap: var(--space-1);
   }
 }
+
+/*
+ * The two halves of what the bot sees. Green-ish and muted rather than a
+ * warning colour: this is a description of a boundary, not an error, and an
+ * owner reading it is doing the right thing.
+ */
+.sees {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.seesCan,
+.seesCannot {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  max-inline-size: var(--measure);
+}
+
+.seesCan {
+  color: var(--text);
+}
+
+.seesCannot {
+  color: var(--text-muted);
+}

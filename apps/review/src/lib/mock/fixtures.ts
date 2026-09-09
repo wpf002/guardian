@@ -99,6 +99,7 @@ interface PairSpec {
   targetBand: BandReading;
   actorContext: string;
   suggestedPosture: "enforcement" | "support" | null;
+  targetSource?: "reply" | "mention" | "adjacency" | null;
   soleAutomatedBasis: boolean;
   channel: string;
   slaRemainingMinutes: number | null;
@@ -681,6 +682,7 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
       targetBand: spec.targetBand,
       actorContext: compose(`fixtures.actorContext.${spec.id}`, spec.actorContext),
       suggestedPosture: spec.suggestedPosture,
+      targetSource: spec.targetSource ?? "reply",
       soleAutomatedBasis: spec.soleAutomatedBasis,
       messageCount: rows.length,
       spanHours,

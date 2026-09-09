@@ -20,6 +20,25 @@ function bandPhrase(reading: BandReading): string {
   return `${bandWord(reading.band)}, ${reading.provenance.replace(/_/g, " ")}, ${confidence}`;
 }
 
+/*
+ * How Guardian knows these two were talking, in the words a reviewer needs
+ * before they propose a federal report (ROADMAP 2b.3).
+ *
+ * A reply is a statement by the sender about who they were addressing.
+ * Adjacency is Guardian's inference from who else was in the channel, and it
+ * can be wrong in a way a reply cannot: two people posting in a quiet channel
+ * are not necessarily talking to each other. Saying which is not a caveat, it
+ * is the difference between two sentences a reviewer would write differently
+ * on a CyberTipline report.
+ */
+const PAIRED_BY: Record<string, string> = {
+  reply: "These two were replying to each other.",
+  mention: "One named the other directly.",
+  adjacency:
+    "Guardian paired these two because they were the only people talking in this channel. Nobody replied to anybody, so read the timeline before you treat this as one conversation.",
+  unrecorded: "How these two were paired was not recorded.",
+};
+
 export interface SeverityStripProps {
   queue: QueueCase;
 }
@@ -61,6 +80,9 @@ export function SeverityStrip({ queue }: SeverityStripProps) {
           <strong>{queue.spanHours}h</strong>, and{" "}
           <strong>{queue.mediaEventCount}</strong> media event
           {queue.mediaEventCount === 1 ? "" : "s"}. Guardian holds hashes, never bytes.
+        </span>
+        <span>
+          {PAIRED_BY[queue.targetSource ?? "unrecorded"]}
         </span>
         {queue.actorBand.band === "UNKNOWN" && queue.targetBand.band === "UNKNOWN" ? (
           <span className={styles.posture}>

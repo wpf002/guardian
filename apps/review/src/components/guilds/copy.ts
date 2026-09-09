@@ -35,6 +35,20 @@ export const PAGE = {
     "Discord is the first place Guardian can watch, because a server owner can invite it themselves. Any other platform connects through the API instead. One row per server, and a new one watches nothing until you pick a channel for alerts and turn it on.",
   ),
   listCaption: c("listCaption", "Servers this account has Guardian in"),
+  /*
+   * What the bot can and cannot see, on the page where somebody turns it on
+   * (ROADMAP 2b.2). Every line here is a limit an owner would otherwise
+   * discover by wondering why a conversation they know about produced nothing.
+   */
+  seesTitle: c("seesTitle", "What Guardian Can and Cannot See"),
+  seesCan: c(
+    "seesCan",
+    "Messages in the channels you have not excluded, including threads. Two accounts count as talking when one replies to the other, names them, or when they are the only two people posting in a channel within ten minutes.",
+  ),
+  seesCannot: c(
+    "seesCannot",
+    "Direct messages, ever. Voice, video and images. A conversation in a busy channel where Guardian cannot tell who is talking to whom. Ages, unless you map your roles below: a member with no mapped role gets the default, and somebody arriving through a game-chat bridge gets no age at all.",
+  ),
   detailTitle: c("detailTitle", "Server Setup"),
   detailIntro: c(
     "detailIntro",

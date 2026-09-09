@@ -162,6 +162,7 @@ export class Kernel {
       externalId: event.externalId,
       ts: event.ts,
       direction: "actor_to_target",
+      targetSource: event.targetSource ?? null,
       media: event.media ?? null,
       detections,
       isQuestion,

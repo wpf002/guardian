@@ -80,6 +80,8 @@ export interface PairMessage {
   detections: Detection[];
   isQuestion: boolean;
   channel: string;
+  /** How the surface knows this message was aimed at the other account. */
+  targetSource?: "reply" | "mention" | "adjacency" | null;
 }
 
 /**
@@ -101,6 +103,13 @@ export interface PairState {
   knownCsamMatch: boolean;
   firstSeenAt: string | null;
   lastSeenAt: string | null;
+  /**
+   * How the surface knows these two were talking (ROADMAP 2b.3). Sticky at the
+   * strongest reading seen: one reply in a conversation is a statement by the
+   * sender that the whole pair is real, and a later message with no reply does
+   * not take it back.
+   */
+  targetSource?: "reply" | "mention" | "adjacency" | null;
   /**
    * External ids of the most recent messages folded in, newest last. A
    * message whose id is here is a replay (a customer retry, a redelivered
@@ -200,6 +209,10 @@ export function applyMessage(state: PairState, msg: PairMessage): PairState {
   const ts = msg.ts.toISOString();
   next.firstSeenAt ??= ts;
   next.lastSeenAt = ts;
+
+  // Sticky at the strongest reading. One reply in a conversation says the pair
+  // is real, and twenty later messages with no reply do not take that back.
+  next.targetSource = strongerSource(state.targetSource, msg.targetSource);
 
   if (msg.direction === "actor_to_target") {
     next.actorMessages += 1;
@@ -679,4 +692,24 @@ function round(value: number): number {
 
 function pct(value: number): string {
   return `${Math.round(value * 100)}%`;
+}
+
+/**
+ * The stronger of two readings of how a pair was arrived at.
+ *
+ * A reply is a statement by the sender about who they are talking to. A mention
+ * is nearly one. Adjacency is Guardian inferring it from who else was in the
+ * channel, and it is the weakest. The pair keeps the strongest it has seen,
+ * because a conversation that opened with a reply is a real pair whatever the
+ * next twenty messages look like.
+ */
+const SOURCE_RANK = { adjacency: 1, mention: 2, reply: 3 } as const;
+
+export function strongerSource(
+  current: PairState["targetSource"],
+  incoming: PairState["targetSource"],
+): PairState["targetSource"] {
+  if (!incoming) return current ?? null;
+  if (!current) return incoming;
+  return SOURCE_RANK[incoming] > SOURCE_RANK[current] ? incoming : current;
 }

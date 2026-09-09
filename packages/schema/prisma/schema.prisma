@@ -147,6 +147,16 @@ enum Surface {
   investigator
 }
 
+/// How a surface knows two accounts were talking to each other. A reply is a
+/// statement by the sender; adjacency is Guardian inferring it because they
+/// were the only two people in the channel. A reviewer about to file a federal
+/// report needs to know which one a case rests on.
+enum TargetSource {
+  reply
+  mention
+  adjacency
+}
+
 enum ReviewDecision {
   dismiss
   watch
@@ -327,6 +337,10 @@ model Pair {
   actorScore Float    @default(0)
   fusedScore Float    @default(0)
   tier       Tier     @default(T0)
+  /// How the two accounts were paired: a reply, a mention, or Guardian
+  /// inferring it from who else was in the channel. Null on a pair written
+  /// before the column, and on a surface that does not say.
+  targetSource TargetSource?
   /// The last tier the kernel itself assigned, which `tier` stops being the
   /// moment a reviewer decides (ROADMAP S-9). Written only by recordTier and
   /// never by a reviewer, so calibration can ask "of the pairs the model called
