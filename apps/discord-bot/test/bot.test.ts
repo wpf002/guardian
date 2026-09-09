@@ -158,11 +158,58 @@ describe("mapping", () => {
   });
 
   it("takes a reply as the target over a mention", () => {
-    expect(targetOf(message({ referencedAuthorId: "user-other" }))).toBe("user-other");
+    expect(targetOf(message({ referencedAuthorId: "user-other" }))).toEqual({
+      uid: "user-other",
+      source: "reply",
+    });
   });
 
   it("has no single target when many accounts are mentioned", () => {
-    expect(targetOf(message({ mentionedUserIds: ["a", "b", "c"] }))).toBeNull();
+    expect(targetOf(message({ mentionedUserIds: ["a", "b", "c"] }))).toEqual({
+      uid: null,
+      source: null,
+    });
+  });
+
+  /*
+   * Adjacency. Without it a target came only from a reply or a single mention,
+   * and two people talking to each other for twenty messages in a small
+   * server's #general produce neither, so every one of those messages scored
+   * nothing. That is the traffic this product exists to read.
+   */
+  it("takes the one other person in the channel when there is no reply or mention", () => {
+    expect(targetOf(message({ mentionedUserIds: [] }), ["user-other"])).toEqual({
+      uid: "user-other",
+      source: "adjacency",
+    });
+  });
+
+  // Three people are a conversation, not a pair. Picking the likeliest partner
+  // out of them invents a relationship and then scores an age gap across it.
+  it("infers nothing when several people are talking", () => {
+    expect(targetOf(message({ mentionedUserIds: [] }), ["a", "b"])).toEqual({ uid: null, source: null });
+  });
+
+  it("does not pair somebody with themselves", () => {
+    expect(targetOf(message({ authorId: "user-a", mentionedUserIds: [] }), ["user-a"])).toEqual({
+      uid: null,
+      source: null,
+    });
+  });
+
+  it("counts one person who spoke twice as one person", () => {
+    expect(targetOf(message({ mentionedUserIds: [] }), ["user-other", "user-other"])).toEqual({
+      uid: "user-other",
+      source: "adjacency",
+    });
+  });
+
+  // An explicit target beats the room. A reply names who it answers.
+  it("prefers a reply over whoever else was in the channel", () => {
+    expect(targetOf(message({ referencedAuthorId: "user-other", mentionedUserIds: [] }), ["user-third"])).toEqual({
+      uid: "user-other",
+      source: "reply",
+    });
   });
 
   it("carries no attachment content, only the count", () => {
@@ -280,6 +327,113 @@ describe("pipeline", () => {
     }
     expect(last?.tier).toBe("T2");
     expect(last?.alert).toContain("tier T2");
+  });
+
+  /*
+   * The gap the first real Discord message found. Two people talking in a
+   * channel, no replies and no @mentions, which is how a conversation in a
+   * small server's #general actually looks. Every one of these used to map to
+   * targetUid null, so the kernel returned null and nothing was scored, stored
+   * or paired: the traffic this product exists to read was invisible to it.
+   */
+  it("scores two people talking with no replies and no mentions", async () => {
+    const p = pipeline();
+    const t0 = Date.parse("2026-09-02T12:00:00Z");
+    const turns: Array<{ from: "adult" | "kid"; text: string }> = [
+      { from: "adult", text: "hey nice build" },
+      { from: "kid", text: "thanks lol" },
+      { from: "adult", text: "i can send you some robux if you want" },
+      { from: "kid", text: "omg really" },
+      { from: "adult", text: "are your parents home right now? do they check your phone?" },
+      { from: "kid", text: "no theyre at work" },
+      { from: "adult", text: "add me on 👻 my snap is ryan_xx99" },
+    ];
+
+    let last = null;
+    for (const [i, turn] of turns.entries()) {
+      last = await p.handle(
+        message({
+          id: `adj${i}`,
+          content: turn.text,
+          authorId: turn.from === "adult" ? "user-adult" : "user-kid",
+          mentionedUserIds: [],
+          referencedAuthorId: null,
+          createdAt: new Date(t0 + i * 60_000),
+        }),
+        config(),
+        bands,
+      );
+    }
+    expect(last?.tier).toBe("T2");
+    expect(last?.targetSource).toBe("adjacency");
+  });
+
+  // Three people in a channel are a conversation, not a pair. Guardian infers
+  // nothing rather than picking the likeliest partner and scoring a gap across
+  // a relationship it invented.
+  it("infers no pair in a channel with several people in it", async () => {
+    const p = pipeline();
+    const t0 = Date.parse("2026-09-02T12:00:00Z");
+    for (const [i, uid] of ["user-a", "user-b", "user-c"].entries()) {
+      await p.handle(
+        message({
+          id: `busy${i}`,
+          content: "hey",
+          authorId: uid,
+          mentionedUserIds: [],
+          referencedAuthorId: null,
+          createdAt: new Date(t0 + i * 10_000),
+        }),
+        config(),
+        bands,
+      );
+    }
+    const result = await p.handle(
+      message({
+        id: "busy-last",
+        content: "i can send you some robux if you want",
+        authorId: "user-adult",
+        mentionedUserIds: [],
+        referencedAuthorId: null,
+        createdAt: new Date(t0 + 40_000),
+      }),
+      config(),
+      bands,
+    );
+    expect(result.targetSource).toBeNull();
+    expect(result.tier).toBe("T0");
+  });
+
+  // The window closes. Somebody who spoke an hour ago is not who this message
+  // is to, and pairing them would be Guardian inventing a conversation.
+  it("does not pair across a gap longer than the adjacency window", async () => {
+    const p = pipeline();
+    const t0 = Date.parse("2026-09-02T12:00:00Z");
+    await p.handle(
+      message({
+        id: "far-1",
+        content: "morning",
+        authorId: "user-kid",
+        mentionedUserIds: [],
+        referencedAuthorId: null,
+        createdAt: new Date(t0),
+      }),
+      config(),
+      bands,
+    );
+    const result = await p.handle(
+      message({
+        id: "far-2",
+        content: "i can send you some robux if you want",
+        authorId: "user-adult",
+        mentionedUserIds: [],
+        referencedAuthorId: null,
+        createdAt: new Date(t0 + 90 * 60_000),
+      }),
+      config(),
+      bands,
+    );
+    expect(result.targetSource).toBeNull();
   });
 
   // FP-4 and F5, end to end. Both accounts in a minor band, the owner opted

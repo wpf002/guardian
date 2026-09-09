@@ -108,15 +108,53 @@ export function roleFor(
 }
 
 /**
- * Who the message is addressed to. A reply wins over a mention; a message with
- * many mentions has no single target and is scored for actor fan-out only.
+ * How the target was arrived at. A reply is a statement by the sender about who
+ * they are talking to; adjacency is Guardian's inference, and a case built on
+ * one is a weaker claim than a case built on the other. The reviewer console
+ * says which, because "they replied to the child" and "they were the only two
+ * people in the channel" are different sentences to put in front of a person.
  */
-export function targetOf(msg: DiscordMessageLike): string | null {
+export type TargetSource = "reply" | "mention" | "adjacency";
+
+export interface TargetResult {
+  uid: string | null;
+  source: TargetSource | null;
+}
+
+/**
+ * Who the message is addressed to.
+ *
+ * A reply wins over a mention. Failing both, the channel: if exactly one other
+ * account has spoken there inside the adjacency window, this message is to
+ * them.
+ *
+ * That third rule is why the bot sees anything at all. Without it a target came
+ * only from a reply or a single @mention, and two people talking to each other
+ * for twenty messages in a small server's #general produce neither, so the
+ * kernel returned null for every one and nothing was scored, stored or paired.
+ * The traffic this product exists to read was invisible to it.
+ *
+ * Exactly one, not the most recent of several. Three people in a channel are a
+ * conversation and not a pair, and picking the likeliest partner out of them is
+ * Guardian inventing a relationship and then scoring an age gap across it. In a
+ * busy channel this correctly infers nothing.
+ */
+export const ADJACENCY_WINDOW_MS = 10 * 60 * 1000;
+
+export function targetOf(
+  msg: DiscordMessageLike,
+  recentOtherAuthors: string[] = [],
+): TargetResult {
   if (msg.referencedAuthorId && msg.referencedAuthorId !== msg.authorId) {
-    return msg.referencedAuthorId;
+    return { uid: msg.referencedAuthorId, source: "reply" };
   }
-  const others = msg.mentionedUserIds.filter((id) => id !== msg.authorId);
-  return others.length === 1 ? others[0]! : null;
+  const mentioned = msg.mentionedUserIds.filter((id) => id !== msg.authorId);
+  if (mentioned.length === 1) return { uid: mentioned[0]!, source: "mention" };
+  if (mentioned.length > 1) return { uid: null, source: null };
+
+  const others = [...new Set(recentOtherAuthors.filter((id) => id !== msg.authorId))];
+  if (others.length === 1) return { uid: others[0]!, source: "adjacency" };
+  return { uid: null, source: null };
 }
 
 export function accountAgeHours(createdAt: Date | null, now: Date): number | null {
@@ -125,7 +163,7 @@ export function accountAgeHours(createdAt: Date | null, now: Date): number | nul
 }
 
 export type MapResult =
-  | { ok: true; event: InboundEvent }
+  | { ok: true; event: InboundEvent; targetSource: TargetSource | null }
   | { ok: false; refusal: MappingRefusal };
 
 export function toEvent(
@@ -133,6 +171,8 @@ export function toEvent(
   config: GuildConfig,
   memberBands: (userId: string) => MemberBand,
   now = new Date(),
+  /** Other accounts that have spoken in this channel inside the window. */
+  recentOtherAuthors: string[] = [],
 ): MapResult {
   // The bot has no business in a DM and Discord does not grant it one. This is
   // a refusal rather than a filter so it shows up in tests.
@@ -151,7 +191,8 @@ export function toEvent(
   }
   if (!config.enabled || config.modChannelId === null) return { ok: false, refusal: "not_ready" };
 
-  const targetUid = targetOf(msg);
+  const target_ = targetOf(msg, recentOtherAuthors);
+  const targetUid = target_.uid;
   const actor = bandWithProvenance(msg.authorRoleIds, config);
   const target = targetUid ? memberBands(targetUid) : null;
 
@@ -183,5 +224,6 @@ export function toEvent(
       deviceHints: null,
       provenance: { surface: "discord", sourceId: msg.guildId },
     },
+    targetSource: target_.source,
   };
 }

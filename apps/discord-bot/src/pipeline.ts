@@ -26,7 +26,13 @@ import { decideAction, type BotAction } from "./actions.js";
 import { describeError } from "./errors.js";
 import { buildModAlert } from "./alerts.js";
 import type { GuildConfig } from "./config.js";
-import { toEvent, type DiscordMessageLike, type MemberBand } from "./mapping.js";
+import {
+  ADJACENCY_WINDOW_MS,
+  toEvent,
+  type DiscordMessageLike,
+  type MemberBand,
+  type TargetSource,
+} from "./mapping.js";
 
 /**
  * The bot's own pipeline: map, minimize, score, decide, and keep just enough
@@ -89,6 +95,12 @@ export interface HandleResult {
   action: BotAction;
   alert: string | null;
   refusal?: string;
+  /**
+   * How the pair was arrived at: a reply, a mention, or Guardian inferring it
+   * because these two were the only people talking in the channel. A case built
+   * on the third is a weaker claim than one built on the first two.
+   */
+  targetSource?: TargetSource | null;
 }
 
 export class BotPipeline {
@@ -103,6 +115,16 @@ export class BotPipeline {
   /** Hashed uid to the Discord id, held in memory only so an alert can @ them. */
   private readonly displayIds = new Map<string, string>();
 
+  /**
+   * Who has spoken in each channel lately, so a message that is neither a reply
+   * nor a mention can still find its partner.
+   *
+   * Unhashed Discord ids and message timestamps, nothing else, trimmed to the
+   * adjacency window on every read. No text: this is a list of who was in the
+   * room, not what was said in it.
+   */
+  private readonly recentByChannel = new Map<string, Array<{ uid: string; at: number }>>();
+
   constructor(private readonly deps: PipelineDeps) {}
 
   async handle(
@@ -111,7 +133,11 @@ export class BotPipeline {
     memberBands: (userId: string) => MemberBand,
     now = new Date(),
   ): Promise<HandleResult> {
-    const mapped = toEvent(msg, config, memberBands, now);
+    const others = this.recentOthers(msg.channelId, msg.authorId, msg.createdAt);
+    const mapped = toEvent(msg, config, memberBands, now, others);
+    // Recorded whether or not the message maps: a refused message still tells
+    // the next one who was in the channel.
+    this.rememberSpeaker(msg.channelId, msg.authorId, msg.createdAt);
     if (!mapped.ok) {
       return { scored: null, tier: "T0", action: { kind: "none" }, alert: null, refusal: mapped.refusal };
     }
@@ -140,7 +166,15 @@ export class BotPipeline {
 
     const scored = await this.deps.kernel.score(event);
     if (!scored || !targetUid) {
-      return { scored: null, tier: "T0", action: { kind: "none" }, alert: null };
+      // Reported even here, so a caller always learns how the target was
+      // resolved, including that it was not resolved at all.
+      return {
+        scored: null,
+        tier: "T0",
+        action: { kind: "none" },
+        alert: null,
+        targetSource: mapped.targetSource,
+      };
     }
 
     const tier = scored.result.tier;
@@ -217,7 +251,30 @@ export class BotPipeline {
       await this.persistBundle(guildId, actorUid, targetUid, tier, scored.result.rationale);
     }
 
-    return { scored, tier, action, alert };
+    return { scored, tier, action, alert, targetSource: mapped.targetSource };
+  }
+
+  /**
+   * The other accounts that have spoken in this channel inside the window.
+   *
+   * Trimmed on read rather than on a timer, so a quiet channel costs nothing and
+   * a process that has been up for a week is not holding last Tuesday's roster.
+   */
+  private recentOthers(channelId: string, authorId: string, at: Date): string[] {
+    const seen = this.recentByChannel.get(channelId);
+    if (!seen) return [];
+    const floor = at.getTime() - ADJACENCY_WINDOW_MS;
+    const live = seen.filter((entry) => entry.at >= floor);
+    this.recentByChannel.set(channelId, live);
+    return live.filter((entry) => entry.uid !== authorId).map((entry) => entry.uid);
+  }
+
+  private rememberSpeaker(channelId: string, authorId: string, at: Date): void {
+    const seen = this.recentByChannel.get(channelId) ?? [];
+    const floor = at.getTime() - ADJACENCY_WINDOW_MS;
+    const live = seen.filter((entry) => entry.at >= floor && entry.uid !== authorId);
+    live.push({ uid: authorId, at: at.getTime() });
+    this.recentByChannel.set(channelId, live);
   }
 
   /** Build and store the bundle for a pair the model has put in scope. */
