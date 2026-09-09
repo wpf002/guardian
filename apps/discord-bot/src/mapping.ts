@@ -19,6 +19,21 @@ export interface DiscordMessageLike {
   channelType: "guild_text" | "guild_voice_text" | "guild_thread" | "dm" | "group_dm" | "other";
   authorId: string;
   authorBot: boolean;
+  /**
+   * Set when the message came through a webhook rather than from an account.
+   *
+   * A webhook is a relay. Game servers bridge their in-game chat into a Discord
+   * channel through one, so those messages are real players talking, arriving
+   * under one webhook id with a different display name each time. Refusing them
+   * for being "bot" traffic makes Guardian blind to exactly the gaming chat it
+   * exists to read.
+   *
+   * Guardian's own webhook is still refused: scoring the alerts it posts is a
+   * loop, and that is what the bot check was really guarding against.
+   */
+  webhookId?: string | null;
+  /** The relayed display name. One webhook carries many players. */
+  authorName?: string | null;
   authorRoleIds: string[];
   /** Account creation time from the snowflake, for the new-account feature. */
   authorCreatedAt: Date | null;
@@ -152,7 +167,8 @@ export function targetOf(
   if (mentioned.length === 1) return { uid: mentioned[0]!, source: "mention" };
   if (mentioned.length > 1) return { uid: null, source: null };
 
-  const others = [...new Set(recentOtherAuthors.filter((id) => id !== msg.authorId))];
+  const self = relayActorUid(msg);
+  const others = [...new Set(recentOtherAuthors.filter((id) => id !== self))];
   if (others.length === 1) return { uid: others[0]!, source: "adjacency" };
   return { uid: null, source: null };
 }
@@ -180,7 +196,10 @@ export function toEvent(
     return { ok: false, refusal: "dm_channel" };
   }
   if (!msg.guildId) return { ok: false, refusal: "no_guild" };
-  if (msg.authorBot) return { ok: false, refusal: "bot_author" };
+  // An application bot is refused. A webhook relay is not an application bot:
+  // it is one account posting on behalf of people who said these things
+  // somewhere else, which is what a game-chat bridge is.
+  if (msg.authorBot && !msg.webhookId) return { ok: false, refusal: "bot_author" };
   // The thread's parent counts. Excluding a channel and still reading its
   // threads is reading the place the owner said not to look.
   if (
@@ -200,7 +219,13 @@ export function toEvent(
     ok: true,
     event: {
       externalId: msg.id,
-      actorUid: msg.authorId,
+      /*
+       * One webhook relays many players, so the webhook's own id is the channel
+       * rather than the speaker. The relayed display name is the identity, and
+       * the webhook id scopes it so two servers bridging a player called "Sam"
+       * are two different actors.
+       */
+      actorUid: relayActorUid(msg),
       targetUid,
       channel: msg.channelId,
       ts: msg.createdAt,
@@ -226,4 +251,18 @@ export function toEvent(
     },
     targetSource: target_.source,
   };
+}
+
+/**
+ * Who this message is from.
+ *
+ * An ordinary message is from its author. A webhook message is from whoever the
+ * relay says it is, scoped by the webhook so two bridges carrying the same
+ * display name stay apart. A relay with no name falls back to the webhook, which
+ * treats the whole bridge as one speaker rather than inventing an identity.
+ */
+export function relayActorUid(msg: DiscordMessageLike): string {
+  if (!msg.webhookId) return msg.authorId;
+  const name = msg.authorName?.trim();
+  return name ? `webhook:${msg.webhookId}:${name}` : `webhook:${msg.webhookId}`;
 }

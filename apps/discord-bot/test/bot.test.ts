@@ -212,6 +212,42 @@ describe("mapping", () => {
     });
   });
 
+  /*
+   * A webhook is a relay, not an application bot. Game servers bridge in-game
+   * chat into a Discord channel through one, so those messages are real players
+   * talking, arriving under one webhook id with a different display name each
+   * time. Refusing them for being "bot" traffic made Guardian blind to the
+   * gaming chat it exists to read.
+   */
+  it("scores a webhook relay and keys the speaker on the relayed name", () => {
+    const result = toEvent(
+      message({ authorBot: true, webhookId: "wh1", authorName: "PlayerOne" }),
+      config(),
+      bands,
+    );
+    expect(result.ok && result.event.actorUid).toBe("webhook:wh1:PlayerOne");
+  });
+
+  it("keeps two players on one relay apart", () => {
+    const a = toEvent(message({ authorBot: true, webhookId: "wh1", authorName: "A" }), config(), bands);
+    const b = toEvent(message({ authorBot: true, webhookId: "wh1", authorName: "B" }), config(), bands);
+    expect(a.ok && b.ok && a.event.actorUid).not.toBe(b.ok ? b.event.actorUid : null);
+  });
+
+  it("keeps the same name on two relays apart", () => {
+    const a = toEvent(message({ authorBot: true, webhookId: "wh1", authorName: "Sam" }), config(), bands);
+    const b = toEvent(message({ authorBot: true, webhookId: "wh2", authorName: "Sam" }), config(), bands);
+    expect(a.ok && b.ok && a.event.actorUid).not.toBe(b.ok ? b.event.actorUid : null);
+  });
+
+  // Still refused, and this is what the bot check was really guarding: scoring
+  // the alerts Guardian posts is a loop.
+  it("still refuses an application bot", () => {
+    const result = toEvent(message({ authorBot: true }), config(), bands);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.refusal).toBe("bot_author");
+  });
+
   it("carries no attachment content, only the count", () => {
     const result = toEvent(message({ attachmentCount: 3 }), config(), bands);
     expect(result.ok && result.event.media).toBeNull();

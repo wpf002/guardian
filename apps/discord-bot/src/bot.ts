@@ -54,6 +54,8 @@ export function toDiscordMessageLike(message: Message): DiscordMessageLike {
     channelType: channelTypeOf(message),
     authorId: message.author.id,
     authorBot: message.author.bot,
+    webhookId: message.webhookId ?? null,
+    authorName: message.author.username ?? null,
     authorRoleIds: message.member ? [...message.member.roles.cache.keys()] : [],
     authorCreatedAt: message.author.createdAt ?? null,
     content: message.content,
@@ -194,6 +196,25 @@ export async function handleMessage(message: Message, deps: HandlerDeps): Promis
   };
 
   const result = await deps.pipeline.handle(toDiscordMessageLike(message), config, bands);
+
+  /*
+   * One line per message, on by default in a bot's first weeks.
+   *
+   * Without it a message that scores nothing is indistinguishable from a
+   * message the gateway never delivered, which is exactly the confusion the
+   * first real message in a real server produced: it was refused for having no
+   * target and the log said nothing at all. No content, only the decision and
+   * the reason for it. GUARDIAN_QUIET=1 turns it off.
+   */
+  if (process.env.GUARDIAN_QUIET !== "1") {
+    const why = result.refusal
+      ? `refused: ${result.refusal}`
+      : result.targetSource
+        ? `paired by ${result.targetSource}`
+        : "no pair: nobody else has spoken in this channel lately";
+    console.log(`#${message.channelId} tier=${result.tier} ${why}`);
+  }
+
   if (result.scored) {
     const pair = result.scored.result.pair;
     deps.pairBook.record(

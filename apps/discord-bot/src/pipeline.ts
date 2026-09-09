@@ -28,6 +28,7 @@ import { buildModAlert } from "./alerts.js";
 import type { GuildConfig } from "./config.js";
 import {
   ADJACENCY_WINDOW_MS,
+  relayActorUid,
   toEvent,
   type DiscordMessageLike,
   type MemberBand,
@@ -133,11 +134,21 @@ export class BotPipeline {
     memberBands: (userId: string) => MemberBand,
     now = new Date(),
   ): Promise<HandleResult> {
-    const others = this.recentOthers(msg.channelId, msg.authorId, msg.createdAt);
+    /*
+     * The speaker, not the account that posted.
+     *
+     * On a webhook relay every message carries the webhook's id as its author,
+     * so keying the channel roster on authorId made a whole bridged
+     * conversation look like one person talking to themselves and adjacency
+     * found nobody. relayActorUid is the same identity toEvent puts on the
+     * event, so the roster and the pair agree about who is in the room.
+     */
+    const speaker = relayActorUid(msg);
+    const others = this.recentOthers(msg.channelId, speaker, msg.createdAt);
     const mapped = toEvent(msg, config, memberBands, now, others);
     // Recorded whether or not the message maps: a refused message still tells
     // the next one who was in the channel.
-    this.rememberSpeaker(msg.channelId, msg.authorId, msg.createdAt);
+    this.rememberSpeaker(msg.channelId, speaker, msg.createdAt);
     if (!mapped.ok) {
       return { scored: null, tier: "T0", action: { kind: "none" }, alert: null, refusal: mapped.refusal };
     }
