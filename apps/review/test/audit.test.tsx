@@ -5,6 +5,7 @@ import { exportRangeAction, verifyRangeAction } from "@/app/audit/actions";
 import { ChainTools } from "@/components/audit";
 import type { ExportOutcome, VerifyOutcome } from "@/components/audit";
 import { resetMockData } from "@/lib/mock/fixtures";
+import { AUDIT_KINDS } from "@guardian/audit";
 
 /**
  * The chain view, against the fixtures. Mock mode signs in the default owner
@@ -26,20 +27,25 @@ describe("the audit view", () => {
 
     expect(screen.getByRole("heading", { name: "Evidence Log", level: 1 })).toBeTruthy();
     expect(screen.getByText(/Northwood Gaming/)).toBeTruthy();
-    expect(screen.getByText("Chain entries, newest first, page 1.")).toBeTruthy();
-
     /*
-     * One number, and no hash on the page. The head panel carried the sequence,
-     * the count on the page and a 64-character hash at full width, which is
-     * what the check compares rather than something a person compares by eye.
+     * No sequence number and no hash anywhere on the list.
+     *
+     * "#40" sat in display type over the words "Records Written", which is a
+     * sequence number wearing a statistic's clothes, and the check panel
+     * printed a truncated hash in its corner. Both are on the entry page, for
+     * the reader who went looking.
      */
-    const head = within(screen.getByRole("region", { name: "How much is recorded" }));
-    expect(head.getByText("#40")).toBeTruthy();
-    expect(screen.queryByText("Fingerprint Of The Latest Record")).toBeNull();
+    expect(screen.queryByText("#40")).toBeNull();
+    expect(screen.queryByText("Records Written")).toBeNull();
+    expect(screen.queryByText(/ab870f45b16b/)).toBeNull();
+    expect(screen.queryByRole("region", { name: "How much is recorded" })).toBeNull();
 
-    // Every row still reaches its own entry, where all of it is kept.
-    const link = within(screen.getByRole("table")).getAllByRole("link", { name: "Details" })[0]!;
-    expect(link.getAttribute("href")).toBe("/audit/40");
+    // The row itself is the link. A "Details" column was one word repeated
+    // twenty-five times, standing in for the thing already under the cursor.
+    expect(screen.queryAllByRole("link", { name: "Details" })).toHaveLength(0);
+    const log = within(screen.getByRole("region", { name: /Everything recorded/ }));
+    const rows = log.getAllByRole("listitem");
+    expect(within(rows[0]!).getByRole("link").getAttribute("href")).toBe("/audit/40");
 
     // The payload dump is gone from the list. It printed pairId and
     // lexiconVersion beside a note on every row, which is a debugging view of
@@ -49,33 +55,56 @@ describe("the audit view", () => {
     expect(screen.queryByText(/does not carry message text/)).toBeNull();
   });
 
-  // Three columns. There were six, and four of them were for somebody
-  // debugging Guardian rather than reading its record.
-  it("carries no machine columns in the list", async () => {
+  /*
+   * The list printed event.ingested, event.rejected and report.filed straight
+   * to the reader, because the words map had drifted from the chain's own kind
+   * list and a loose Record<string, string> accepted the gap in silence. This
+   * asserts what a person sees; kinds.test.ts asserts the map itself.
+   */
+  it("prints no machine name anywhere in the list", async () => {
+    const { container } = await renderAuditPage();
+    const text = container.textContent ?? "";
+    for (const machine of AUDIT_KINDS) {
+      expect(text, `${machine} is rendering raw`).not.toContain(machine);
+    }
+    expect(text).toContain("A message was read");
+    expect(text).toContain("A report went to NCMEC");
+  });
+
+  // A dated list, not a table. Twenty-five rows repeating the same date in one
+  // column and the word "Details" in another is not a comparison.
+  it("groups the entries under a day heading and shows the clock on each row", async () => {
     await renderAuditPage();
-    const headers = within(screen.getByRole("table"))
-      .getAllByRole("columnheader")
-      .map((h) => h.textContent?.trim());
-    expect(headers).toEqual(["When", "What Happened", ""]);
+    const log = within(screen.getByRole("region", { name: /Everything recorded/ }));
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(log.getAllByRole("heading", { level: 2 }).length).toBeGreaterThan(0);
+    expect(log.getAllByText(/^\d\d:\d\d UTC$/).length).toBeGreaterThan(1);
+    // The full date is not repeated on every row.
+    expect(log.queryByText(/10 Sep 2026 20:26 UTC/)).toBeNull();
+  });
+
+  // Three rows saying "Guardian scored a conversation" are the same row until
+  // something says which conversation.
+  it("names the conversation a scored row is about", async () => {
+    await renderAuditPage({ kind: "score.assigned" });
+    const log = within(screen.getByRole("region", { name: /Guardian scored a conversation/ }));
+    expect(log.getAllByText(/^Conversation [0-9a-z]{4}/).length).toBeGreaterThan(0);
   });
 
   it("filters by kind, and says so in the caption", async () => {
     await renderAuditPage({ kind: "score.assigned" });
 
-    const table = within(screen.getByRole("table"));
-    expect(
-      screen.getByText("Chain entries of kind score.assigned, newest first, page 1."),
-    ).toBeTruthy();
-    // In words. The column named the code that wrote the row.
-    expect(table.getAllByText("Guardian scored a conversation").length).toBeGreaterThan(0);
+    const log = within(screen.getByRole("region", { name: /Guardian scored a conversation/ }));
+    // In words. The row named the code that wrote it.
+    expect(log.getAllByText("Guardian scored a conversation").length).toBeGreaterThan(0);
     for (const other of [
-      "event.ingested",
-      "bundle.exported",
-      "retention.deleted",
-      "lexicon.updated",
-      "customer.violation",
+      "A message was read",
+      "The evidence was downloaded",
+      "Old data was deleted on schedule",
+      "The phrase list changed",
+      "An incoming message broke a rule and was dropped",
     ]) {
-      expect(table.queryByText(other)).toBeNull();
+      expect(log.queryByText(other)).toBeNull();
     }
   });
 
@@ -83,7 +112,6 @@ describe("the audit view", () => {
     await renderAuditPage({ page: "9" });
 
     expect(screen.getByText("This page is past the end of the chain.")).toBeTruthy();
-    expect(screen.getByText("Chain head #40.")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Back to the newest entries" })).toBeTruthy();
   });
 
@@ -94,7 +122,7 @@ describe("the audit view", () => {
       screen.getByText("Not checked yet."),
     ).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /Check These Records/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Check This Page/ }));
 
     await waitFor(() => {
       expect(screen.getByText(/Verified\. 25 entries checked from #16/)).toBeTruthy();
@@ -147,7 +175,7 @@ describe("the chain tools", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Check These Records/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Check This Page/ }));
 
     await waitFor(() => {
       expect(screen.getByText(/Entry #17 is where it breaks/)).toBeTruthy();
@@ -190,8 +218,8 @@ describe("the chain tools", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("End At Record"), { target: { value: "2" } });
-    fireEvent.click(screen.getByRole("button", { name: /Check These Records/ }));
+    fireEvent.change(screen.getByLabelText("Last record"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: /Check This Page/ }));
 
     expect(screen.getByText("The last entry has to be at or after the first.")).toBeTruthy();
     expect(onVerify).not.toHaveBeenCalled();

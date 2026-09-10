@@ -672,6 +672,8 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
     queue: {
       pairId: spec.id,
       shortId: spec.id.slice(-4),
+      actorUid: spec.actorUid,
+      targetUid: spec.targetUid,
       customerId: MOCK_CUSTOMER_ID,
       customerName: MOCK_CUSTOMER_NAME,
       channel: spec.channel,
@@ -921,7 +923,9 @@ function buildGuilds(now: Date): GuildConfigView[] {
     {
       guildId: "742118990011223344",
       customerId: MOCK_CUSTOMER_ID,
+      guildName: "Northwood Gaming",
       modChannelId: "742118990011223999",
+      modChannelName: "mod-alerts",
       roleBands: { "742118990011224001": "A13_15", "742118990011224002": "A16_17" },
       trustedRoleIds: ["742118990011224003"],
       defaultBand: "A13_15",
@@ -935,7 +939,11 @@ function buildGuilds(now: Date): GuildConfigView[] {
     {
       guildId: "742118990055667788",
       customerId: MOCK_CUSTOMER_ID,
+      // No name: the bot is in this server but has not handled a message there,
+      // which is what a freshly invited server looks like.
+      guildName: null,
       modChannelId: null,
+      modChannelName: null,
       roleBands: {},
       trustedRoleIds: [],
       defaultBand: "A13_15",

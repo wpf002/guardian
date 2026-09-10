@@ -46,3 +46,32 @@ export function shortHash(hash: string): string {
 export function seqLabel(seq: number): string {
   return `#${seq}`;
 }
+
+/** Just the clock, for a row under a day heading. Example: 20:26 UTC. */
+export function clockUtc(ts: Date | string): string {
+  const date = ts instanceof Date ? ts : new Date(ts);
+  if (Number.isNaN(date.getTime())) return "time not recorded";
+  return `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())} UTC`;
+}
+
+/** The day a row belongs to, as a key that sorts and compares. */
+export function dayKeyUtc(ts: Date | string): string {
+  const date = ts instanceof Date ? ts : new Date(ts);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
+
+/**
+ * A day heading. "Today" and "Yesterday" relative to the reader's clock would
+ * be a hydration mismatch and a different answer either side of midnight UTC,
+ * so every heading is the date. The year is dropped when it is this one.
+ */
+export function dayLabelUtc(ts: Date | string, now = new Date()): string {
+  const date = ts instanceof Date ? ts : new Date(ts);
+  if (Number.isNaN(date.getTime())) return "Date not recorded";
+  const month = MONTHS[date.getUTCMonth()] ?? "";
+  const year = date.getUTCFullYear();
+  return year === now.getUTCFullYear()
+    ? `${date.getUTCDate()} ${month}`
+    : `${date.getUTCDate()} ${month} ${year}`;
+}

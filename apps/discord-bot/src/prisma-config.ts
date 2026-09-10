@@ -24,7 +24,9 @@ import { guildConfigSchema, type GuildConfig, type GuildConfigStore } from "./co
 export interface GuildConfigRow {
   guildId: string;
   customerId: string;
+  guildName: string | null;
   modChannelId: string | null;
+  modChannelName: string | null;
   /** Json column. Validated through guildConfigSchema on read. */
   roleBands: unknown;
   trustedRoleIds: string[];
@@ -38,7 +40,9 @@ export interface GuildConfigRow {
 
 export interface GuildConfigWrite {
   customerId: string;
+  guildName: string | null;
   modChannelId: string | null;
+  modChannelName: string | null;
   roleBands: Record<string, AgeBand>;
   trustedRoleIds: string[];
   defaultBand: AgeBand;
@@ -119,7 +123,9 @@ export class PrismaGuildConfigStore implements GuildConfigStore {
     if (!row || row.customerId !== this.customerId) return null;
     return guildConfigSchema.parse({
       guildId: row.guildId,
+      guildName: row.guildName,
       modChannelId: row.modChannelId,
+      modChannelName: row.modChannelName,
       roleBands: row.roleBands ?? {},
       trustedRoleIds: row.trustedRoleIds,
       defaultBand: row.defaultBand,
@@ -134,7 +140,9 @@ export class PrismaGuildConfigStore implements GuildConfigStore {
   async put(config: GuildConfig): Promise<void> {
     const data: GuildConfigWrite = {
       customerId: this.customerId,
+      guildName: config.guildName,
       modChannelId: config.modChannelId,
+      modChannelName: config.modChannelName,
       roleBands: config.roleBands,
       trustedRoleIds: config.trustedRoleIds,
       defaultBand: config.defaultBand,

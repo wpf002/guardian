@@ -26,7 +26,9 @@ const UNCONFIGURED_GUILD = "742118990055667788";
 const BASE: GuildView = {
   guildId: CONFIGURED_GUILD,
   customerId: "cus_northwood",
+  guildName: "Northwood Gaming",
   modChannelId: "742118990011223999",
+  modChannelName: "mod-alerts",
   roleBands: { "742118990011224001": "A13_15" },
   trustedRoleIds: [],
   defaultBand: "A13_15",

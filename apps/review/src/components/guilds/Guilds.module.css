@@ -408,3 +408,24 @@
 .seesCannot {
   color: var(--text-muted);
 }
+
+/* The server's name, with its Discord id under it in small type. The column
+   used to be the id alone, which named nothing anybody recognises. */
+.serverName {
+  display: block;
+  color: inherit;
+  font-size: var(--text-sm);
+}
+
+.serverName[data-unnamed="true"] {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.serverId {
+  display: block;
+  margin-block-start: 2px;
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}

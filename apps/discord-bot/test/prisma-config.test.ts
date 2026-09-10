@@ -29,7 +29,9 @@ function fakeDelegate(): GuildConfigDelegate & { rows: Map<string, GuildConfigRo
       rows.set(key(guildId, customerId), {
         guildId,
         customerId: write.customerId,
+        guildName: write.guildName,
         modChannelId: write.modChannelId,
+        modChannelName: write.modChannelName,
         roleBands: write.roleBands,
         trustedRoleIds: write.trustedRoleIds,
         defaultBand: write.defaultBand,

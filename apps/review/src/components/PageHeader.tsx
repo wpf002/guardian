@@ -9,36 +9,26 @@ export interface PageHeaderProps {
    */
   meta?: ReactNode;
   /**
-   * The explanation. Every page in this app had a paragraph of it sitting
-   * between the heading and the data, which pushed the work below the fold and
-   * read as the interface justifying itself. It lives behind a disclosure now,
-   * because a reviewer reads it once and an operator reads it when a number
-   * surprises them.
+   * What the page is, in a sentence or two, sitting open under the title.
+   *
+   * This was a disclosure headed "What This Is" that a reader had to click. A
+   * control whose only job is to hide two sentences costs more attention than
+   * the sentences do, and somebody who has not opened it is reading the page
+   * without the one paragraph that says what they are looking at. Kept short
+   * enough that it does not push the work below the fold.
    */
   about?: ReactNode;
-  aboutLabel?: string;
   /** Sits opposite the title. A timer, a control, a status. */
   aside?: ReactNode;
 }
 
-export function PageHeader({
-  title,
-  meta,
-  about,
-  aboutLabel = "About this page",
-  aside,
-}: PageHeaderProps) {
+export function PageHeader({ title, meta, about, aside }: PageHeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.main}>
         <h1 className={styles.title}>{title}</h1>
         {meta ? <p className={styles.meta}>{meta}</p> : null}
-        {about ? (
-          <details className={styles.about}>
-            <summary className={styles.summary}>{aboutLabel}</summary>
-            <div className={styles.aboutBody}>{about}</div>
-          </details>
-        ) : null}
+        {about ? <div className={styles.aboutBody}>{about}</div> : null}
       </div>
       {aside ? <div className={styles.aside}>{aside}</div> : null}
     </header>

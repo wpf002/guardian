@@ -41,27 +41,12 @@
   color: var(--text);
 }
 
-.about {
-  margin-block-start: var(--space-1);
-  font-size: var(--text-sm);
-}
-
-.summary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.summary:hover {
-  color: var(--text);
-}
-
+/* Open on the page, not behind a summary. */
 .aboutBody {
   max-inline-size: var(--measure);
   margin-block-start: var(--space-2);
   color: var(--text-muted);
+  font-size: var(--text-sm);
   line-height: var(--leading-normal);
 }
 

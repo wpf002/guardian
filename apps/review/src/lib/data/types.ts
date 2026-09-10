@@ -63,6 +63,21 @@ export interface QueueCase {
   pairId: string;
   /** Last four of the pair id. The header names the pair, never the people. */
   shortId: string;
+  /**
+   * The two accounts, so a row can be told from another row.
+   *
+   * The card carried the last four of the pair id and nothing else, and a pair
+   * id is a database key: it says nothing about which conversation this is,
+   * who was in it, or when. A moderator holding an alert in Discord has two
+   * account names and a time, and had no way to find the matching case here.
+   *
+   * These are whatever the ingest edge wrote, which is a per-customer salted
+   * hash in production (rule 8) and a readable handle on fixtures. Naming the
+   * two accounts is not labelling anyone: the mod-channel alert already names
+   * them, and the case page has always shown them.
+   */
+  actorUid: string;
+  targetUid: string;
   customerId: string;
   customerName: string;
   channel: string | null;
@@ -379,7 +394,14 @@ export interface DashboardSummary {
 export interface GuildConfigView {
   guildId: string;
   customerId: string;
+  /**
+   * What the operator calls this server, as Discord reports it. Null until the
+   * bot has handled a message there. The console listed the 18-digit snowflake
+   * before this existed, which is not something anybody recognises.
+   */
+  guildName: string | null;
   modChannelId: string | null;
+  modChannelName: string | null;
   roleBands: Record<string, AgeBand>;
   trustedRoleIds: string[];
   defaultBand: AgeBand;

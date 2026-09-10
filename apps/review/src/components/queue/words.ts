@@ -362,3 +362,69 @@ export function summaryLine(item: {
     `It walked ${item.stagesReached} of the ${STAGE_COUNT} grooming steps.`,
   );
 }
+
+/**
+ * An account, as short as it can be and still be looked up.
+ *
+ * On fixtures a uid is "northwood:jayden_k" and the customer prefix is the same
+ * on every row, so it carries no information and costs half the line. In
+ * production a uid is a per-customer salted hash (rule 8) and the last eight
+ * characters are what a reviewer matches against the case page and the bundle.
+ */
+export function accountLabel(uid: string): string {
+  const bare = uid.includes(":") ? uid.slice(uid.lastIndexOf(":") + 1) : uid;
+  return bare.length > 20 ? bare.slice(-8) : bare;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * When this happened, in the words somebody says out loud.
+ *
+ * Rendered on the server against a fixed now, so it does not disagree with
+ * itself after hydration. Anything older than a week gets the date, because
+ * "9 days ago" is arithmetic the reader then has to undo.
+ */
+export function whenWords(at: Date, now = new Date()): string {
+  const clock = at
+    .toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "UTC",
+    })
+    .toLowerCase();
+  const days = Math.floor((startOfDay(now) - startOfDay(at)) / DAY_MS);
+  if (days <= 0) return `Today ${clock}`;
+  if (days === 1) return `Yesterday ${clock}`;
+  if (days < 7) return `${DAY_NAMES[at.getUTCDay()]} ${clock}`;
+  return `${at.getUTCDate()} ${MONTH_NAMES[at.getUTCMonth()]} ${clock}`;
+}
+
+function startOfDay(at: Date): number {
+  return Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate());
+}
+
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * Which conversation this row is, tied to a time and to two accounts.
+ *
+ * The card printed the last four of the pair id, in a mono face, and nothing
+ * else. That is a database key: it does not say who was talking, or when, and a
+ * moderator holding a Discord alert with two account names and a timestamp had
+ * no way to find the matching case. This is that line.
+ *
+ * It names accounts and never a person: an account identifier is what the mod
+ * alert already carries and what the case page has always shown, and no word
+ * here says anything about who either account belongs to (rule 5).
+ */
+export function whoAndWhen(
+  item: { actorUid: string; targetUid: string; channel: string | null; createdAt: Date },
+  now = new Date(),
+): string {
+  const between = `${accountLabel(item.actorUid)} to ${accountLabel(item.targetUid)}`;
+  const where = item.channel ? ` in ${item.channel}` : "";
+  return compose("queue.whoAndWhen", `${between}${where} · ${whenWords(item.createdAt, now)}`);
+}

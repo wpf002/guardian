@@ -29,12 +29,14 @@ export const SNOWFLAKE_ERROR = c(
 );
 
 export const PAGE = {
-  listTitle: c("listTitle", "Connected Servers"),
+  listTitle: c("listTitle", "Servers"),
   listIntro: c(
     "listIntro",
     "Discord is the first place Guardian can watch, because a server owner can invite it themselves. Any other platform connects through the API instead. One row per server, and a new one watches nothing until you pick a channel for alerts and turn it on.",
   ),
   listCaption: c("listCaption", "Servers this account has Guardian in"),
+  /** Sits under a server name, so the id is available without leading with it. */
+  idLabel: c("idLabel", "Discord id"),
   /*
    * What the bot can and cannot see, on the page where somebody turns it on
    * (ROADMAP 2b.2). Every line here is a limit an owner would otherwise
@@ -334,16 +336,24 @@ export const BOUNDARIES = {
   ),
 } as const;
 
+/*
+ * The columns named the database. "Server ID" over an 18-digit snowflake,
+ * "Mod channel" over another one, "Roles Mapped" over a bare integer. An
+ * operator looking at their own two servers could not tell which was which.
+ */
 export const TABLE = {
-  server: c("tableServer", "Server ID"),
-  scoring: c("tableScoring", "Scoring"),
-  modChannel: c("tableModChannel", "Mod channel"),
+  server: c("tableServer", "Server"),
+  scoring: c("tableScoring", "Watching"),
+  modChannel: c("tableModChannel", "Alerts Go To"),
   roles: c("tableRoles", "Roles Mapped"),
   updated: c("tableUpdated", "Last Change"),
-  on: c("tableOn", "On"),
-  off: c("tableOff", "Off"),
-  notSet: c("tableNotSet", "Not set"),
+  on: c("tableOn", "Yes"),
+  off: c("tableOff", "Not yet"),
+  notSet: c("tableNotSet", "No channel picked"),
   openLabel: c("tableOpen", "Open setup"),
+  /** Shown in place of a name until the bot has handled a message there. */
+  unnamed: c("tableUnnamed", "Waiting for its first message"),
+  noRoles: c("tableNoRoles", "None"),
 } as const;
 
 export const SAVE = {

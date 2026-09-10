@@ -2,7 +2,13 @@
 
 import type { KeyboardEvent } from "react";
 import type { QueueCase } from "@/lib/data/types";
-import { proposalClause, summaryLine, SUPPORT_POSTURE_NOTE, type OpenMode } from "./words";
+import {
+  proposalClause,
+  summaryLine,
+  whoAndWhen,
+  SUPPORT_POSTURE_NOTE,
+  type OpenMode,
+} from "./words";
 import styles from "./CaseCard.module.css";
 
 export interface CaseCardProps {
@@ -121,8 +127,17 @@ export function CaseCard({ item, selected, pending, onOpen, onFocus, cardRef }: 
         */}
         {full && !brief ? <span className={styles.basis}>{summaryLine(item)}</span> : null}
 
+        {/*
+          Which conversation this is: the two accounts, where, and when.
+          
+          This was the last four characters of the pair id in a mono face, which
+          is a database key. A moderator reading a Discord alert has two account
+          names and a timestamp, and had no way to match either against a row
+          here. Naming the accounts labels nobody: the alert already names them
+          and the case page has always shown them.
+        */}
         <span className={styles.caption}>
-          <span className="mono">{item.shortId}</span>
+          <span>{whoAndWhen(item)}</span>
           {pending ? <span>Opening</span> : null}
           {resolved ? <span>Decided</span> : null}
         </span>

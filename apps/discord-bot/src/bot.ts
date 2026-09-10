@@ -29,7 +29,12 @@ import {
   type CommandRequest,
   type PairLookup,
 } from "./commands.js";
-import { MemoryGuildConfigStore, defaultGuildConfig, type GuildConfigStore } from "./config.js";
+import {
+  MemoryGuildConfigStore,
+  defaultGuildConfig,
+  type GuildConfig,
+  type GuildConfigStore,
+} from "./config.js";
 import { bandWithProvenance, type DiscordMessageLike, type MemberBand } from "./mapping.js";
 import { BotPipeline } from "./pipeline.js";
 import { PrismaGuildConfigStore, readReportingIdentity } from "./prisma-config.js";
@@ -180,12 +185,48 @@ export async function guarded(
   }
 }
 
+/**
+ * Write back the server and mod channel names when Discord reports new ones.
+ *
+ * A no-op in the ordinary case: the comparison happens before the write, so a
+ * busy server does one config read per message and no writes at all.
+ */
+async function refreshNames(
+  message: Message,
+  config: GuildConfig,
+  deps: HandlerDeps,
+): Promise<void> {
+  // Every hop is optional. A partial guild carries no channel manager and an
+  // uncached channel resolves to nothing, and neither is a reason to fail a
+  // message: the last name seen is a better answer than an exception.
+  const guildName = message.guild?.name ?? config.guildName;
+  const modChannelName = config.modChannelId
+    ? (message.guild?.channels?.cache?.get(config.modChannelId)?.name ?? config.modChannelName)
+    : null;
+  if (guildName === config.guildName && modChannelName === config.modChannelName) return;
+  await deps.configs.put({ ...config, guildName, modChannelName });
+}
+
 /** Score one message and apply whatever the pipeline decided. */
 export async function handleMessage(message: Message, deps: HandlerDeps): Promise<void> {
   if (!message.guildId) return;
   const guildId = message.guildId;
 
   const config = (await deps.configs.get(guildId)) ?? defaultGuildConfig(guildId);
+  /*
+   * Keep the server's name and its mod channel's name current.
+   *
+   * The console listed every connected server by its 18-digit snowflake,
+   * because the snowflake was the only thing stored about it. Discord hands the
+   * bot both names on every message, so this writes them back when they have
+   * changed and does nothing when they have not. A rename catches up on the
+   * next message rather than needing a command.
+   *
+   * Guarded: a name is a label on a settings page, and failing to write one
+   * must never cost the message it arrived on.
+   */
+  void guarded(deps, "guild.names", () => refreshNames(message, config, deps));
+
   // The band and the claim behind it, reported rather than inferred (F7). A
   // member the bot cannot see carries the guild default's own claim, which is
   // whatever the owner set it to, and never a stronger one.

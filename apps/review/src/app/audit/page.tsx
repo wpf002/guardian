@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { AUDIT_KINDS } from "@guardian/audit";
-import { Button, EmptyState, PageHeader, Select, Stat } from "@/components";
-import { KIND_WORDS, AuditEntries, ChainTools, MAX_RANGE, seqLabel } from "@/components/audit";
+import { AUDIT_KINDS, type AuditKind } from "@guardian/audit";
+import { Button, EmptyState, PageHeader, Select } from "@/components";
+import { AuditEntries, ChainTools, KIND_OPTIONS, KIND_WORDS, MAX_RANGE, dayLabelUtc } from "@/components/audit";
 import { requireSession, roleAllows } from "@/lib/auth";
 import { compose } from "@/lib/compose";
 import { getAuditHead, listAuditEntries } from "@/lib/data/audit";
@@ -24,6 +24,15 @@ const MAX_PAGE = 200;
 function one(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
+}
+
+/** What stretch of time this page covers, for the reader who has to place it. */
+function spanWords(entries: { ts: Date }[]): string {
+  const newest = entries[0]!.ts;
+  const oldest = entries[entries.length - 1]!.ts;
+  const from = dayLabelUtc(oldest);
+  const to = dayLabelUtc(newest);
+  return from === to ? `${entries.length} entries on ${to}` : `${entries.length} entries, ${from} to ${to}`;
 }
 
 function pageHref(page: number, kind?: string): string {
@@ -75,11 +84,13 @@ export default async function AuditPage({
   const oldestOnPage = entries[entries.length - 1]?.seq ?? 1;
   const defaultFrom = Math.max(1, Math.max(oldestOnPage, newestOnPage - MAX_RANGE + 1));
 
+  // Not printed. The list carries day headings a sighted reader groups by, and
+  // this names the same thing for a screen reader, which cannot see them.
   const caption = compose(
     "audit.caption",
     kind
-      ? `Chain entries of kind ${kind}, newest first, page ${page + 1}.`
-      : `Chain entries, newest first, page ${page + 1}.`,
+      ? `${KIND_WORDS[kind as AuditKind]}, newest first.`
+      : "Everything recorded, newest first.",
   );
 
   return (
@@ -87,12 +98,7 @@ export default async function AuditPage({
       <header className={styles.header}>
         <PageHeader
           title="Evidence Log"
-          meta={
-            <>
-              <span>{customerName}</span>
-              <span>nothing here can be edited or deleted</span>
-            </>
-          }
+          meta={<span>{customerName}</span>}
           about={
             <>
               <p>
@@ -107,27 +113,18 @@ export default async function AuditPage({
               </p>
             </>
           }
-          aboutLabel="What This Is"
         />
       </header>
 
       {/*
-        One number. There were three, and one of them was a 64-character hash
-        printed at full width above a page somebody reads: it is what the check
-        compares, not something a person compares by eye. The detail page still
-        carries it.
+        The count is gone. It read "#40" in display type over the words "Records
+        Written", which is a sequence number wearing a statistic's clothes: #40
+        is the name of the newest entry, not how many there are, and the two
+        differ the moment another organization writes to the same chain. The
+        page below already says how far it reaches.
       */}
-      <section className={styles.head} aria-label="How much is recorded">
-        <Stat
-          label="Records Written"
-          value={head ? seqLabel(head.seq) : null}
-          unavailableNote="the record could not be read"
-        />
-      </section>
-
       <ChainTools
         headSeq={head?.seq ?? null}
-        headHash={head?.hash ?? null}
         headUnavailableReason="The chain head could not be read, so there is nothing to verify a range against yet."
         defaultFrom={defaultFrom}
         defaultTo={newestOnPage}
@@ -147,9 +144,8 @@ export default async function AuditPage({
           defaultValue={kind ?? ""}
           options={[
             { value: "", label: "Everything" },
-            ...AUDIT_KINDS.map((value) => ({ value, label: KIND_WORDS[value] ?? value })),
+            ...KIND_OPTIONS,
           ]}
-          help="One at a time."
         />
         <Button type="submit" variant="secondary">
           Apply
@@ -177,7 +173,7 @@ export default async function AuditPage({
                 ? "The chain is readable. There are fewer entries than this page needs."
                 : "The chain is live. It appends its first entry when a score, a reviewer decision or an export happens."
           }
-          meta={head ? `Chain head ${seqLabel(head.seq)}.` : undefined}
+          meta={undefined}
           action={
             kind || page > 0 ? (
               <Link href={kind ? "/audit" : pageHref(0)}>
@@ -190,12 +186,14 @@ export default async function AuditPage({
         <AuditEntries entries={entries} caption={caption} />
       )}
 
+      {/*
+        "Page 1, entries #16 to #40" told a reader two sequence numbers they
+        have no way to place. Dates they can place: this says what stretch of
+        time they are looking at.
+      */}
       <nav className={styles.pager} aria-label="Chain pages">
         <span className={styles.pageCount}>
-          Page {page + 1}
-          {entries.length > 0
-            ? `, entries ${seqLabel(oldestOnPage)} to ${seqLabel(newestOnPage)}`
-            : ""}
+          {entries.length > 0 ? spanWords(entries) : `Page ${page + 1}`}
         </span>
         <span className={styles.pagerLinks}>
           {page > 0 ? (

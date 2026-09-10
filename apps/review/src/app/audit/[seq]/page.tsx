@@ -43,9 +43,9 @@ export default async function AuditEntryPage({
           title={`Chain entry ${seqLabel(entry.seq)}`}
           meta={
             <>
-              <span>recorded {formatUtc(entry.ts)}</span>
+              <span>Recorded {formatUtc(entry.ts)}</span>
               <span>{entry.customerId}</span>
-              <span>read only</span>
+              <span>Read Only</span>
             </>
           }
           about={
@@ -54,7 +54,6 @@ export default async function AuditEntryPage({
               points at this one.
             </p>
           }
-          aboutLabel="Why this cannot be edited"
         />
       </header>
 

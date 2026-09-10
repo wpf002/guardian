@@ -1,12 +1,22 @@
 /**
- * The rail. Two destinations for a reviewer, three more for an operator, each of
- * the extra three carrying a state dot and never a count, so navigation cannot
- * become an alert feed (DESIGN-UI 3).
+ * The rail.
  *
- * There were three: /queue and /cases were the same ranked list under two
- * entries, with two row designs, so they disagreed about how a case looks while
- * agreeing about which cases there are. /cases redirects to /queue now and the
- * case itself is still /cases/[id].
+ * Everything here is about children being contacted. Two pages that were not
+ * are gone from it.
+ *
+ * Reporting was a metrics dashboard: flag rates, predictive value, reviewer
+ * minutes per thousand members, delivery counts. Every number on it measured
+ * Guardian rather than describing a child, and it sat second in a five-item
+ * rail on a product whose whole job is the first item. Deleted, not moved.
+ *
+ * Evidence Log is the tamper-evident chain. It has to exist, and a lawyer or
+ * NCMEC will ask for it, but it is a record of Guardian's own conduct and not
+ * a safety page. It lives under Settings now.
+ *
+ * /queue and /cases were the same ranked list under two entries with two row
+ * designs, so they disagreed about how a case looks while agreeing about which
+ * cases there are. /cases redirects to /queue and the case itself is
+ * /cases/[id].
  */
 
 import type { NavItem } from "@/components/AppShell";
@@ -18,14 +28,10 @@ export interface NavCounts {
 }
 
 export function navForRole(role: Role, counts: NavCounts = {}): NavItem[] {
-  const items: NavItem[] = [
-    { href: "/queue", label: "Dashboard", count: counts.queue },
-    { href: "/audit", label: "Evidence Log" },
-  ];
+  const items: NavItem[] = [{ href: "/queue", label: "Dashboard", count: counts.queue }];
   if (role === "operator" || role === "owner") {
     items.push(
-      { href: "/dashboard", label: "Reporting", dot: counts.attention ? "attention" : "none" },
-      { href: "/guilds", label: "Connected Servers", dot: "none" },
+      { href: "/guilds", label: "Servers", dot: "none" },
       { href: "/settings", label: "Settings", dot: "none" },
     );
   }

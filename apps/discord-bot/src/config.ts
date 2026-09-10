@@ -9,8 +9,19 @@ import { AGE_BANDS, AGE_BAND_PROVENANCES } from "@guardian/schema";
 
 export const guildConfigSchema = z.object({
   guildId: z.string(),
+  /**
+   * What the operator calls this server, as Discord reports it.
+   *
+   * The console listed every connected server by its snowflake, because the
+   * snowflake was the only thing stored about it. Nobody recognises their own
+   * server by an 18-digit number. Refreshed from the gateway whenever the bot
+   * handles a message, so a rename catches up on its own.
+   */
+  guildName: z.string().nullable().default(null),
   /** Channel the bot posts tier alerts into. Required before scoring starts. */
   modChannelId: z.string().nullable(),
+  /** That channel's name, for the same reason as guildName. */
+  modChannelName: z.string().nullable().default(null),
   /** Role id to age band. First match in role order wins. */
   roleBands: z.record(z.string(), z.enum(AGE_BANDS)).default({}),
   /**

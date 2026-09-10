@@ -61,3 +61,18 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
+
+/* The narrowed range, folded away. The ordinary run is the whole page. */
+.narrow {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.narrowSummary {
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.narrowSummary:hover {
+  color: var(--text);
+}

@@ -41,7 +41,6 @@ export default async function GuildPage({
           title={guildCopy.PAGE.detailTitle}
           meta={config ? <span className="mono">{config.guildId}</span> : null}
           about={<p>{guildCopy.PAGE.detailIntro}</p>}
-          aboutLabel="What these settings do"
         />
       </header>
 

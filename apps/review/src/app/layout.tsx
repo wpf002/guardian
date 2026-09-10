@@ -25,6 +25,13 @@ export const metadata: Metadata = {
  * a full screen of the wrong theme until the client bundle hydrates, on a
  * surface that carries threat and coercion excerpts. The script is inline and
  * blocking on purpose, and it is the first thing in the document body.
+ *
+ * It runs before React hydrates, so by the time React reaches <html> the
+ * attribute is already on the element and the server markup React is comparing
+ * against has none. That is a hydration mismatch on every single load, and it
+ * was showing as an error count in the dev overlay. suppressHydrationWarning on
+ * the html element is the documented answer. It covers that element's own
+ * attributes and nothing inside it, so a real mismatch in the tree still reports.
  */
 function ThemeBoot() {
   return <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />;
@@ -37,7 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // navigate to yet.
   if (!session) {
     return (
-      <html lang="en">
+      <html lang="en" suppressHydrationWarning>
         <body>
           <ThemeBoot />
           {children}
@@ -57,7 +64,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeBoot />
         <AppShell

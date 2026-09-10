@@ -36,7 +36,10 @@ describe("/queue in mock mode", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Dashboard" })).toBeTruthy();
     expect(container.textContent).toContain("Northwood Gaming");
-    expect(container.textContent).toContain("6 conversations to read");
+    // The header counts accounts being contacted, not conversations. Three
+    // accounts working on one child is one child, and the number a moderator
+    // opening this page needs is that one.
+    expect(container.textContent).toMatch(/\d+ Accounts? Somebody Older Is Talking To/);
 
     // Nothing sits between the count and the first case: no paragraph arguing
     // for the sort order, no filter chips, no session budget. And nothing on a
@@ -50,9 +53,12 @@ describe("/queue in mock mode", () => {
     const cards = screen.getAllByRole("listitem");
     expect(cards.length).toBeGreaterThan(1);
 
-    // The card names the pair and the critical signal in words, never a person.
-    expect(container.textContent).toContain("4f2a");
+    // The card names the critical signal in words, never a person.
     expect(container.textContent).toContain("threat template match");
+    // And it does not print a pair id. A reviewer choosing what to open is not
+    // looking a case up by id; the case page carries it under a label.
+    expect(container.textContent).not.toContain("4f2a");
+    expect(container.textContent).not.toContain("91c7");
     // A line of the conversation, which is what the row is for.
     expect(container.textContent).toContain("dont tell anyone we talk");
     // A card with no critical signal says nothing about it. The tier badge
@@ -80,10 +86,12 @@ describe("/queue in mock mode", () => {
   it("puts the waiting proposal first, then ranks T2 above T1", async () => {
     await renderQueue();
     const rows = screen.getAllByRole("listitem").map((row) => row.textContent ?? "");
-    expect(rows[0]).toContain("91c7");
     expect(rows[0]).toContain("Waiting on you");
-    expect(rows[1]).toContain("4f2a");
-    expect(rows[1]).toContain("4f2a");
+    expect(rows[0]).toContain("Asked the younger account to carry on the conversation somewhere else");
+    // A critical signal is somewhere on the page, on whichever account it
+    // belongs to. Which row it lands on is a property of the grouping now, not
+    // of a flat rank, so this asserts it is readable rather than that it is second.
+    expect(rows.join(" ")).toContain("threat template match");
   });
 
   /*
@@ -122,7 +130,7 @@ describe("/queue in mock mode", () => {
     const { container } = await renderQueue({ chip: "needs_second", tier: "T1" });
     const rows = screen.getAllByRole("listitem");
     expect(rows.length).toBeGreaterThan(1);
-    expect(container.textContent).toContain("4f2a");
+    expect(container.textContent).toContain("threat template match");
   });
 
   it("writes nothing about a person anywhere on the page", async () => {
@@ -178,9 +186,13 @@ describe("queue keyboard and claim", () => {
     input.remove();
   });
 
-  it("renders nothing but the shortcut hint when the list is empty", () => {
+  // The shortcut legend under the list is gone. The keys still work and ? still
+  // opens the sheet; printing the instructions on every load taught nobody
+  // anything after the first day.
+  it("renders nothing at all when the list is empty", () => {
     const { container } = render(<QueueList cases={[]} open={vi.fn()} />);
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);
-    expect(container.textContent).toContain("j and k move the selection");
+    expect(container.textContent).not.toContain("j and k move the selection");
+    expect(container.textContent).not.toContain("Press ? for every shortcut");
   });
 });

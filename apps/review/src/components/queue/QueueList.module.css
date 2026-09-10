@@ -7,10 +7,3 @@
   margin: 0;
   list-style: none;
 }
-
-.hint {
-  margin-block-start: var(--space-5);
-  color: var(--text-subtle);
-  font-size: var(--text-sm);
-  max-inline-size: var(--measure);
-}

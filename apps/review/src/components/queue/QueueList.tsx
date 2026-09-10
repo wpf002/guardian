@@ -119,10 +119,12 @@ export function QueueList({ cases, open }: QueueListProps) {
           />
         ))}
       </ul>
-      <p className={styles.hint}>
-        j and k move the selection. Enter claims and opens the selected case, Shift+Enter opens it
-        without claiming. Press ? for every shortcut.
-      </p>
+      {/*
+        The shortcut legend that sat under the list is gone. The keys still work
+        and ? still opens the full sheet; printing the instructions under every
+        queue, on every load, teaches a reviewer nothing after the first day and
+        puts a paragraph of interface copy at the bottom of a page of cases.
+      */}
       <KeyboardHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
   );

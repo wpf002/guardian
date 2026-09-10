@@ -1,15 +1,151 @@
-.seq {
-  font-family: var(--font-mono);
+/*
+ * A timeline.
+ *
+ * This was a table: three columns, twenty-five rows, and the third column was
+ * the word "Details" printed twenty-five times. The first repeated the same
+ * date on every row, because a page covers about three hours. A table is the
+ * right shape when a reader compares rows against each other. Nobody compares
+ * audit entries. They read down looking for when something happened, which is
+ * a timeline: one spine, one mark per event, time on one side of it.
+ */
+
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin-block-start: var(--space-5);
+}
+
+.dayLabel {
+  /* Clears the spine, so the heading reads as a break in it rather than a row. */
+  padding-inline-start: calc(5.5rem + var(--space-5));
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-display);
+}
+
+.rows {
+  padding: 0;
+  margin: 0;
+  margin-block-start: var(--space-2);
+  list-style: none;
+}
+
+/*
+ * The spine. One 1px rule behind every row of a day, drawn by the row itself
+ * so it starts and ends with the events rather than running past them.
+ */
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  column-gap: var(--space-5);
+  align-items: start;
+  padding-block: var(--space-3);
+  color: inherit;
+  text-decoration: none;
+}
+
+.row::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  /* Centre of the gap between the time column and the text. */
+  inset-inline-start: calc(5.5rem + var(--space-5) / 2);
+  inline-size: 1px;
+  background: var(--divider);
+}
+
+/* The first row's spine starts at its mark, the last one's stops at its mark,
+   so the line does not hang off either end of the day. */
+.rows > li:first-child .row::before {
+  inset-block-start: 50%;
+}
+
+.rows > li:last-child .row::before {
+  inset-block-end: 50%;
+}
+
+/* The mark. A ring, filled on hover, so a row is a point on the line. */
+.row::after {
+  content: "";
+  position: absolute;
+  inset-block-start: calc(var(--space-3) + 0.45em);
+  inset-inline-start: calc(5.5rem + var(--space-5) / 2 - 3px);
+  inline-size: 7px;
+  block-size: 7px;
+  border: 1px solid var(--text-subtle);
+  border-radius: 50%;
+  background: var(--bg);
+}
+
+.row:hover::after {
+  border-color: var(--text);
+  background: var(--text);
+}
+
+.row:hover .kind {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Right-aligned against the spine, so the times form one edge to read down. */
+.time {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
-}
-
-.mono {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  overflow-wrap: anywhere;
-}
-
-.when {
+  text-align: end;
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+}
+
+.what {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.kind {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+/* Which conversation, and what came of it. Without this line, three rows
+   reading "Guardian scored a conversation" cannot be told apart. */
+.detail {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+/* No room for a time column beside the spine, so the spine goes to the margin
+   and the time becomes the first line of the row. */
+@media (max-width: 40rem) {
+  .dayLabel {
+    padding-inline-start: var(--space-5);
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+    row-gap: 2px;
+    padding-inline-start: var(--space-5);
+  }
+
+  .row::before {
+    inset-inline-start: 3px;
+  }
+
+  .row::after {
+    inset-inline-start: 0;
+  }
+
+  .time {
+    text-align: start;
+  }
 }

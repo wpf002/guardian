@@ -4,6 +4,14 @@ import styles from "./QueueHeader.module.css";
 
 export interface QueueHeaderProps {
   summary: QueueSummary;
+  /**
+   * How many accounts in a younger band somebody older is talking to.
+   *
+   * The header counted conversations, which is Guardian's unit rather than a
+   * person's: three accounts working on one child counted as three, and the
+   * number a moderator opening this page needs is one.
+   */
+  targetedCount: number;
   /** A short statement about the last action, when there is one. */
   notice?: string | null;
 }
@@ -19,7 +27,7 @@ export interface QueueHeaderProps {
  * rather than from the spec, which became the largest element on a page whose
  * job is to show cases.
  */
-export function QueueHeader({ summary, notice }: QueueHeaderProps) {
+export function QueueHeader({ summary, targetedCount, notice }: QueueHeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.main}>
@@ -35,8 +43,10 @@ export function QueueHeader({ summary, notice }: QueueHeaderProps) {
         <p className={`${styles.counts} tabular`} role="status">
           <span>{summary.partitionName}</span>
           <span>
-            <strong>{summary.total}</strong>{" "}
-            {summary.total === 1 ? "conversation to read" : "conversations to read"}
+            <strong>{targetedCount}</strong>{" "}
+            {targetedCount === 1
+              ? "Account Somebody Older Is Talking To"
+              : "Accounts Somebody Older Is Talking To"}
           </span>
         </p>
         {notice ? (

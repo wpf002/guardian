@@ -5,7 +5,7 @@ import { listGuildConfigs } from "@/lib/data/guilds";
 import styles from "@/components/guilds/Guilds.module.css";
 
 export const metadata = {
-  title: "Connected Servers",
+  title: "Servers",
 };
 
 const DATE = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
@@ -20,8 +20,10 @@ export default async function GuildsPage() {
 
   const rows: GuildRow[] = guilds.map((guild) => ({
     guildId: guild.guildId,
+    guildName: guild.guildName,
     scoring: isGuildReady({ enabled: guild.enabled, modChannelId: guild.modChannelId }),
     modChannelId: guild.modChannelId,
+    modChannelName: guild.modChannelName,
     rolesMapped: Object.keys(guild.roleBands).length,
     updatedAt: DATE.format(guild.updatedAt),
   }));
@@ -30,9 +32,8 @@ export default async function GuildsPage() {
     <div className={`container ${styles.page}`}>
       <PageHeader
         title={guildCopy.PAGE.listTitle}
-        meta={`${rows.length} ${rows.length === 1 ? "server" : "servers"}`}
+        meta={`${rows.length} ${rows.length === 1 ? "Server" : "Servers"}`}
         about={<p>{guildCopy.PAGE.listIntro}</p>}
-        aboutLabel="How a Server Starts Scoring"
       />
 
       {/*

@@ -1,0 +1,72 @@
+/*
+ * The three readings, and the switch between them.
+ *
+ * A tab strip rather than three rail entries: these are one set of
+ * conversations read from three sides, and a reader moving between them is
+ * comparing rather than navigating somewhere else.
+ */
+
+.views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-block-end: var(--space-5);
+  border-block-end: 1px solid var(--divider);
+}
+
+.view {
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-block-end: 2px solid transparent;
+  margin-block-end: -1px;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.view:hover {
+  color: var(--text);
+}
+
+.view[data-active="true"] {
+  color: var(--text);
+  font-weight: var(--weight-medium);
+  border-block-end-color: var(--accent);
+}
+
+.view:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+/* Conversations no grouping claims. Below the grouped ones and quieter, but
+   on the page: the bridged game chat where both sides read unknown lands here,
+   and it is the case Guardian most needs somebody to read. */
+.unmatched {
+  margin-block-start: var(--space-7);
+  padding-block-start: var(--space-5);
+  border-block-start: 1px solid var(--divider);
+}
+
+.unmatchedTitle {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.unmatchedNote {
+  margin-block: var(--space-1) var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}

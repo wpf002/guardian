@@ -25,6 +25,8 @@ function toView(row: {
   excludedChannelIds: string[];
   enabled: boolean;
   updatedAt: Date;
+  guildName?: string | null;
+  modChannelName?: string | null;
 }): GuildConfigView {
   const roleBands: Record<string, AgeBand> = {};
   if (typeof row.roleBands === "object" && row.roleBands !== null) {
@@ -35,7 +37,9 @@ function toView(row: {
   return {
     guildId: row.guildId,
     customerId: row.customerId,
+    guildName: row.guildName ?? null,
     modChannelId: row.modChannelId,
+    modChannelName: row.modChannelName ?? null,
     roleBands,
     trustedRoleIds: row.trustedRoleIds,
     defaultBand: row.defaultBand as AgeBand,

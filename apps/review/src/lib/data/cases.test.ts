@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockSession } from "../auth";
-import { getMockData, resetMockData } from "../mock/fixtures";
+import { resetMockData } from "../mock/fixtures";
 import { getAuditEntry, hasReadEvidence, listAuditEntries, verifyAuditChain } from "./audit";
 import { getCase, getTimeline, listQueue, markExcerptsViewed } from "./cases";
-import { getDashboardSummary } from "./dashboard";
 import { getGuildConfig, listGuildConfigs, updateGuildConfig } from "./guilds";
 import { getCustomerSettings, updateLexiconExtension } from "./settings";
 
@@ -154,69 +153,13 @@ describe("the viewedByHuman write", () => {
   });
 });
 
-describe("the aggregate surface", () => {
-  it("counts pairs and never people, and withholds a rate below the sample size", async () => {
-    const summary = await getDashboardSummary(session);
-    expect(summary.pairsByTier.T2).toBeGreaterThan(0);
-    expect(summary.t2PositivePredictiveValue).toBeNull();
-    expect(Object.keys(summary)).not.toContain("reviewerPace");
-  });
+/*
+ * The aggregate surface went with the Reporting page. getDashboardSummary
+ * computed flag rates, predictive value and reviewer minutes per thousand
+ * members, and nothing reads it any more: every number it produced measured
+ * Guardian rather than describing a child.
+ */
 
-  /**
-   * DESIGN.md 10 sets the pass mark at two reviewer minutes per 1,000 users per
-   * day. The minutes are a window total, so the window has to be divided out:
-   * without it the seven day figure was seven times its own label and a
-   * partition inside the target read as a failure.
-   */
-  it("reports reviewer minutes per day, not per window", async () => {
-    const week = await getDashboardSummary(session, { windowDays: 7, activeUsers: 4200 });
-    const fortnight = await getDashboardSummary(session, { windowDays: 14, activeUsers: 4200 });
-
-    // Same decisions, twice the window, so at most half the daily rate. An
-    // undivided total would return the identical number for both.
-    expect(week.reviewerMinutesPer1kUsers).not.toBeNull();
-    expect(fortnight.reviewerMinutesPer1kUsers).not.toBe(week.reviewerMinutesPer1kUsers);
-    expect(fortnight.reviewerMinutesPer1kUsers!).toBeLessThan(week.reviewerMinutesPer1kUsers!);
-
-    const minutes = (await getMockData()).reviews
-      .filter((r) => r.createdAt >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
-      .reduce((sum, r) => sum + (r.minutesSpent ?? 0), 0);
-    expect(week.reviewerMinutesPer1kUsers).toBeCloseTo(
-      Math.round((minutes / 7 / 4200) * 1000 * 10) / 10,
-      5,
-    );
-  });
-
-  /**
-   * "Realized T2 predictive value" is about T2. Dividing by every decision in
-   * the window diluted it with T1 and T3 work, so the number the operator reads
-   * against the 40% target described nothing.
-   */
-  it("counts only decisions on model-T2 pairs toward the T2 predictive value", async () => {
-    const summary = await getDashboardSummary(session, { windowDays: 30 });
-    const reviews = (await getMockData()).reviews.filter(
-      (r) => r.createdAt >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-    );
-    const t2 = reviews.filter((r) => r.modelTier === "T2");
-
-    expect(reviews.length).toBeGreaterThan(t2.length);
-    expect(summary.decisionsSampleSize).toBe(t2.length);
-  });
-
-  /**
-   * The tier bars exist to compare two windows. The mock branch ignored the
-   * window entirely, so seven days and thirty days printed the same rows in
-   * every development and screenshot build.
-   */
-  it("applies the window to the tier counts", async () => {
-    const day = await getDashboardSummary(session, { windowDays: 1 });
-    const year = await getDashboardSummary(session, { windowDays: 365 });
-    const total = (counts: typeof day.pairsByTier) =>
-      Object.values(counts).reduce((a, b) => a + b, 0);
-
-    expect(total(year.pairsByTier)).toBeGreaterThan(total(day.pairsByTier));
-  });
-});
 
 describe("guild configuration", () => {
   it("reads and writes only rows this customer owns", async () => {

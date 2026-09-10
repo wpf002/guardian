@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { RETENTION_MS } from "@guardian/schema";
 import { Card } from "@/components/Card";
 import { ErrorState } from "@/components/ErrorState";
@@ -157,6 +158,26 @@ export default async function SettingsPage() {
             )}
           </Card>
         ) : null}
+
+        {/*
+          The Evidence Log, from Settings.
+          
+          It was the second item in the rail, above the servers and the settings,
+          on a product whose first item is children being contacted. The chain
+          has to exist and a lawyer will ask for it, but it is a record of
+          Guardian's own conduct rather than a safety page, and a moderator
+          opening this console does not need it in front of them.
+        */}
+        <Card title="Evidence Log">
+          <p className={`${styles.rowNote} ${styles.introNote}`}>
+            Every score Guardian gave, every decision a reviewer made and every download, each
+            locked to the record before it. Change one and the rest stop matching, which is what
+            makes it hold up when somebody asks whether the evidence was tampered with.
+          </p>
+          <Link className={styles.settingsLink} href="/audit">
+            Open the Evidence Log
+          </Link>
+        </Card>
 
         <Card title="How Long Data Is Kept">
           <p className={`${styles.rowNote} ${styles.introNote}`}>

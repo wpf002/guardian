@@ -222,6 +222,8 @@ function toQueueCase(
   return {
     pairId: row.id,
     shortId: row.id.slice(-4),
+    actorUid: row.actorUid,
+    targetUid: row.targetUid,
     customerId: row.customerId,
     customerName,
     channel: null,

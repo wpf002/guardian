@@ -254,3 +254,17 @@
 .shortcutsSummary:hover {
   color: var(--text);
 }
+
+/* A way out of Settings into a page that is not a setting. */
+.settingsLink {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.settingsLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

@@ -15,9 +15,15 @@ import styles from "./ChainTools.module.css";
  */
 
 export interface ChainToolsProps {
-  /** Null when the chain head could not be read. Both controls then say why. */
+  /**
+   * Null when the chain head could not be read. Both controls then say why.
+   *
+   * headHash went with the card's corner. It printed the first twelve
+   * characters of a 64-character hash beside the title, which is what the
+   * check compares rather than anything a person compares by eye. The entry
+   * page carries it in full.
+   */
   headSeq: number | null;
-  headHash: string | null;
   headUnavailableReason?: string;
   defaultFrom: number;
   defaultTo: number;
@@ -51,7 +57,6 @@ function download(outcome: ExportOutcome): void {
 
 export function ChainTools({
   headSeq,
-  headHash,
   headUnavailableReason,
   defaultFrom,
   defaultTo,
@@ -139,42 +144,45 @@ export function ChainTools({
   }
 
   return (
-    <Card
-      title="Check the Record"
-      aside={
-        chainReadable && headHash ? `head ${headSeq} · ${headHash.slice(0, 12)}...` : undefined
-      }
-      density="padded"
-    >
+    <Card title="Check the Record" density="padded">
       <p className={styles.lede}>
-        Checking re-reads each record and confirms nobody altered it after it was written. Do this
-        before you hand anything to police, a lawyer or NCMEC, and download the result so they can
-        confirm it themselves without your help.
+        This re-reads every record on this page and confirms nobody changed it after it was
+        written. Do it before you hand anything to police, a lawyer or NCMEC, and download the
+        result so they can confirm it themselves without your help.
       </p>
 
-      <div className={styles.range}>
-        <Field
-          id="audit-from"
-          label="Start At Record"
-          type="number"
-          inputMode="numeric"
-          min={1}
-          value={from}
-          onChange={(event) => setFrom(event.target.value)}
-          help="Leave these alone to check everything on this page."
-          error={rangeError ?? undefined}
-        />
-        <Field
-          id="audit-to"
-          label="End At Record"
-          type="number"
-          inputMode="numeric"
-          min={1}
-          value={to}
-          onChange={(event) => setTo(event.target.value)}
-          help={`Up to ${MAX_RANGE} records at a time.`}
-        />
-      </div>
+      {/*
+        Two number boxes headed "Start At Record" and "End At Record" were the
+        first thing under the explanation, pre-filled with 16 and 40. Nobody
+        reading this page knows what record 16 is, and nobody needs to: the
+        ordinary run is everything on the page, which is what the buttons do
+        now. The boxes are still here for the rare narrowed run, folded away.
+      */}
+      <details className={styles.narrow}>
+        <summary className={styles.narrowSummary}>Check a smaller range</summary>
+        <div className={styles.range}>
+          <Field
+            id="audit-from"
+            label="First record"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={from}
+            onChange={(event) => setFrom(event.target.value)}
+            error={rangeError ?? undefined}
+          />
+          <Field
+            id="audit-to"
+            label="Last record"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={to}
+            onChange={(event) => setTo(event.target.value)}
+            help={`Up to ${MAX_RANGE} at a time.`}
+          />
+        </div>
+      </details>
 
       <div className={styles.actions}>
         <Button
@@ -189,7 +197,7 @@ export function ChainTools({
           }
           onClick={() => void runVerify()}
         >
-          Check These Records
+          Check This Page
         </Button>
         <Button
           variant="secondary"
@@ -215,9 +223,7 @@ export function ChainTools({
           </p>
         ) : null}
         {!failure && !verdict ? (
-          <p className={styles.idle}>
-            Not checked yet.
-          </p>
+          <p className={styles.idle}>Not checked yet.</p>
         ) : null}
       </div>
 

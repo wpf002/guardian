@@ -684,7 +684,15 @@ model CustomerViolation {
 model GuildConfig {
   guildId    String
   customerId String
+  /// What the operator calls this server, as Discord reports it. The console
+  /// listed an 18-digit snowflake before this existed, which is not something
+  /// somebody recognises their own server by. Nullable: a row written before
+  /// the bot saw a message has no name yet, and a bot removed from a guild
+  /// keeps the last name it saw rather than blanking the row.
+  guildName  String?
   modChannelId String?
+  /// The mod channel's name, for the same reason.
+  modChannelName String?
   roleBands  Json     @default("{}")
   trustedRoleIds String[] @default([])
   defaultBand AgeBand @default(A13_15)
