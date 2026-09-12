@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState } from "react";
-import { EmptyState } from "@/components/EmptyState";
 import { Select } from "@/components/Select";
 import { Textarea } from "@/components/Textarea";
 import { SubmitButton } from "./SubmitButton";
@@ -38,20 +37,22 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
   return (
     <div className={styles.form}>
       {/*
-        One row. There were two, each with a paragraph explaining versioning to
-        somebody who came here to add a phrase their server uses.
-      */}
-      <div className={styles.rows}>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>Version in use</span>
-          <span className={`${styles.rowValue} ${styles.version}`}>{view.mergedVersion}</span>
-          <p className={styles.rowNote}>
-            Every score records this, so an old one can always be explained.
-          </p>
-        </div>
-      </div>
+        The state, then the editor behind a disclosure.
 
-      <form action={addFormAction} className={styles.form}>
+        The form was 621px of a settings page: a list picker, a five-row
+        textarea, a law-enforcement attestation and a button, open by default.
+        Adding platform slang to the lexicon is something a server does once
+        and then not again for months, and until somebody does it the only
+        thing worth saying is which version is scoring and whether anything has
+        been added to it.
+      */}
+      <p className={styles.blockNote}>
+        {`Scoring on ${view.mergedVersion}. Every score records the version, so an old one can always be explained.`}
+      </p>
+
+      <details className={styles.shortcuts}>
+        <summary className={styles.shortcutsSummary}>Add Phrases</summary>
+        <form action={addFormAction} className={styles.form}>
         <Select
           id="field"
           name="field"
@@ -96,10 +97,9 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
 
         <div className={styles.actions}>
           <SubmitButton variant="primary">Add phrases</SubmitButton>
-        </div>
-      </form>
-
-      <h3 className={styles.subheading}>Phrases this customer added</h3>
+          </div>
+        </form>
+      </details>
 
       {removeState.error ? (
         <p className={`${styles.banner} ${styles.bannerBad}`} role="alert">
@@ -112,12 +112,19 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
         </p>
       ) : null}
 
+      {/*
+        Nothing added yet is one sentence, not a bordered panel with a title, a
+        detail line and a meta line. An EmptyState earns its box when it is the
+        whole page; here it sat under a form as a third of the card.
+      */}
+      {withPhrases.length > 0 ? (
+        <h3 className={styles.subheading}>Phrases this customer added</h3>
+      ) : null}
+
       {withPhrases.length === 0 ? (
-        <EmptyState
-          title="No phrases added yet"
-          detail={`Scoring is running on the base lexicon, ${view.baseVersion}, on every field.`}
-          meta="Add platform slang above. Base entries are always in force and cannot be removed here."
-        />
+        <p className={styles.blockNote}>
+          {`Nothing added. Scoring is running on the base lexicon, ${view.baseVersion}, on every field.`}
+        </p>
       ) : (
         <div className={styles.phraseGroups}>
           {withPhrases.map((field) => (

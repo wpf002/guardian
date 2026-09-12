@@ -57,9 +57,15 @@ ol {
   margin: 0;
 }
 
-p {
-  max-width: var(--measure);
-}
+/*
+ * No cap here.
+ *
+ * Every paragraph in the console stopped at 68ch, whatever it was inside, so a
+ * card 1300px wide held text that ended a third of the way across it and read
+ * as a rendering fault. The measure belongs to whatever sets the column: a page
+ * container, a card, a narrow aside. A blanket rule on the element cannot know
+ * which one it is in. --measure is still the token for the places that do.
+ */
 
 a {
   color: var(--accent);

@@ -61,30 +61,50 @@ export function WebhookPanel({ view, saveAction, testAction }: WebhookPanelProps
         </div>
       </form>
 
-      <div className={styles.rows}>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>Signing</span>
-          <span className={styles.rowValue}>
-            {view.secretConfigured
-              ? "A shared secret is set for this customer."
-              : "No shared secret is set, so nothing can be signed."}
-          </span>
-          <p className={styles.rowNote}>
-            Every request carries x-guardian-timestamp and x-guardian-signature, an HMAC-SHA256 over
-            the timestamp and the body. The secret never leaves the server and is never shown here.
-          </p>
+      {/*
+        How a request is signed and what is in it.
+        
+        Two rows, each with a paragraph, sitting open between the endpoint field
+        and the test button. Both are reference: somebody implementing the
+        receiving end reads them once and never again, and everybody else
+        scrolled past four lines of HMAC to reach a button. The one fact worth
+        keeping in the open is whether a secret is set at all, because that is a
+        state of this deployment rather than documentation.
+      */}
+      <p className={styles.blockNote}>
+        {view.secretConfigured
+          ? "Requests are signed. No message text or media is ever sent."
+          : "No shared secret is set, so nothing can be signed. No message text or media is ever sent."}
+      </p>
+
+      <details className={styles.shortcuts}>
+        <summary className={styles.shortcutsSummary}>What a Request Looks Like</summary>
+        <div className={styles.rows}>
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>Signing</span>
+            <span className={styles.rowValue}>
+              {view.secretConfigured
+                ? "A shared secret is set for this customer."
+                : "No shared secret is set, so nothing can be signed."}
+            </span>
+            <p className={styles.rowNote}>
+              Every request carries x-guardian-timestamp and x-guardian-signature, an HMAC-SHA256
+              over the timestamp and the body. The secret never leaves the server and is never shown
+              here.
+            </p>
+          </div>
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>What is sent</span>
+            <span className={styles.rowValue}>
+              A tier, the pair identifiers, the rationale lines and the three versions.
+            </span>
+            <p className={styles.rowNote}>
+              No message text, no media, and no key that makes a claim about a person. T3 never
+              arrives this way, because only a reviewer produces T3.
+            </p>
+          </div>
         </div>
-        <div className={styles.row}>
-          <span className={styles.rowLabel}>What is sent</span>
-          <span className={styles.rowValue}>
-            A tier, the pair identifiers, the rationale lines and the three versions.
-          </span>
-          <p className={styles.rowNote}>
-            No message text, no media, and no key that makes a claim about a person. T3 never
-            arrives this way, because only a reviewer produces T3.
-          </p>
-        </div>
-      </div>
+      </details>
 
       <form action={testFormAction} className={styles.form}>
         <div className={styles.actions}>

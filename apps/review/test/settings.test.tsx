@@ -49,12 +49,17 @@ describe("the settings page", () => {
     expect(screen.getByText("A. Rivera")).toBeDefined();
     expect(screen.getByText("Owner")).toBeDefined();
 
-    // Every section an owner sees.
+    // Three groups, and every card an owner sees inside them. The page was one
+    // flat column of seven cards covering four unrelated subjects.
+    for (const group of ["You", "What Guardian Reads", "Records"]) {
+      expect(screen.getByRole("region", { name: group })).toBeDefined();
+    }
     for (const title of [
       "Your Account",
       "How You Work",
       "Custom Phrases",
-      "Webhook",
+      "Send Alerts to Your Own System",
+      "Evidence Log",
       "How Long Data Is Kept",
       "Wording Guard",
     ]) {
@@ -126,7 +131,10 @@ describe("the lexicon editor", () => {
     await waitFor(() => expect(screen.getByText("Added 2 phrases.")).toBeDefined());
   });
 
-  it("shows the empty state when this customer has added nothing", () => {
+  // One sentence, not a bordered panel with a title, a detail and a meta line.
+  // An EmptyState earns its box when it is the whole page; under a form it was
+  // a third of the card saying nothing had happened.
+  it("says so in one line when this customer has added nothing", () => {
     render(
       <LexiconEditor
         view={{ ...view, fields: [view.fields[0]!] }}
@@ -134,7 +142,8 @@ describe("the lexicon editor", () => {
         removeAction={async () => EMPTY}
       />,
     );
-    expect(screen.getByText("No phrases added yet")).toBeDefined();
+    expect(screen.getByText(/Nothing added\. Scoring is running on the base lexicon/)).toBeDefined();
+    expect(screen.queryByRole("heading", { name: "Phrases this customer added" })).toBeNull();
   });
 });
 

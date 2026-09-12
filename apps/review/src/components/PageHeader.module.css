@@ -43,7 +43,6 @@
 
 /* Open on the page, not behind a summary. */
 .aboutBody {
-  max-inline-size: var(--measure);
   margin-block-start: var(--space-2);
   color: var(--text-muted);
   font-size: var(--text-sm);

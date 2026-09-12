@@ -3,12 +3,20 @@
  * rather than shadows, and no motion beyond opacity on a state change.
  */
 
+/*
+ * The page stacks a header, a card and a table as plain siblings with nothing
+ * between them, so the card's bottom edge sat flush against the table's top
+ * edge and the two read as one block. A grid with a gap spaces every child,
+ * including anything added later.
+ */
 .page {
+  display: grid;
+  align-content: start;
+  gap: var(--space-5);
   padding-block: var(--space-6) var(--space-8);
 }
 
 .pageHead {
-  max-width: var(--measure);
   margin-block-end: var(--space-6);
 }
 
@@ -398,7 +406,6 @@
 .seesCannot {
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
-  max-inline-size: var(--measure);
 }
 
 .seesCan {

@@ -18,7 +18,6 @@
 }
 
 .detail {
-  max-width: var(--measure);
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
