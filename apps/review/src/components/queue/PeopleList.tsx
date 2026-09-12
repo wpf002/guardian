@@ -43,10 +43,19 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 }
 
+/*
+ * Two words each, and no two start the same way.
+ *
+ * These read "Who Is Being Contacted", "Who Is Doing the Contacting" and
+ * "Every Conversation": eleven words of tab strip describing three readings of
+ * one list. The long labels named what a reader would work out from the first
+ * card in under a second. The accessible name on each list still says it in
+ * full, for somebody who cannot see the cards.
+ */
 const VIEW_WORDS: Record<View, string> = {
-  targeted: "Who Is Being Contacted",
-  contacting: "Who Is Doing the Contacting",
-  conversations: "Every Conversation",
+  targeted: "Being Contacted",
+  contacting: "Contacting",
+  conversations: "Conversations",
 };
 
 export function PeopleList({ targeted, contacting, cases, unmatched, open }: PeopleListProps) {

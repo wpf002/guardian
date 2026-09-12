@@ -61,15 +61,19 @@ export function TargetedCard({
         </div>
 
         {/*
-          The count, as a sentence and not a badge. Two accounts approaching the
-          same child inside one queue is the single strongest thing this product
-          can tell somebody, and it was not on any screen before this card.
+          The count, and only when it is more than one.
+          
+          Two accounts approaching the same child is the strongest thing this
+          product can say, and it was not on any screen before this card. One
+          account is the ordinary case, and "One account has been talking to
+          this account" is a sentence naming what the single row below it
+          already shows, using the word account twice to do it.
         */}
-        <p className={styles.count} data-many={many ? "true" : undefined}>
-          {many
-            ? `${account.contacts.length} accounts have been talking to this account`
-            : "One account has been talking to this account"}
-        </p>
+        {many ? (
+          <p className={styles.count} data-many="true">
+            {`${account.contacts.length} accounts are talking to this one`}
+          </p>
+        ) : null}
 
         {/*
           Names the reviewer and when, rather than saying "waiting". A second
@@ -84,6 +88,9 @@ export function TargetedCard({
               key={contact.pairId}
               contact={contact}
               pending={pendingPairId === contact.pairId}
+              /* Only worth marking when there is more than one row to tell apart.
+                 On a single row the clause above already names it. */
+              markWaiting={many}
               onOpen={onOpen}
             />
           ))}
@@ -96,10 +103,12 @@ export function TargetedCard({
 function ContactRow({
   contact,
   pending,
+  markWaiting,
   onOpen,
 }: {
   contact: Contact;
   pending: boolean;
+  markWaiting: boolean;
   onOpen: (pairId: string, mode: "claim" | "read_only") => void;
 }) {
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -150,7 +159,7 @@ function ContactRow({
               : "One step, and it went no further."}
         </span>
 
-        {contact.proposal ? (
+        {markWaiting && contact.proposal ? (
           <span className={styles.contactWaiting}>Waiting on a second person</span>
         ) : null}
       </button>

@@ -42,11 +42,13 @@ export function QueueHeader({ summary, targetedCount, notice }: QueueHeaderProps
         */}
         <p className={`${styles.counts} tabular`} role="status">
           <span>{summary.partitionName}</span>
+          {/*
+            Two words after the number. It read "3 Accounts Somebody Older Is
+            Talking To", which is a sentence explaining the grouping printed
+            above a tab that already says it, every time the page loads.
+          */}
           <span>
-            <strong>{targetedCount}</strong>{" "}
-            {targetedCount === 1
-              ? "Account Somebody Older Is Talking To"
-              : "Accounts Somebody Older Is Talking To"}
+            <strong>{targetedCount}</strong> Being Contacted
           </span>
         </p>
         {notice ? (

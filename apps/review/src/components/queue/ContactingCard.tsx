@@ -52,11 +52,12 @@ export function ContactingCard({
           <span className={styles.band}>{bandWord(account.band.band)}</span>
         </div>
 
-        <p className={styles.count} data-many={many ? "true" : undefined}>
-          {many
-            ? `Talking to ${account.minorCount} accounts in a younger band`
-            : "Talking to one account in a younger band"}
-        </p>
+        {/* Only when it is more than one. One is what the single row shows. */}
+        {many ? (
+          <p className={styles.count} data-many="true">
+            {`Talking to ${account.minorCount} accounts in a younger band`}
+          </p>
+        ) : null}
 
         <ul className={styles.contacts}>
           {account.contacts.map((contact) => (

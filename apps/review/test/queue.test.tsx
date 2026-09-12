@@ -39,7 +39,7 @@ describe("/queue in mock mode", () => {
     // The header counts accounts being contacted, not conversations. Three
     // accounts working on one child is one child, and the number a moderator
     // opening this page needs is that one.
-    expect(container.textContent).toMatch(/\d+ Accounts? Somebody Older Is Talking To/);
+    expect(container.textContent).toMatch(/\d+ Being Contacted/);
 
     // Nothing sits between the count and the first case: no paragraph arguing
     // for the sort order, no filter chips, no session budget. And nothing on a
