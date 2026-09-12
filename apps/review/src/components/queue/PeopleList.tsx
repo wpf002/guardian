@@ -213,15 +213,15 @@ export function PeopleList({ targeted, contacting, cases, unmatched, open }: Peo
       */}
       {view !== "conversations" && unmatched.length > 0 ? (
         <section className={styles.unmatched} aria-label="Conversations with no age difference recorded">
+          {/*
+            A heading and a paragraph became one line. The heading named the
+            reason, the paragraph restated it and then argued for reading them,
+            which is what putting them on the page already says.
+          */}
           <h2 className={styles.unmatchedTitle}>
-            {unmatched.length === 1
-              ? "One more conversation, where Guardian has no age for either account"
-              : `${unmatched.length} more conversations, where Guardian has no age difference between the two accounts`}
+            {unmatched.length === 1 ? "1 more" : `${unmatched.length} more`}
+            <span className={styles.unmatchedWhy}>No age difference recorded</span>
           </h2>
-          <p className={styles.unmatchedNote}>
-            Guardian will not guess which side is younger, so these are not grouped under anybody.
-            They are still worth reading.
-          </p>
           <ul className={styles.list}>
             {unmatched.map((item) => (
               <CaseCard
