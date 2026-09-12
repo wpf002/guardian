@@ -43,7 +43,7 @@ describe("the case detail at /cases/[id]", () => {
     // a reviewer arriving from the queue needs the sentence, not the key.
     expect(screen.getByRole("heading", {
         level: 1,
-        name: "Asked who supervises the younger account, then asked to move to Snapchat",
+        name: "Asked whether anyone checks these messages, then asked to move to Snapchat",
       })).toBeTruthy();
     expect(screen.getByText(/Pair 4f2a/)).toBeTruthy();
     expect(screen.getAllByText(/asked who supervises the younger account/).length).toBeGreaterThan(0);

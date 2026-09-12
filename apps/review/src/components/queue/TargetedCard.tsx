@@ -151,12 +151,19 @@ function ContactRow({
           critical signal is a rule that fires whatever the score says, so it
           outranks the stage count and is the only thing said when it is there.
         */}
+        {/*
+          One line, and it completes a sentence about the account above it.
+          
+          It read "A threat template match. Serious on its own." Template and
+          match are the kernel's words, and "serious on its own" is a statement
+          about a scoring rule rather than about what happened.
+        */}
         <span className={styles.contactBasis}>
           {critical
-            ? `A ${signalWord(critical)}. Serious on its own.`
+            ? `They ${signalWord(critical)}. That alone is worth reading.`
             : contact.stagesReached > 1
-              ? `Walked ${contact.stagesReached} of the 6 grooming steps.`
-              : "One step, and it went no further."}
+              ? `This has gone through ${contact.stagesReached} of the 6 things grooming usually does.`
+              : "One message stood out. Nothing followed it."}
         </span>
 
         {markWaiting && contact.proposal ? (

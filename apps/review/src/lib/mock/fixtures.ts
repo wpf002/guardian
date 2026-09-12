@@ -292,7 +292,7 @@ function specs(): PairSpec[] {
       id: "pair_4f2a",
       tier: "T2",
       criticalSignals: ["threat_template"],
-      patternClause: "Asked who supervises the younger account, then asked to move to Snapchat",
+      patternClause: "Asked whether anyone checks these messages, then asked to move to Snapchat",
       whySentence:
         "An account in the 16-17 band asked who supervises the younger account's phone, then asked to continue on another app 19 hours later. A threat-template match followed.",
       actorBand: band("A16_17", 0.42, "server_role"),
@@ -347,7 +347,7 @@ function specs(): PairSpec[] {
       id: "pair_91c7",
       tier: "T2",
       criticalSignals: [],
-      patternClause: "Asked the younger account to carry on the conversation somewhere else",
+      patternClause: "Asked to keep talking on Snapchat instead",
       whySentence:
         "An account in the 18-20 band asked to continue the conversation on another app 9 minutes after first contact with an account in the 13-15 band.",
       actorBand: band("A18_20", 0.55, "server_role"),
@@ -391,7 +391,7 @@ function specs(): PairSpec[] {
       id: "pair_0b3e",
       tier: "T2",
       criticalSignals: ["coercion_nonfinancial"],
-      patternClause: "Language demanding self-harm and proof of it, between two accounts in the same age band",
+      patternClause: "Demanded self-harm, and proof of it",
       whySentence:
         "Both accounts sit in the 13-15 band. A directive with a proof demand was recorded, and no payment was asked for.",
       actorBand: band("A13_15", 0.66, "server_role"),
@@ -433,7 +433,7 @@ function specs(): PairSpec[] {
       id: "pair_aa19",
       tier: "T1",
       criticalSignals: [],
-      patternClause: "Offered in-game currency, and nothing else was recorded",
+      patternClause: "Offered free Robux to anyone who adds them",
       whySentence:
         "An account offered in-game currency to accounts that add it. No further stage was reached.",
       actorBand: band("UNKNOWN", null, "unknown"),
@@ -471,7 +471,7 @@ function specs(): PairSpec[] {
       id: "pair_7d40",
       tier: "T1",
       criticalSignals: [],
-      patternClause: "Two accounts in the same age band swapped handles",
+      patternClause: "Swapped Snapchat handles",
       whySentence:
         "Two accounts in the 13-15 band exchanged usernames for another app. Nothing else in the window carried a signal.",
       actorBand: band("A13_15", 0.72, "server_role"),
@@ -506,7 +506,7 @@ function specs(): PairSpec[] {
       id: "pair_3c88",
       tier: "T1",
       criticalSignals: [],
-      patternClause: "Nothing was recorded here; the tier rests on what the older account did elsewhere",
+      patternClause: "Nothing said here stood out. This is on the list because of what the older account did elsewhere",
       whySentence:
         "The per-actor score alone stands behind this tier. Nothing on this pair carried a signal.",
       actorBand: band("A18_20", null, "platform_default"),
@@ -542,7 +542,7 @@ function specs(): PairSpec[] {
       id: "pair_c5e1",
       tier: "T3",
       criticalSignals: ["payment_after_media", "threat_template"],
-      patternClause: "A payment demand four minutes after an image was sent",
+      patternClause: "Demanded money four minutes after an image was sent",
       whySentence:
         "An account in the 21+ band solicited an image from an account in the 13-15 band, then demanded payment 3 minutes after the media event.",
       actorBand: band("A21_PLUS", 0.81, "customer_declared"),

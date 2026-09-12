@@ -116,16 +116,26 @@ function patternClause(pairId: string, signals: unknown, stages: string[]): stri
       .map((hit) => asRecord(hit).kind)
       .filter((kind): kind is string => typeof kind === "string"),
   );
+  /*
+   * What happened, in the words somebody would use saying it out loud.
+   *
+   * These were the scorer's own nouns printed at a moderator: "Payment demand
+   * minutes after a media event", "Coercion language, non-financial",
+   * "Threat-template match in this pair", "Economic bait, single signal",
+   * "Stage probe to migrate". Every one names the feature that fired rather
+   * than the thing that happened, and "signal", "template" and "stage" are
+   * words out of the kernel that nobody in a Discord server has ever used.
+   */
   let clause: string;
-  if (kinds.has("payment_after_media")) clause = "Payment demand minutes after a media event";
-  else if (kinds.has("coercion_nonfinancial")) clause = "Coercion language, non-financial";
-  else if (kinds.has("threat_template")) clause = "Threat-template match in this pair";
+  if (kinds.has("payment_after_media")) clause = "Demanded money minutes after an image was sent";
+  else if (kinds.has("coercion_nonfinancial")) clause = "Threatened them into doing something";
+  else if (kinds.has("threat_template")) clause = "Used a threat that turns up again and again";
   else if (kinds.has("off_platform_migration") && kinds.has("supervision_probe"))
-    clause = "Supervision probe followed by a migration ask";
-  else if (kinds.has("off_platform_migration")) clause = "Migration ask";
-  else if (kinds.has("economic_bait")) clause = "Economic bait, single signal";
-  else if (stages.length >= 2) clause = `Stage ${stages[0]} to ${stages[stages.length - 1]}`;
-  else clause = "No conversational signal on this pair";
+    clause = "Asked who else sees these messages, then asked to move somewhere else";
+  else if (kinds.has("off_platform_migration")) clause = "Asked to keep talking on another app";
+  else if (kinds.has("economic_bait")) clause = "Offered something free, and nothing else yet";
+  else if (stages.length >= 2) clause = `Went from ${stages[0]} to ${stages[stages.length - 1]}`;
+  else clause = "Nothing said here stood out on its own";
   return compose(`cases.patternClause.${pairId}`, clause);
 }
 

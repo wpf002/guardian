@@ -49,15 +49,29 @@ const PROVENANCE_WORDS: Record<BandProvenance, string> = {
 };
 
 /** Signal codes as the scorer writes them, in the words a reviewer reads. */
+/*
+ * What each signal means, written for a parent.
+ *
+ * These were the kernel's own names, printed at whoever opened the page:
+ * "threat template match", "payment demand after a media event", "coercion
+ * language, non-financial", "meetup logistics with an age gap",
+ * "known-hash verdict from the operator", "migration ask", "supervision
+ * probe", "economic bait". Every one names the feature that fired instead of
+ * the thing that happened, and a parent reading "economic bait" about their
+ * own child learns nothing.
+ *
+ * Each is a verb phrase that completes "They ...", so the line above the quote
+ * and the line below it read as one sentence about one conversation.
+ */
 const SIGNAL_WORDS: Record<string, string> = {
-  threat_template: "threat template match",
-  payment_after_media: "payment demand after a media event",
-  coercion_nonfinancial: "coercion language, non-financial",
-  meetup_logistics: "meetup logistics with an age gap",
-  known_csam_hash: "known-hash verdict from the operator",
-  off_platform_migration: "migration ask",
-  supervision_probe: "supervision probe",
-  economic_bait: "economic bait",
+  threat_template: "used a threat that turns up in this again and again",
+  payment_after_media: "asked for money right after an image was sent",
+  coercion_nonfinancial: "threatened them into doing something",
+  meetup_logistics: "talked about meeting up in person",
+  known_csam_hash: "sent an image the platform's own scanner already knows",
+  off_platform_migration: "asked to move to another app",
+  supervision_probe: "asked who else sees these messages",
+  economic_bait: "offered something free",
 };
 
 export function bandWord(band: AgeBand): string {
@@ -135,9 +149,17 @@ export function claimClause(claim: ClaimState): string {
  * second has already read the case wrong, so it goes above the headline and it
  * says the thing.
  */
+/*
+ * Both accounts are young.
+ *
+ * It read "The account this describes is itself in a younger band. Read this
+ * as a welfare case, not an enforcement one." Band, welfare case and
+ * enforcement are three words out of a policy document, on the one card where
+ * getting the response wrong hurts a child who needs help.
+ */
 export const SUPPORT_POSTURE_NOTE =
-  "The account this describes is itself in a younger band. Read this as a welfare case, not an enforcement one.";
-export const SUPPORT_POSTURE_CHIP = "support posture suggested";
+  "Both of these accounts are young. Whoever is behind the older one may need help too, not punishment.";
+export const SUPPORT_POSTURE_CHIP = "both accounts are young";
 
 export function shortTime(at: Date): string {
   return at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -319,9 +341,14 @@ export function proposalClause(proposal: OpenProposal, now = new Date()): string
       : minutes < 24 * 60
         ? `${Math.round(minutes / 60)}h`
         : `${Math.round(minutes / (24 * 60))}d`;
+  /*
+   * "Waiting on you" and "proposed a report" are queue words. What happened is
+   * that a person read this and wants to report it, and one more person has to
+   * agree before it goes anywhere.
+   */
   return proposal.mine
-    ? `Your report proposal has been waiting ${waited} for a second reviewer.`
-    : `Waiting on you. ${proposal.proposerName} proposed a report ${waited} ago, and it needs a second person before it can be filed.`;
+    ? `You asked to report this ${waited} ago. One more person has to agree before it is sent.`
+    : `${proposal.proposerName} read this and wants to report it. It needs you to agree before it is sent.`;
 }
 
 /**
@@ -345,21 +372,21 @@ export function summaryLine(item: {
 }): string {
   if (item.criticalSignals.length > 0) {
     const named = item.criticalSignals.map(signalWord).join(", ");
-    return compose("queue.summary.critical", `A ${named}. Serious on its own.`);
+    return compose("queue.summary.critical", `They ${named}. That alone is worth reading.`);
   }
   const several = /\b([2-9]|\d\d+) conversations\b/.exec(item.actorContext);
   if (several) {
     return compose(
       "queue.summary.fanout",
-      `This account is in ${several[1]} conversations like this one this week.`,
+      `This account is doing the same thing in ${several[1]} other conversations this week.`,
     );
   }
   if (item.stagesReached <= 1) {
-    return compose("queue.summary.single", "One step, and it went no further.");
+    return compose("queue.summary.single", "One message stood out. Nothing followed it.");
   }
   return compose(
     "queue.summary.stages",
-    `It walked ${item.stagesReached} of the ${STAGE_COUNT} grooming steps.`,
+    `This has gone through ${item.stagesReached} of the ${STAGE_COUNT} things grooming usually does.`,
   );
 }
 

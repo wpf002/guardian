@@ -54,7 +54,7 @@ describe("/queue in mock mode", () => {
     expect(cards.length).toBeGreaterThan(1);
 
     // The card names the critical signal in words, never a person.
-    expect(container.textContent).toContain("threat template match");
+    expect(container.textContent).toContain("used a threat that turns up in this again and again");
     // And it does not print a pair id. A reviewer choosing what to open is not
     // looking a case up by id; the case page carries it under a label.
     expect(container.textContent).not.toContain("4f2a");
@@ -67,9 +67,9 @@ describe("/queue in mock mode", () => {
     // The headline is the pattern, and under it one line saying why this is
     // worth opening. The ages, their provenance, the stage count and the span
     // moved to the case, where somebody is actually deciding.
-    expect(container.textContent).toContain("Asked who supervises the younger account");
+    expect(container.textContent).toContain("Asked whether anyone checks these messages");
     expect(container.textContent).not.toContain("Ages 16-17 and 9-12");
-    expect(container.textContent).toContain("Serious on its own");
+    expect(container.textContent).toContain("That alone is worth reading");
     expect(container.textContent).not.toContain("unclaimed");
     expect(container.textContent).not.toMatch(/Due by/);
     expect(container.textContent).not.toContain("claimed by");
@@ -86,12 +86,11 @@ describe("/queue in mock mode", () => {
   it("puts the waiting proposal first, then ranks T2 above T1", async () => {
     await renderQueue();
     const rows = screen.getAllByRole("listitem").map((row) => row.textContent ?? "");
-    expect(rows[0]).toContain("Waiting on you");
-    expect(rows[0]).toContain("Asked the younger account to carry on the conversation somewhere else");
+    expect(rows[0]).toContain("Asked to keep talking on Snapchat instead");
     // A critical signal is somewhere on the page, on whichever account it
     // belongs to. Which row it lands on is a property of the grouping now, not
     // of a flat rank, so this asserts it is readable rather than that it is second.
-    expect(rows.join(" ")).toContain("threat template match");
+    expect(rows.join(" ")).toContain("used a threat that turns up in this again and again");
   });
 
   /*
@@ -118,9 +117,13 @@ describe("/queue in mock mode", () => {
   it("names the reader an open proposal is waiting on", async () => {
     const { container } = await renderQueue();
     const rows = screen.getAllByRole("listitem").map((row) => row.textContent ?? "");
-    expect(rows[0]).toMatch(/Waiting on you\. M\. Osei proposed a report \d+ ?(min|h|d) ago/);
+    // Names the person and says what agreeing does, in the words somebody
+    // would say out loud. "Waiting on you" and "proposed a report" are queue
+    // words on a page a parent may be reading.
+    expect(rows[0]).toContain("M. Osei read this and wants to report it");
+    expect(rows[0]).toContain("It needs you to agree before it is sent");
     // Still the pattern and a line of the conversation, not just a status.
-    expect(rows[0]).toContain("Asked the younger account to carry on the conversation somewhere else");
+    expect(rows[0]).toContain("Asked to keep talking on Snapchat instead");
     expect(isAccusatory(container.textContent ?? "")).toBe(false);
   });
 
@@ -130,7 +133,7 @@ describe("/queue in mock mode", () => {
     const { container } = await renderQueue({ chip: "needs_second", tier: "T1" });
     const rows = screen.getAllByRole("listitem");
     expect(rows.length).toBeGreaterThan(1);
-    expect(container.textContent).toContain("threat template match");
+    expect(container.textContent).toContain("used a threat that turns up in this again and again");
   });
 
   it("writes nothing about a person anywhere on the page", async () => {
