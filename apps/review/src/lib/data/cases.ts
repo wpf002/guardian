@@ -9,7 +9,7 @@
 
 import { getPrisma, isMockMode } from "../db";
 import { appendAudit, appendAuditInTransaction } from "./audit";
-import { getMockData, bandWord } from "../mock/fixtures";
+import { getMockData } from "../mock/fixtures";
 import { compose } from "../compose";
 import { reasonLabel } from "../reasons";
 import type { Session } from "../session";
@@ -110,6 +110,28 @@ function bandOf(actor: ActorRow | undefined): BandReading {
  * A noun phrase naming the pattern, built from the signals on the row. Never a
  * person, never a score. Guarded at this boundary because it is built from data.
  */
+/** The six steps, as somebody would describe them out loud (DESIGN.md 1). */
+const STEP_WORDS: Record<string, string> = {
+  contact: "starting to talk",
+  trust: "building trust",
+  probe: "asking whether anyone is watching",
+  migrate: "asking to move to another app",
+  sexualize: "making it sexual",
+  coerce: "pressure and threats",
+};
+
+function ageWords(band: string): string {
+  const words: Record<string, string> = {
+    UNDER_9: "under 9",
+    A9_12: "9 to 12",
+    A13_15: "13 to 15",
+    A16_17: "16 to 17",
+    A18_20: "18 to 20",
+    A21_PLUS: "21 or over",
+  };
+  return words[band] ?? "an unknown age";
+}
+
 function patternClause(pairId: string, signals: unknown, stages: string[]): string {
   const kinds = new Set(
     asArray(signals)
@@ -446,11 +468,20 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
       critical: row.criticalSignals.includes(String(hit.kind)),
     }));
 
+  /*
+   * What happened, in words a parent would use.
+   *
+   * It read "Signals consistent with stage probe and stage migrate were
+   * recorded in this pair, between an account in the 18-20 band and an account
+   * in the 13-15 band." Signal, stage, pair and band are all the scorer's
+   * words, and a sentence built entirely out of them told nobody anything.
+   */
+  const ages = `The older account is ${ageWords(queue.actorBand.band)} and the younger is ${ageWords(queue.targetBand.band)}.`;
   const whySentence = compose(
     `cases.whySentence.${row.id}`,
     stages.length >= 2
-      ? `Signals consistent with stage ${stages[0]!.stage} and stage ${stages[stages.length - 1]!.stage} were recorded in this pair, between an account in the ${bandWord(queue.actorBand.band)} band and an account in the ${bandWord(queue.targetBand.band)} band.`
-      : `One signal was recorded in this pair, between an account in the ${bandWord(queue.actorBand.band)} band and an account in the ${bandWord(queue.targetBand.band)} band.`,
+      ? `This went from ${STEP_WORDS[stages[0]!.stage] ?? "one step"} to ${STEP_WORDS[stages[stages.length - 1]!.stage] ?? "another"}. ${ages}`
+      : `One message stood out. ${ages}`,
   );
 
   return {

@@ -114,8 +114,8 @@ export function ReasonList({
         autoComplete="off"
         className={styles.filter}
         value={filter}
-        placeholder="Filter reasons"
-        aria-label="Filter reasons"
+        placeholder="Search"
+        aria-label="Search the reasons"
         aria-controls={listId}
         aria-activedescendant={active ? `${listId}-${active.code}` : undefined}
         onChange={(event) => {
@@ -155,7 +155,7 @@ export function ReasonList({
           variant="primary"
           loading={busy}
           disabled={!active}
-          disabledReason={active ? undefined : "Pick a reason first. Every decision carries one."}
+          disabledReason={active ? undefined : "Pick a reason first."}
           onClick={() => {
             if (active) onCommit(active);
           }}

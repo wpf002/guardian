@@ -46,7 +46,7 @@ export function WebhookPanel({ view, saveAction, testAction }: WebhookPanelProps
           type="url"
           label="Webhook endpoint"
           defaultValue={view.url ?? ""}
-          placeholder="https://example.com/guardian/tiers"
+          placeholder="https://example.com/guardian-alerts"
           optional
           help="https only, and no query string. Leave it empty to stop delivery."
           error={urlState.error ?? undefined}
@@ -73,34 +73,29 @@ export function WebhookPanel({ view, saveAction, testAction }: WebhookPanelProps
       */}
       <p className={styles.blockNote}>
         {view.secretConfigured
-          ? "Requests are signed. No message text or media is ever sent."
-          : "No shared secret is set, so nothing can be signed. No message text or media is ever sent."}
+          ? "Requests are signed. Messages and images are never sent."
+          : "There's no shared secret yet, so requests can't be signed. Messages and images are never sent."}
       </p>
 
       <details className={styles.shortcuts}>
-        <summary className={styles.shortcutsSummary}>What a Request Looks Like</summary>
+        <summary className={styles.shortcutsSummary}>For Your Developer</summary>
         <div className={styles.rows}>
           <div className={styles.row}>
-            <span className={styles.rowLabel}>Signing</span>
+            <span className={styles.rowLabel}>Checking a request</span>
             <span className={styles.rowValue}>
-              {view.secretConfigured
-                ? "A shared secret is set for this customer."
-                : "No shared secret is set, so nothing can be signed."}
+              Each request has x-guardian-timestamp and x-guardian-signature headers.
             </span>
             <p className={styles.rowNote}>
-              Every request carries x-guardian-timestamp and x-guardian-signature, an HMAC-SHA256
-              over the timestamp and the body. The secret never leaves the server and is never shown
-              here.
+              verifySignature in @guardian/sdk-ts checks them against your shared secret. The secret
+              is never shown here.
             </p>
           </div>
           <div className={styles.row}>
             <span className={styles.rowLabel}>What is sent</span>
-            <span className={styles.rowValue}>
-              A tier, the pair identifiers, the rationale lines and the three versions.
-            </span>
+            <span className={styles.rowValue}>Which conversation, how serious it is, and why.</span>
             <p className={styles.rowNote}>
-              No message text, no media, and no key that makes a claim about a person. T3 never
-              arrives this way, because only a reviewer produces T3.
+              Never the messages, never an image, and never a report. Reports only go out after two
+              people on your team agree.
             </p>
           </div>
         </div>

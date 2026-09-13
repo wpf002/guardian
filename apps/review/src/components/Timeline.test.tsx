@@ -77,15 +77,26 @@ const ready: TimelineState = {
 };
 
 describe("Timeline", () => {
-  it("marks up the thread as a list and shows the normalized token", () => {
+  it("marks up the thread as a list and says what a rewritten word meant", () => {
     render(<Timeline timeline={ready} />);
     expect(screen.getByRole("list")).toBeTruthy();
-    expect(screen.getByText(/normalized from ghost emoji/)).toBeTruthy();
+    expect(screen.getByText('"ghost emoji" means "snapchat"')).toBeTruthy();
   });
 
-  it("shows a protected span as its class and word count, never its content", () => {
+  /*
+   * The rows were labelled with the ML service's speaker tags, so a message
+   * read "t: add me on snapchat", and each carried "stage migrate · 0.77".
+   */
+  it("names each speaker and says the step in words, with no score", () => {
+    const { container } = render(<Timeline timeline={ready} speakerNames={{ t: "jayden_k", s1: "mia_03" }} />);
+    expect(screen.getAllByText("jayden_k").length).toBeGreaterThan(0);
+    expect(screen.getByText("Asked to move to another app")).toBeTruthy();
+    expect(container.textContent).not.toMatch(/0\.77|stage migrate|16-17 band/);
+  });
+
+  it("shows a hidden message as what kind it is, never its content", () => {
     render(<Timeline timeline={ready} />);
-    expect(screen.getByRole("button", { name: /threat language, 22 words/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Hidden: a threat. Show it" })).toBeTruthy();
     expect(screen.queryByText("this is the verbatim excerpt")).toBeNull();
   });
 
@@ -93,8 +104,8 @@ describe("Timeline", () => {
     render(<Timeline timeline={ready} />);
     // It was a <button> with no handler: a control that did nothing when
     // activated, one per normalized token, announced as activatable.
-    expect(screen.queryByRole("button", { name: /normalized from/ })).toBeNull();
-    const token = screen.getByTitle(/Normalized from ghost emoji/);
+    expect(screen.queryByRole("button", { name: /means/ })).toBeNull();
+    const token = screen.getByTitle("Written as ghost emoji");
     expect(token.tagName).toBe("SPAN");
   });
 
@@ -105,45 +116,43 @@ describe("Timeline", () => {
         <Timeline timeline={ready} />
       </>,
     );
-    const reveal = screen.getByRole("button", { name: /threat language, 22 words/ });
+    const reveal = screen.getByRole("button", { name: "Hidden: a threat. Show it" });
     reveal.focus();
     fireEvent.click(reveal);
 
     // The control that was focused has unmounted. Focus must not fall to body.
     expect(document.activeElement).not.toBe(document.body);
     expect(document.activeElement?.textContent).toContain("this is the verbatim excerpt");
-    expect(document.getElementById("guardian-live-region")?.textContent).toMatch(
-      /Revealed threat language, 22 words/,
-    );
+    expect(document.getElementById("guardian-live-region")?.textContent).toMatch(/Showing a threat/);
   });
 
   it("writes the read flag only when a span is revealed", () => {
     const onReveal = vi.fn();
     render(<Timeline timeline={ready} onReveal={onReveal} />);
     expect(onReveal).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /threat language, 22 words/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Hidden: a threat. Show it" }));
     expect(onReveal).toHaveBeenCalledWith("r2");
     expect(screen.getByText("this is the verbatim excerpt")).toBeTruthy();
   });
 
-  it("renders a media event as four lines plus the no-image sentence, and no image", () => {
+  it("describes an image in words, with no hash and no image", () => {
     const { container } = render(<Timeline timeline={ready} />);
-    expect(screen.getByText(/Media event, older band to younger band/)).toBeTruthy();
-    expect(screen.getByText(/Operator verdict: no match/)).toBeTruthy();
-    expect(screen.getByText(/Viewed by a person at the operator: no/)).toBeTruthy();
-    expect(
-      screen.getByText("Guardian holds no image and there is nothing here to open."),
-    ).toBeTruthy();
+    expect(screen.getByText("The older account sent an image.")).toBeTruthy();
+    expect(screen.getByText("Your scanner didn't match it to anything.")).toBeTruthy();
+    // Whether a person on the team looked is kept, because a report has to say so.
+    expect(screen.getByText("Nobody on your team has looked at it yet.")).toBeTruthy();
+    expect(screen.getByText("Guardian never keeps images.")).toBeTruthy();
+    expect(container.textContent).not.toMatch(/sha256|9f3c/);
     expect(container.querySelector("img")).toBeNull();
   });
 
   it("labels a gap in the conversation rather than closing it up", () => {
     render(<Timeline timeline={ready} />);
-    expect(screen.getByText("3 hours, no messages")).toBeTruthy();
+    expect(screen.getByText("3 hours later")).toBeTruthy();
   });
 
   it("treats an expired timeline as a designed outcome, not an error", () => {
     render(<Timeline timeline={{ state: "expired", deletedOn: at }} />);
-    expect(screen.getByText(/deleted under the retention rule/)).toBeTruthy();
+    expect(screen.getByText("These messages were deleted on schedule.")).toBeTruthy();
   });
 });

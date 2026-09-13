@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Dialog, Timeline } from "@/components";
 import { announce } from "@/lib/announce";
-import type { TimelineState } from "@/lib/data/types";
+import type { Speaker, TimelineState } from "@/lib/data/types";
 import styles from "./Case.module.css";
+
+const READ_NOT_SAVED =
+  "Guardian couldn't record that you read these messages. Reload the page before you decide anything.";
 
 /** A row has to be legible for this long before it counts as read. */
 const DWELL_MS = 1000;
@@ -23,6 +26,8 @@ export interface TimelinePanelProps {
   /** Called with the new count after each write, so the decision panel can unblock. */
   onReadCountChange: (count: number) => void;
   readCount: number;
+  /** The accounts' names by speaker tag, so no message is labelled "t" or "s1". */
+  speakerNames?: Partial<Record<Speaker, string>>;
 }
 
 /**
@@ -44,7 +49,8 @@ export function TimelinePanel({
   error,
   onExcerptsViewed,
   onReadCountChange,
-  readCount,
+  readCount: _readCount,
+  speakerNames,
 }: TimelinePanelProps) {
   const [revealAll, setRevealAll] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -93,18 +99,14 @@ export function TimelinePanel({
       try {
         const confirmed = await onExcerptsViewed(pairId, fresh);
         if (confirmed.length === 0) {
-          setWriteError(
-            "The read flags for this case were not saved. The bundle will say those excerpts were read by nobody.",
-          );
+          setWriteError(READ_NOT_SAVED);
           return;
         }
         for (const id of confirmed) written.current.add(id);
         setWriteError(null);
         onReadCountChange(written.current.size);
       } catch {
-        setWriteError(
-          "The read flags for this case were not saved. The bundle will say those excerpts were read by nobody.",
-        );
+        setWriteError(READ_NOT_SAVED);
       } finally {
         for (const id of fresh) inFlight.current.delete(id);
       }
@@ -172,65 +174,58 @@ export function TimelinePanel({
     setRevealAll(true);
     setConfirmOpen(false);
     headingRef.current?.focus();
-    announce(
-      `Revealed ${opened} collapsed span${opened === 1 ? "" : "s"} in this case, and recorded every excerpt as read by you.`,
-    );
+    announce(`Showing ${opened} hidden ${opened === 1 ? "message" : "messages"}.`);
     void record(excerptIds);
   }
 
   return (
     <section id="timeline" ref={containerRef} aria-label="The Conversation">
+      {/*
+        The heading, and nothing else on its line. "0 of 8 excerpts recorded as
+        read by you" sat opposite it, which is a compliance counter shown to the
+        person it counts. Reading is still recorded, and a decision still
+        waits until you have read the messages; the decision panel says so
+        where it matters.
+      */}
       <div className={styles.timelineHead}>
         <h2 className={styles.sectionHeading} ref={headingRef} tabIndex={-1}>
-          Evidence timeline
+          The Conversation
         </h2>
-        <span className={styles.readCount}>
-          {readCount} of {excerptIds.length} excerpts recorded as read by you
-        </span>
-      </div>
-
-      {collapsedCount > 0 && !revealAll ? (
-        <div className={styles.stripActions}>
+        {collapsedCount > 0 && !revealAll ? (
           <Button variant="secondary" onClick={() => setConfirmOpen(true)}>
-            Reveal all in this case
+            Show Hidden Messages
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       {writeError ? <p className={styles.note}>{writeError}</p> : null}
 
       <Timeline
         timeline={shown}
         error={error}
+        speakerNames={speakerNames}
         onReveal={(rowId) => {
           void record([rowId]);
         }}
       />
 
-      <p className={styles.note}>
-        Nothing softened is stored. The bundle, the audit chain and any export carry the text
-        verbatim, and collapsing is a display layer with no write path.
-      </p>
-
       <Dialog
         open={confirmOpen}
-        title="Show Every Hidden Message?"
+        title="Show hidden messages?"
         onClose={() => setConfirmOpen(false)}
         footer={
           <>
             <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
-              Not now
+              Not Now
             </Button>
             <Button variant="primary" onClick={confirmRevealAll}>
-              Reveal {collapsedCount} span{collapsedCount === 1 ? "" : "s"}
+              Show Them
             </Button>
           </>
         }
       >
         <p>
-          This opens {collapsedCount} collapsed span{collapsedCount === 1 ? "" : "s"} and records
-          every excerpt in this case as read by you. That record is a claim about what a person
-          at Guardian saw, and it goes into the bundle.
+          {`${collapsedCount} ${collapsedCount === 1 ? "message was" : "messages were"} hidden because ${collapsedCount === 1 ? "it may be" : "they may be"} upsetting. Showing them also records that you have read this whole conversation, and that goes into any report.`}
         </p>
       </Dialog>
     </section>

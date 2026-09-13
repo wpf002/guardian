@@ -1,30 +1,22 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession, roleAllows } from "@/lib/auth";
 import { getCase, getTimeline } from "@/lib/data/cases";
 import { getReportTrail } from "@/lib/data/reports";
 import { getCustomerSettings, hasSecondSeat } from "@/lib/data/settings";
 import { bandWord } from "@/lib/mock/fixtures";
+import { accountLabel } from "@/components/queue/words";
 import type { CustomerSettings, TimelineState } from "@/lib/data/types";
 import {
-  ActorPanel,
   buildReportDraft,
-  buildSignalList,
+  CaseConsole,
+  CaseSummary,
   derivedIncident,
+  excerptTotal,
   filingReadiness,
+  readExcerptCount,
   ReportTrail,
   type FilingReadiness,
-  CaseConsole,
-  excerptTotal,
-  PolicyPanel,
-  ProvenanceLine,
-  readExcerptCount,
-  SeverityStrip,
-  SignalList,
-  WhyPanel,
 } from "@/components/case";
-import { StagePath } from "@/components";
-import { Card } from "@/components";
 import {
   concurAction,
   markExcerptsViewedAction,
@@ -58,19 +50,14 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<{ title: string }> {
   const { id } = await params;
-  return { title: `Pair ${id.slice(-4)}` };
+  // What happened, rather than "Pair 91c7". A tab has to be told apart from
+  // the next one, and the headline does that in words.
+  const session = await requireSession();
+  const detail = await getCase(session, id);
+  return { title: detail?.queue.patternClause ?? "Conversation" };
 }
 
-const TIMELINE_FAILED =
-  "The evidence timeline could not be loaded. You can defer this case or reload. Do not decide on the strip alone when the timeline is unavailable.";
-
-function slaWords(minutes: number | null): string {
-  if (minutes === null) return "no SLA (watch)";
-  if (minutes <= 0) return "past the queue target";
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return hours > 0 ? `${hours}h ${rest}m left` : `${rest}m left`;
-}
+const TIMELINE_FAILED = "The conversation couldn't be loaded. Reload the page before you decide anything.";
 
 export default async function CasePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -87,7 +74,6 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
     timelineError = TIMELINE_FAILED;
   }
 
-  const signals = buildSignalList(detail, timeline);
   const totalExcerpts = excerptTotal(timeline);
   const initialReadCount = readExcerptCount(timeline);
 
@@ -98,12 +84,10 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
   const missing: string[] = [];
   if (unflaggedMedia > 0) {
     missing.push(
-      `the operator's human-viewed flag on ${unflaggedMedia} media hash${
-        unflaggedMedia === 1 ? "" : "es"
-      }`,
+      `whether anyone on your team has looked at ${unflaggedMedia === 1 ? "an image" : `${unflaggedMedia} images`}`,
     );
   }
-  if (timelineError) missing.push("the excerpts, because the timeline did not load");
+  if (timelineError) missing.push("the messages, because they didn't load");
 
   const isOwner = roleAllows(session.role, "owner");
   /*
@@ -160,63 +144,17 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className={`container ${styles.page}`}>
-      <div className={styles.head}>
-        <Link className={styles.back} href="/queue">
-          Back to the Queue
-        </Link>
-        <span className={styles.sla}>{slaWords(detail.queue.slaRemainingMinutes)}</span>
-      </div>
-
       {/*
-        The heading is what happened, not the row's primary key. A reviewer
-        arrives here from a queue card that said "Stage 3 to 4 in 19h" and the
-        page used to answer with a hex id, so the one useful sentence was
-        demoted to the inside of a card and the identifier was promoted to
-        display size. The id is still here, in the line underneath, where an
-        identifier belongs.
+        One summary in place of seven panels: a severity strip, a fusion-weight
+        chart, the lexicon hits, the stage ladder, account statistics, the
+        written tier policy and a version triple. Every score is still kept in
+        the Evidence Log. None of it helped a person read the conversation.
+        So is the countdown that sat opposite the back link, which was the
+        queue's deadline following a reviewer into the case.
       */}
-      <div className={styles.identity}>
-        <h1 className={styles.headline}>{detail.queue.patternClause}</h1>
-        <p className={styles.where}>
-          <span className={`${styles.pairId} mono`}>Pair {detail.queue.shortId}</span>
-          <span>
-            {detail.queue.customerName}
-            {detail.queue.channel ? ` · ${detail.queue.channel}` : ""}
-          </span>
-        </p>
-      </div>
-
-      <SeverityStrip queue={detail.queue} />
-
-      <WhyPanel sentence={detail.whySentence} features={detail.features} />
-
-      <SignalList signals={signals} lexiconVersion={detail.versions.lexiconVersion} />
-
-      <div className={styles.columns}>
-        <Card title="This Conversation" density="padded">
-          <StagePath
-            path={detail.stagePath}
-            velocityWindow={detail.velocityWindow}
-            soleAutomatedBasis={detail.queue.soleAutomatedBasis}
-          />
-          {detail.velocityWindow === null && !detail.queue.soleAutomatedBasis ? (
-            <p className={styles.note}>
-              No velocity window is recorded on this pair row, so none is named here.
-            </p>
-          ) : null}
-        </Card>
-        <ActorPanel actor={detail.actor} priorCases={detail.priorCases} />
-      </div>
-
-      <PolicyPanel policy={detail.policy} />
+      <CaseSummary detail={detail} />
 
       {trail ? <ReportTrail trail={trail} /> : null}
-
-      <ProvenanceLine
-        versions={detail.versions}
-        scoredAt={detail.scoredAt}
-        auditSeq={detail.auditSeq}
-      />
 
       <CaseConsole
         pairId={detail.queue.pairId}
@@ -235,6 +173,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
         incidentTypeDerived={incident.source === "signals"}
         readiness={readiness}
         accounts={detail.accounts}
+        names={{ actor: accountLabel(detail.queue.actorUid), target: accountLabel(detail.queue.targetUid) }}
         actorBandLabel={bandWord(detail.queue.actorBand.band)}
         targetBandLabel={bandWord(detail.queue.targetBand.band)}
         reportedSubjectUid={detail.reportedSubjectUid}

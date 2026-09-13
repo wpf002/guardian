@@ -3,8 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { findAccusations, lexiconSchema } from "@guardian/schema";
 import { requireRole } from "@/lib/auth";
+import { COUNTRY_CODES } from "@/lib/countries";
 import { appendAudit } from "@/lib/data/audit";
-import { getLexiconExtension, updateLexiconExtension } from "@/lib/data/settings";
+import {
+  getLexiconExtension,
+  updateLexiconExtension,
+  updateReportingDetails,
+} from "@/lib/data/settings";
 import {
   assertExtensionMerges,
   baseLexicon,
@@ -16,6 +21,7 @@ import {
 import { checkWebhookTarget } from "@guardian/schema/webhook-target";
 import type {
   LexiconState,
+  ReportingState,
   TestDeliveryState,
   WebhookState,
 } from "./types";
@@ -26,8 +32,7 @@ import type {
  * reviewer id is ignored.
  */
 
-const ATTESTATION =
-  "This change was made on our own initiative and not at the direction of a law enforcement request.";
+const ATTESTATION = "This is our own decision. No police or government agency asked us to make it.";
 
 /* ----------------------------------------------------------------- lexicon */
 
@@ -43,7 +48,7 @@ export async function addLexiconPhrasesAction(
   const field = formString(formData, "field");
   if (!isPhraseField(field)) {
     return {
-      error: "Pick one of the phrase lists before saving.",
+      error: "Pick what kind of phrase this is.",
       offendingFragment: null,
       instead: null,
       message: null,
@@ -51,7 +56,7 @@ export async function addLexiconPhrasesAction(
   }
   if (formData.get("attestation") !== "on") {
     return {
-      error: `Confirm the change-origin line before saving. ${ATTESTATION}`,
+      error: `Check the box first: "${ATTESTATION}"`,
       offendingFragment: null,
       instead: null,
       message: null,
@@ -71,7 +76,7 @@ export async function addLexiconPhrasesAction(
     if (phrase.length === 0) continue;
     if (phrase.length > MAX_PHRASE_LENGTH) {
       return {
-        error: `"${phrase.slice(0, 40)}" is longer than ${MAX_PHRASE_LENGTH} characters. The lexicon matches phrases, not paragraphs.`,
+        error: `"${phrase.slice(0, 40)}" is too long. Keep each phrase under ${MAX_PHRASE_LENGTH} characters.`,
         offendingFragment: null,
         instead: null,
         message: null,
@@ -83,7 +88,7 @@ export async function addLexiconPhrasesAction(
     if (findings.length > 0) {
       const first = findings[0];
       return {
-        error: `"${phrase}" was refused: it ${first.why}. Guardian never labels a person.`,
+        error: `"${phrase}" can't be added: it ${first.why}.`,
         offendingFragment: first.match,
         instead: first.instead,
         message: null,
@@ -96,7 +101,7 @@ export async function addLexiconPhrasesAction(
 
   if (candidates.length === 0) {
     return {
-      error: "Nothing new to add. Every phrase in the box is already on that list.",
+      error: "Those phrases are already on the list.",
       offendingFragment: null,
       instead: null,
       message: null,
@@ -104,7 +109,7 @@ export async function addLexiconPhrasesAction(
   }
   if (candidates.length > MAX_PHRASES_PER_SAVE) {
     return {
-      error: `That is ${candidates.length} phrases. Save at most ${MAX_PHRASES_PER_SAVE} at a time so each one is reviewable.`,
+      error: `That's ${candidates.length} phrases. Add up to ${MAX_PHRASES_PER_SAVE} at a time.`,
       offendingFragment: null,
       instead: null,
       message: null,
@@ -118,7 +123,7 @@ export async function addLexiconPhrasesAction(
   const parsed = lexiconSchema.partial().safeParse(next);
   if (!parsed.success) {
     return {
-      error: `That extension does not match the lexicon schema: ${parsed.error.issues[0]?.message ?? "unknown reason"}.`,
+      error: "Those phrases couldn't be saved. Try again, or add fewer at a time.",
       offendingFragment: null,
       instead: null,
       message: null,
@@ -129,7 +134,7 @@ export async function addLexiconPhrasesAction(
     mergedVersion = assertExtensionMerges(session, next);
   } catch (err) {
     return {
-      error: `The merge failed, so nothing was saved: ${err instanceof Error ? err.message : String(err)}.`,
+      error: "Those phrases couldn't be saved. Nothing changed.",
       offendingFragment: null,
       instead: null,
       message: null,
@@ -155,7 +160,7 @@ export async function addLexiconPhrasesAction(
     error: null,
     offendingFragment: null,
     instead: null,
-    message: `Added ${candidates.length} ${candidates.length === 1 ? "phrase" : "phrases"}. Scores now record lexicon ${mergedVersion}.`,
+    message: `Added ${candidates.length} ${candidates.length === 1 ? "phrase" : "phrases"}.`,
   };
 }
 
@@ -210,7 +215,7 @@ export async function removeLexiconPhraseAction(
     error: null,
     offendingFragment: null,
     instead: null,
-    message: `Removed one phrase from ${field}. Base entries are unaffected.`,
+    message: "Removed.",
   };
 }
 
@@ -226,14 +231,14 @@ export async function updateWebhookUrlAction(
   if (raw.length === 0) {
     await setWebhookUrl(session, null);
     revalidatePath("/settings");
-    return { error: null, message: "Cleared. Tier events are not being delivered anywhere." };
+    return { error: null, message: "Cleared. Alerts won't be sent to your system." };
   }
 
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    return { error: "That is not a URL. It needs a scheme and a host.", message: null };
+    return { error: "That isn't a web address. It should start with https://.", message: null };
   }
   if (url.search.length > 0 || url.hash.length > 0) {
     return {
@@ -252,7 +257,7 @@ export async function updateWebhookUrlAction(
 
   await setWebhookUrl(session, url.toString());
   revalidatePath("/settings");
-  return { error: null, message: `Saved. Tier events will be posted to ${url.host}.` };
+  return { error: null, message: `Saved. Alerts will be sent to ${url.host}.` };
 }
 
 // useActionState hands every action a previous state and a form. This one reads
@@ -302,6 +307,47 @@ export async function sendTestDeliveryAction(
  * means nothing. A field that arrived as a file is not a field the caller
  * asked for, so it reads as absent.
  */
+/* --------------------------------------------------------------- reporting */
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Blank means not set, and is stored as null rather than as an empty string. */
+function optional(form: FormData, name: string, max: number): string | null {
+  const value = formString(form, name).trim();
+  return value === "" ? null : value.slice(0, max);
+}
+
+export async function saveReportingDetailsAction(
+  _previous: ReportingState,
+  formData: FormData,
+): Promise<ReportingState> {
+  const session = await requireRole("owner");
+
+  const contactEmail = optional(formData, "contactEmail", 200);
+  if (contactEmail && !EMAIL.test(contactEmail)) {
+    return { error: "That email address doesn't look right.", message: null };
+  }
+  const country = optional(formData, "country", 2)?.toUpperCase() ?? null;
+  if (country && !COUNTRY_CODES.includes(country)) {
+    return { error: "Pick a country from the list.", message: null };
+  }
+  const timezone = optional(formData, "timezone", 64);
+  if (timezone && !Intl.supportedValuesOf("timeZone").includes(timezone)) {
+    return { error: "Pick a time zone from the list.", message: null };
+  }
+
+  await updateReportingDetails(session, {
+    organizationName: optional(formData, "organizationName", 120),
+    contactName: optional(formData, "contactName", 120),
+    contactEmail,
+    country,
+    region: optional(formData, "region", 3)?.toUpperCase() ?? null,
+    timezone,
+  });
+  revalidatePath("/settings");
+  return { error: null, message: "Saved." };
+}
+
 function formString(form: FormData, name: string): string {
   const value = form.get(name);
   return typeof value === "string" ? value : "";

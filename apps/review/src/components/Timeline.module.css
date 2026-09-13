@@ -23,9 +23,11 @@
   margin: 0;
 }
 
+/* The speaker column held "t" and "s1". It holds a name now, so it is wide
+   enough for one and wraps a long one rather than running into the time. */
 .row {
   display: grid;
-  grid-template-columns: 40px 1fr;
+  grid-template-columns: 7rem 1fr;
   gap: var(--space-3);
   padding: var(--space-3);
   border: 1px solid transparent;
@@ -41,10 +43,10 @@
 }
 
 .speaker {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
+  color: var(--text);
+  font-size: var(--text-sm);
   font-weight: var(--weight-medium);
-  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .meta {

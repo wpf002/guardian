@@ -5,19 +5,37 @@ import { announce } from "@/lib/announce";
 import { Button } from "./Button";
 import { EmptyState } from "./EmptyState";
 import styles from "./Timeline.module.css";
-import type { NormalizationHit, TimelineRow, TimelineState } from "@/lib/data/types";
+import type { NormalizationHit, Speaker, TimelineRow, TimelineState } from "@/lib/data/types";
+import { signalWord } from "./queue/words";
 
+/** What a hidden message is, said plainly. */
 const SPAN_WORDS: Record<string, string> = {
-  explicit: "explicit content",
-  threat: "threat language",
-  coercion: "coercion language",
-  payment_coercion: "payment coercion",
+  explicit: "sexual content",
+  threat: "a threat",
+  coercion: "pressure to do something",
+  payment_coercion: "a demand for money",
 };
 
-const SPEAKER_WORDS: Record<string, string> = {
-  t: "t",
-  s1: "s1",
-  s2: "s2",
+/*
+ * Speakers are the ML service's tags: t is the account whose messages were
+ * scored, s1 the account they were sent to. The rows printed those tags as
+ * the speaker's name, so a conversation read "t: hey you were funny" and
+ * "s1: haha thanks". The case page passes the two accounts' names in.
+ */
+const FALLBACK_SPEAKER: Record<Speaker, string> = {
+  t: "First account",
+  s1: "Second account",
+  s2: "Another account",
+};
+
+/** The six steps grooming usually follows (DESIGN.md 1), as a person says them. */
+const STEP_WORDS: Record<string, string> = {
+  contact: "Started talking",
+  trust: "Built trust",
+  probe: "Asked whether anyone is watching",
+  migrate: "Asked to move to another app",
+  sexualize: "Made it sexual",
+  coerce: "Pressured or threatened",
 };
 
 function formatTime(at: Date): string {
@@ -56,7 +74,7 @@ function renderText(text: string, normalizations: NormalizationHit[]): ReactNode
             <span
               key={`norm-${hitIndex}-${index}`}
               className={styles.normalized}
-              title={`Normalized from ${hit.original}. Lexicon ${hit.lexiconVersion}, entry ${hit.entry}.`}
+              title={`Written as ${hit.original}`}
             >
               {hit.normalized}
             </span>,
@@ -82,9 +100,11 @@ export interface TimelineProps {
   onRetry?: () => void;
   /** Set when the fetch failed rather than returning a state. */
   error?: string;
+  /** The accounts' names, keyed by speaker tag, so no row is labelled "t". */
+  speakerNames?: Partial<Record<Speaker, string>>;
 }
 
-export function Timeline({ timeline, onReveal, onRetry, error }: TimelineProps) {
+export function Timeline({ timeline, onReveal, onRetry, error, speakerNames = {} }: TimelineProps) {
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
 
   function reveal(rowId: string) {
@@ -98,11 +118,7 @@ export function Timeline({ timeline, onReveal, onRetry, error }: TimelineProps) 
     const span = row?.collapsed;
     // Text appearing without a focus move or a word is a no-op to a screen
     // reader, so the reveal says what opened.
-    announce(
-      span
-        ? `Revealed ${SPAN_WORDS[span.spanClass] ?? span.spanClass}, ${span.wordCount} words.`
-        : "Revealed one collapsed span.",
-    );
+    announce(span ? `Showing ${SPAN_WORDS[span.spanClass] ?? "a hidden message"}.` : "Showing a hidden message.");
     onReveal?.(rowId);
   }
 
@@ -122,12 +138,11 @@ export function Timeline({ timeline, onReveal, onRetry, error }: TimelineProps) 
   if (timeline.state === "expired") {
     return (
       <EmptyState
-        title="The excerpts for this case were deleted under the retention rule."
-        detail="The features and the tier remain. An expired case is a normal outcome."
-        meta={
+        title="These messages were deleted on schedule."
+        detail={
           timeline.deletedOn
-            ? `Deleted ${timeline.deletedOn.toLocaleDateString()}.`
-            : undefined
+            ? `Guardian deleted them on ${timeline.deletedOn.toLocaleDateString()}.`
+            : "Guardian only keeps messages for a set time."
         }
       />
     );
@@ -136,8 +151,8 @@ export function Timeline({ timeline, onReveal, onRetry, error }: TimelineProps) 
   if (timeline.state === "empty") {
     return (
       <EmptyState
-        title="No excerpts are attached to this case."
-        detail="The tier was assigned from features alone. There is nothing here to read."
+        title="There are no messages to show."
+        detail="Guardian flagged this without keeping any of the messages."
       />
     );
   }
@@ -148,18 +163,18 @@ export function Timeline({ timeline, onReveal, onRetry, error }: TimelineProps) 
     <div className={styles.wrap}>
       <div className={styles.header}>
         <span>
-          Evidence timeline &middot; {messageCount} messages
+          {messageCount} {messageCount === 1 ? "message" : "messages"}
           {collapsedThirdParty > 0
-            ? ` · ${collapsedThirdParty} third-party rows collapsed`
+            ? `, and ${collapsedThirdParty} from other people hidden`
             : ""}
         </span>
-        <span>Collapse: explicit spans, threats, payment coercion</span>
       </div>
       <ol className={styles.list}>
         {rows.map((row) => (
           <TimelineRowView
             key={row.id}
             row={row}
+            speaker={speakerNames[row.speaker] ?? FALLBACK_SPEAKER[row.speaker] ?? row.speaker}
             revealed={revealed.has(row.id)}
             onReveal={() => reveal(row.id)}
           />
@@ -180,10 +195,12 @@ export function Timeline({ timeline, onReveal, onRetry, error }: TimelineProps) 
  */
 function TimelineRowView({
   row,
+  speaker,
   revealed,
   onReveal,
 }: {
   row: TimelineRow;
+  speaker: string;
   revealed: boolean;
   onReveal: () => void;
 }) {
@@ -198,36 +215,28 @@ function TimelineRowView({
   return (
     <>
       {row.gapHoursBefore ? (
-        <li className={styles.gap} aria-label={`${row.gapHoursBefore} hours, no messages`}>
-          <span>{row.gapHoursBefore} hours, no messages</span>
+        <li className={styles.gap} aria-label={`${row.gapHoursBefore} hours later`}>
+          <span>{row.gapHoursBefore} hours later</span>
         </li>
       ) : null}
       <li className={styles.row} data-speaker={row.speaker}>
-        <span className={styles.speaker}>{SPEAKER_WORDS[row.speaker] ?? row.speaker}</span>
+        <span className={styles.speaker}>{speaker}</span>
         <div ref={bodyRef} tabIndex={-1} className={styles.body}>
+          {/*
+            The time, where it was said when that is not an open channel, and
+            which step this message was, in words. It printed the age range, the
+            stage code and a confidence to two decimals on every line, so a
+            conversation read like a log file.
+          */}
           <div className={styles.meta}>
             <span>{formatTime(row.at)}</span>
-            <span>{row.bandLabel}</span>
-            {/* Only when it is not an open channel. A line said in a server
-                everyone can read is the ordinary case and needs no label; a
-                line said in a DM is a different fact, and Regulation (EU)
-                2026/1881 treats the two differently. An unstated visibility
-                reads as private, which is the cautious way round. */}
             {row.channelVisibility !== "public" ? (
               <span className={styles.visibility}>
-                {row.channelVisibility === "group"
-                  ? "group message"
-                  : row.channelVisibility === "private"
-                    ? "private message"
-                    : "channel not stated, read as private"}
+                {row.channelVisibility === "group" ? "group message" : "private message"}
               </span>
             ) : null}
-            {row.stage ? (
-              <span className={row.lowConfidence ? styles.low : styles.stage}>
-                stage {row.stage}
-                {row.confidence !== null ? ` · ${row.confidence.toFixed(2)}` : ""}
-                {row.lowConfidence ? " · low confidence" : ""}
-              </span>
+            {row.stage && !row.lowConfidence ? (
+              <span className={styles.stage}>{STEP_WORDS[row.stage] ?? row.stage}</span>
             ) : null}
           </div>
 
@@ -236,9 +245,7 @@ function TimelineRowView({
           {row.collapsed && !revealed ? (
             <p className={styles.text}>
               <button type="button" className={styles.collapsed} onClick={onReveal}>
-                {SPAN_WORDS[row.collapsed.spanClass] ?? row.collapsed.spanClass},{" "}
-                {row.collapsed.wordCount} words
-                <span aria-hidden="true">&middot;</span> reveal
+                {`Hidden: ${SPAN_WORDS[row.collapsed.spanClass] ?? "a message"}. Show it`}
               </button>
             </p>
           ) : null}
@@ -248,24 +255,20 @@ function TimelineRowView({
           ) : null}
 
           {row.collapsed && revealed && !row.text ? (
-            <p className={styles.text}>
-              This excerpt is not loaded. The bundle holds it verbatim.
-            </p>
+            <p className={styles.text}>This message couldn&apos;t be loaded. Reload the page to try again.</p>
           ) : null}
 
           {row.normalizations.length > 0 ? (
             <span className={styles.normalizedNote}>
-              {row.normalizations
-                .map(
-                  (hit) =>
-                    `normalized from ${hit.original}, lexicon ${hit.lexiconVersion}, entry ${hit.entry}`,
-                )
-                .join(" · ")}
+              {row.normalizations.map((hit) => `"${hit.original}" means "${hit.normalized}"`).join(" · ")}
             </span>
           ) : null}
 
-          {row.signals.length > 0 ? (
-            <p className={styles.signals}>{row.signals.join(", ").replace(/_/g, " ")}</p>
+          {/* Only when the step above did not already say it. */}
+          {row.signals.length > 0 && !(row.stage && !row.lowConfidence) ? (
+            <p className={styles.signals}>
+              {row.signals.map((code) => capitalize(signalWord(code))).join(". ")}
+            </p>
           ) : null}
         </div>
       </li>
@@ -273,35 +276,39 @@ function TimelineRowView({
   );
 }
 
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /**
- * Four lines. Direction in words, the truncated hash, the operator's verdict,
- * and the human-viewed flag as a full sentence, because it is load-bearing
- * legal metadata and a reviewer skimming checkmarks will miss it. The fifth
- * line is CLAUDE.md rule 1 expressed as interface.
+ * An image or video in the conversation.
+ *
+ * It printed "Media event, older band to younger band", a truncated sha256,
+ * "Operator verdict: match" and a sentence on the human-viewed flag. What a
+ * person needs is who sent it, what their own scanner said, and whether anyone
+ * on their team has looked. Whether a person looked is kept, because a report
+ * has to say so. Guardian never holds the image (rule 1).
  */
 function MediaRow({ row }: { row: TimelineRow }) {
   const media = row.media!;
   const direction =
-    media.direction === "older_to_younger"
-      ? "older band to younger band"
-      : "younger band to older band";
+    media.direction === "older_to_younger" ? "The older account sent an image." : "The younger account sent an image.";
   const verdict =
     media.verdict === "match"
-      ? "match"
+      ? "Your scanner matched it to a known image."
       : media.verdict === "no_match"
-        ? "no match"
-        : "not run";
+        ? "Your scanner didn't match it to anything."
+        : "It wasn't scanned.";
   return (
     <div className={styles.media}>
-      <span>Media event, {direction}.</span>
-      <span className={styles.hash}>sha256:{media.sha256.slice(0, 8)}&hellip;{media.sha256.slice(-4)}</span>
-      <span>Operator verdict: {verdict}.</span>
+      <span>{direction}</span>
+      <span>{verdict}</span>
       <span>
-        Viewed by a person at the operator: {media.viewedByOperatorHuman ? "yes" : "no"}.
+        {media.viewedByOperatorHuman
+          ? "Someone on your team has looked at it."
+          : "Nobody on your team has looked at it yet."}
       </span>
-      <span className={styles.noImage}>
-        Guardian holds no image and there is nothing here to open.
-      </span>
+      <span className={styles.noImage}>Guardian never keeps images.</span>
     </div>
   );
 }

@@ -47,7 +47,9 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
         been added to it.
       */}
       <p className={styles.blockNote}>
-        {`Scoring on ${view.mergedVersion}. Every score records the version, so an old one can always be explained.`}
+        {view.addedTotal === 0
+          ? "Guardian is using its built-in list of words and phrases."
+          : `Guardian is using its built-in list, plus ${view.addedTotal} ${view.addedTotal === 1 ? "phrase" : "phrases"} your team added.`}
       </p>
 
       <details className={styles.shortcuts}>
@@ -56,25 +58,24 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
         <Select
           id="field"
           name="field"
-          label="Phrase list"
+          label="Kind of phrase"
           options={view.fields.map((field) => ({
             value: field.field,
-            label: `${field.label} (${field.baseCount} base, ${field.added.length} yours)`,
+            label: field.added.length > 0 ? `${field.label} (${field.added.length} added)` : field.label,
           }))}
-          help="Only the lists a customer may add to are shown. Exemption and blocker lists are not extendable."
+
         />
         <Textarea
           id="phrases"
           name="phrases"
-          label="Phrases to add, one per line"
+          label="Phrases to add, one on each line"
           rows={5}
-          help="Platform slang the base lexicon misses. Short phrases, not sentences. Normalization runs before matching, so add the plain spelling."
+          help="Slang or code words your members use that Guardian might miss. Short phrases, plain spelling."
         />
         <div className={styles.check}>
           <input type="checkbox" id="attestation" name="attestation" />
           <label className={styles.checkLabel} htmlFor="attestation">
-            This change was made on our own initiative and not at the direction of a law enforcement
-            request.
+            This is our own decision. No police or government agency asked us to make it.
           </label>
         </div>
 
@@ -123,7 +124,7 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
 
       {withPhrases.length === 0 ? (
         <p className={styles.blockNote}>
-          {`Nothing added. Scoring is running on the base lexicon, ${view.baseVersion}, on every field.`}
+          Nothing added yet.
         </p>
       ) : (
         <div className={styles.phraseGroups}>

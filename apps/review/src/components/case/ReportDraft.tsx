@@ -23,6 +23,8 @@ export interface ReportDraftProps {
   readiness: FilingReadiness;
   /** The two accounts on the pair, as salted hashes, and the band of each. */
   accounts: { actorUid: string; targetUid: string };
+  /** What to call each account on screen. The ids above are what gets recorded. */
+  names: { actor: string; target: string };
   actorBandLabel: string;
   targetBandLabel: string;
   /** The account a reviewer has designated, or null while nobody has. */
@@ -52,6 +54,7 @@ export function ReportDraft({
   incidentTypeDerived,
   readiness,
   accounts,
+  names,
   actorBandLabel,
   targetBandLabel,
   reportedSubjectUid,
@@ -78,7 +81,7 @@ export function ReportDraft({
     } catch {
       // The selection stays, the text does not lie about it.
       setStatus(
-        "The draft could not be rebuilt under that incident type. Reload the case before filing, so the type on the text matches the one you chose.",
+        "The report couldn't be updated. Reload the page before you send it.",
       );
     } finally {
       setRedrafting(false);
@@ -90,15 +93,15 @@ export function ReportDraft({
     try {
       if (!navigator.clipboard?.writeText) {
         setStatus(
-          "This browser did not offer a clipboard. Select the text in the box and copy it yourself.",
+          "Copying isn't available in this browser. Select the text and copy it yourself.",
         );
         return;
       }
       await navigator.clipboard.writeText(text);
       await onExport(pairId, "copy");
-      setStatus("Copied, and the export is on the audit chain.");
+      setStatus("Copied.");
     } catch {
-      setStatus("The copy did not complete. Select the text in the box and copy it yourself.");
+      setStatus("Copying didn't work. Select the text and copy it yourself.");
     } finally {
       setBusy(null);
     }
@@ -117,9 +120,9 @@ export function ReportDraft({
       anchor.remove();
       URL.revokeObjectURL(url);
       await onExport(pairId, "download");
-      setStatus("Saved, and the export is on the audit chain.");
+      setStatus("Downloaded.");
     } catch {
-      setStatus("The file was not saved. Select the text in the box and copy it instead.");
+      setStatus("Downloading didn't work. Select the text and copy it instead.");
     } finally {
       setBusy(null);
     }
@@ -134,7 +137,7 @@ export function ReportDraft({
       setStatus(null);
     } catch {
       setStatus(
-        "The designation was not recorded. Nothing changed, and the draft still says nobody has named an account.",
+        "That didn't save. No account is picked yet.",
       );
     } finally {
       setDesignating(false);
@@ -142,32 +145,30 @@ export function ReportDraft({
   }
 
   return (
-    <Card
-      title="Report Draft for NCMEC"
-      aside="owner only"
-      density="padded"
-    >
+    <Card title="Your Report" density="padded">
+      {/*
+        It said "This goes to NCMEC, not to the police." NCMEC's own reporting
+        page tells anyone with a child in immediate danger to call 911 or local
+        police, so this says that first.
+      */}
       <p className={styles.note}>
-        Guardian drafts this. Guardian does not submit it, and nothing on this screen sends
-        anything anywhere. You are the reporter of record, and you file it at{" "}
+        Guardian wrote this report. You send it yourself at{" "}
         <a href={CYBERTIPLINE_URL} rel="noreferrer noopener" target="_blank">
           report.cybertip.org
         </a>
-        . This goes to NCMEC, not to the police.
+        . If a child is in danger right now, call 911 or your local police first.
       </p>
 
       <fieldset className={styles.subject} disabled={designating}>
         <legend>Who is this report about?</legend>
         <p className={styles.note}>
-          The CyberTipline displays this account as the person being reported. Guardian does not
-          choose it, and it is not the account Guardian scored: the detectors fire on accounts in a
-          younger band on purpose, because people who do this were often victims themselves, so the
-          account Guardian scored is sometimes the child. Read the conversation and decide.
+          Pick the account you&apos;re reporting. Guardian doesn&apos;t choose, because the account
+          that set this off is sometimes the child.
         </p>
         {(
           [
-            { uid: accounts.actorUid, band: actorBandLabel, which: "First account" },
-            { uid: accounts.targetUid, band: targetBandLabel, which: "Second account" },
+            { uid: accounts.actorUid, name: names.actor, band: actorBandLabel },
+            { uid: accounts.targetUid, name: names.target, band: targetBandLabel },
           ] as const
         ).map((option) => (
           <label key={option.uid} className={styles.subjectOption}>
@@ -178,15 +179,12 @@ export function ReportDraft({
               checked={subject === option.uid}
               onChange={() => void designate(option.uid)}
             />
-            <span>
-              {option.which}, {option.band} band
-              <span className={styles.subjectId}> {option.uid.slice(0, 12)}…</span>
-            </span>
+            <span>{`${option.name}, ${option.band}`}</span>
           </label>
         ))}
         {subject === null ? (
           <p className={styles.note} role="status">
-            Nothing is designated. The draft says so, and it will keep saying so until you choose.
+            No account picked yet.
           </p>
         ) : null}
       </fieldset>
@@ -203,15 +201,10 @@ export function ReportDraft({
             ))}
           </ul>
         ) : null}
-        <p className={styles.note}>
-          This is the report side: what a recipient needs to route and act on the filing. The
-          evidence record keeps its own completeness score, which travels inside the bundle and the
-          audit export rather than on this card.
-        </p>
       </div>
 
       <div className={styles.incident}>
-        <label htmlFor={`incident-${pairId}`}>Incident Type on This Report</label>
+        <label htmlFor={`incident-${pairId}`}>Kind of report</label>
         <select
           id={`incident-${pairId}`}
           value={incidentType}
@@ -227,17 +220,25 @@ export function ReportDraft({
         <p className={styles.note}>{INCIDENT_TYPE_NOTES[incidentType]}</p>
         <p className={styles.note}>
           {chosen
-            ? "Chosen by you. The draft says so, because NCMEC routes on this field and a reader has to be able to tell a choice from a derivation."
+            ? "You picked this."
             : incidentTypeDerived
-              ? "Derived from the recorded signals. Change it if the conversation shows something the signals did not name."
-              : "A fallback. No recorded signal maps to a type, so this one has nothing behind it. Choose the type this conversation actually shows before you file."}
+              ? "Guardian suggested this from the conversation. Change it if it's wrong."
+              : "Guardian couldn't tell. Pick the kind that fits before you send it."}
         </p>
       </div>
 
       <label className="sr-only" htmlFor={`draft-${pairId}`}>
-        Drafted report text
+        The report
       </label>
+      {/*
+        The report text itself is written for the NCMEC analyst who receives it,
+        not for the person copying it: it carries the image fingerprint, the
+        versions that scored the conversation and which messages a person read,
+        because an investigator needs those to act. data-technical keeps the
+        plain language test off this one box and nothing around it.
+      */}
       <textarea
+        data-technical
         id={`draft-${pairId}`}
         className={styles.draft}
         readOnly
@@ -247,13 +248,13 @@ export function ReportDraft({
 
       <div className={styles.draftActions}>
         <Button variant="secondary" loading={busy === "copy"} onClick={() => void copy()}>
-          Copy the text
+          Copy Report
         </Button>
         <Button variant="secondary" loading={busy === "download"} onClick={() => void download()}>
-          Download as .txt
+          Download
         </Button>
         <a className={styles.linkAction} href={CYBERTIPLINE_URL} rel="noreferrer noopener" target="_blank">
-          Open report.cybertip.org
+          Open NCMEC&apos;s Report Form
         </a>
       </div>
 
@@ -264,19 +265,14 @@ export function ReportDraft({
       ) : null}
 
       <ol className={styles.steps}>
-        <li>Open the CyberTipline and start a report as the provider.</li>
-        <li>Paste each section into the matching field. Do not alter the excerpts.</li>
-        <li>Preserve the original records on your own service. Do not edit or delete them.</li>
-        <li>Do not contact either account about this report.</li>
-        <li>
-          Keep the audit chain reference. It is what makes this bundle survive a challenge
-          later.
-        </li>
+        <li>Open NCMEC&apos;s report form.</li>
+        <li>Copy each section into the matching box. Don&apos;t change the messages.</li>
+        <li>Keep the original messages on your server. Don&apos;t edit or delete them.</li>
+        <li>Don&apos;t contact either account about this.</li>
       </ol>
 
       <p className={styles.note}>
-        There is no way to attach an image here, because Guardian never received one. NCMEC
-        1-800-843-5678. Know2Protect 1-833-591-5669.
+        Guardian never has images, so there&apos;s nothing to attach. NCMEC: 1-800-843-5678.
       </p>
     </Card>
   );

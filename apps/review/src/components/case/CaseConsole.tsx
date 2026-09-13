@@ -46,6 +46,12 @@ export interface CaseConsoleProps {
   accounts: { actorUid: string; targetUid: string };
   actorBandLabel: string;
   targetBandLabel: string;
+  /**
+   * What to call the two accounts on screen, from the same place the summary
+   * above reads them, so one page never names an account two ways. The stored
+   * ids in accounts are still what a designation records.
+   */
+  names: { actor: string; target: string };
   reportedSubjectUid: string | null;
   onDesignateSubject: (pairId: string, uid: string) => Promise<{ draft: string }>;
   /** An unanswered proposal for report on this pair, if there is one. */
@@ -92,6 +98,7 @@ export function CaseConsole({
   accounts,
   actorBandLabel,
   targetBandLabel,
+  names,
   reportedSubjectUid,
   onDesignateSubject,
   proposal,
@@ -136,6 +143,7 @@ export function CaseConsole({
         readCount={readCount}
         onReadCountChange={setReadCount}
         onExcerptsViewed={onExcerptsViewed}
+        speakerNames={{ t: names.actor, s1: names.target }}
       />
 
       {draft !== null && readiness !== null ? (
@@ -146,6 +154,7 @@ export function CaseConsole({
           incidentTypeDerived={incidentTypeDerived}
           readiness={readiness}
           accounts={accounts}
+          names={names}
           actorBandLabel={actorBandLabel}
           targetBandLabel={targetBandLabel}
           reportedSubjectUid={reportedSubjectUid}
@@ -177,10 +186,9 @@ export function CaseConsole({
         />
       ) : claimedBy ? (
         <section className={styles.panel} aria-label="Read only">
-          <h2 className={styles.title}>You are reading a case somebody else claimed</h2>
+          <h2 className={styles.title}>Someone else is looking at this</h2>
           <p className={styles.lead}>
-            Claimed by {claimedBy.who}, {claimedBy.sinceMinutes} minutes ago. You can read it and
-            you cannot decide it. Ask them for a handoff if you need to take it.
+            {`${claimedBy.who} opened this ${claimedBy.sinceMinutes} minutes ago, so you can read it but not decide. Ask them if you need to take it over.`}
           </p>
           <ConsequenceCopy context="readonly" />
         </section>

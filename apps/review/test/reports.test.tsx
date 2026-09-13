@@ -70,7 +70,7 @@ describe("the report trail", () => {
     expect(after.events).toEqual(before.events);
   });
 
-  it("renders the trail and says where Guardian's knowledge ends", () => {
+  it("renders the trail, how long to keep records, and that NCMEC never reports back", () => {
     const { container } = render(
       <ReportTrail
         trail={{
@@ -96,12 +96,12 @@ describe("the report trail", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "What Happened to This Report" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "chain entry 12" }).getAttribute("href")).toBe(
-      "/audit/12",
-    );
-    expect(screen.getByText(/2027-09-04/)).toBeTruthy();
-    expect(screen.getByText(/does not report an outcome back to the reporter/)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "This Report" })).toBeTruthy();
+    expect(screen.getByText("Submitted to the CyberTipline. NCMEC report ncmec-42.")).toBeTruthy();
+    // A date a person reads, not an ISO stamp, and no link to a record number.
+    expect(screen.getByText(/Keep your own records of this until/)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /chain entry/ })).toBeNull();
+    expect(screen.getByText("NCMEC doesn't tell reporters what happens next.")).toBeTruthy();
     expect(isAccusatory(container.textContent ?? "")).toBe(false);
   });
 });

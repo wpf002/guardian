@@ -36,100 +36,87 @@ beforeEach(() => {
 });
 
 describe("the case detail at /cases/[id]", () => {
-  it("renders the pattern above the fold, the evidence below it, and the version triple", async () => {
-    await renderCase("pair_4f2a");
+  it("says what happened, who was in it and how far it went, above the conversation", async () => {
+    const { container } = await renderCase("pair_4f2a");
 
-    // The heading is what happened. The pair id is present but demoted, because
-    // a reviewer arriving from the queue needs the sentence, not the key.
+    // The heading is what happened. No pair id anywhere.
     expect(screen.getByRole("heading", {
         level: 1,
         name: "Asked whether anyone checks these messages, then asked to move to Snapchat",
       })).toBeTruthy();
-    expect(screen.getByText(/Pair 4f2a/)).toBeTruthy();
-    expect(screen.getAllByText(/asked who supervises the younger account/).length).toBeGreaterThan(0);
+    expect(container.textContent).not.toMatch(/Pair 4f2a/);
 
-    // The tier is a word plus a meaning, and the critical signal is named.
-    expect(screen.getByText("critical: threat template")).toBeTruthy();
+    // Both accounts and their ages, in words.
+    const summary = within(screen.getByRole("region", { name: "What happened" }));
+    expect(summary.getByText("ryan_xx99")).toBeTruthy();
+    expect(summary.getByText("16 to 17")).toBeTruthy();
 
-    // Bands carry provenance and confidence, so a reviewer knows what the gap rests on.
-    expect(screen.getByText(/16-17, server role, confidence 0\.42/)).toBeTruthy();
+    // The conversation names the same account the same way. It used to label
+    // the speaker "t", and briefly a hashed id while the summary said ryan_xx99.
+    const conversation = within(screen.getByRole("region", { name: "The Conversation" }));
+    expect(conversation.getAllByText("ryan_xx99").length).toBeGreaterThan(0);
+    expect(screen.getByText(/asked whether anyone checks the younger one's phone/)).toBeTruthy();
 
-    // The version triple and the chain reference.
-    expect(screen.getByText("model rules-v2")).toBeTruthy();
-    expect(screen.getAllByText("lexicon v2").length).toBeGreaterThan(0);
-    expect(screen.getByText("fusion rules-v2")).toBeTruthy();
+    // How far it went, as steps a person would name.
+    const steps = within(screen.getByRole("list", { name: "What has happened so far" }));
+    expect(steps.getByText("Asked whether anyone is watching")).toBeTruthy();
 
-    // Actor context is counts and elapsed time, never an adjective.
-    expect(screen.getByText("3 accounts, 3 in a younger band")).toBeTruthy();
+    // The conversation, with names instead of speaker tags, and an image in words.
+    expect(screen.getByRole("heading", { name: "The Conversation" })).toBeTruthy();
+    expect(screen.getByText("Guardian never keeps images.")).toBeTruthy();
 
-    // The evidence, and the media row that says there is nothing to open.
-    expect(
-      screen.getByText("Guardian holds no image and there is nothing here to open."),
-    ).toBeTruthy();
-
-    // The four verbs.
-    for (const word of ["Dismiss", "Watch", "Confirm T2", "Propose T3"]) {
+    // The four choices.
+    for (const word of ["Not a Concern", "Keep an Eye on It", "This Is a Concern", "Report It"]) {
       expect(screen.getByRole("button", { name: new RegExp(word) })).toBeTruthy();
     }
   });
 
-  it("lists each signal with the lexicon entry that rewrote the token, and gates the weight", async () => {
-    await renderCase("pair_4f2a");
-
-    expect(screen.getByText(/matched/)).toBeTruthy();
-    expect(screen.getByText("migration.snapchat.emoji")).toBeTruthy();
-
-    const show = screen.getByRole("button", { name: "Show the Weights" });
-    expect(screen.queryByText(/Fusion term 0\.31/)).toBeNull();
-    fireEvent.click(show);
-    expect(screen.getByText(/Fusion term 0\.31/)).toBeTruthy();
+  /*
+   * Seven panels sat above the conversation: a severity strip with the tier code
+   * and confidence figures, a fusion-weight chart, the lexicon entries that
+   * fired, a stage ladder with elapsed hours, account statistics with a salted
+   * hash, the tier policy, and a version triple. All of it is still recorded.
+   */
+  it("prints none of the scoring internals", async () => {
+    const { container } = await renderCase("pair_4f2a");
+    const text = container.textContent ?? "";
+    for (const internal of [/model rules-v2/, /fusion/i, /confidence 0\.\d/, /Fan-out/, /Show the Weights/, /lexicon v2/, /T[0-3]\b/]) {
+      expect(text).not.toMatch(internal);
+    }
   });
 
   it("blocks confirm and propose until an excerpt has been rendered, then unblocks on a reveal", async () => {
     await renderCase("pair_4f2a");
 
-    expect(screen.getByText("0 of 13 excerpts recorded as read by you")).toBeTruthy();
-    expect(
-      screen.getAllByText("No excerpt has been rendered to you yet. Open one in the timeline first."),
-    ).toHaveLength(2);
-    expect(screen.getByRole("button", { name: /Confirm T2/ })).toHaveProperty("disabled", true);
+    expect(screen.getAllByText("Read the conversation above first.")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /This Is a Concern/ })).toHaveProperty("disabled", true);
 
-    // Revealing a collapsed span is the viewedByHuman write path.
-    fireEvent.click(screen.getByRole("button", { name: /threat language, 22 words/ }));
+    // Showing a hidden message is the write path for "a person read this".
+    fireEvent.click(screen.getByRole("button", { name: "Hidden: a threat. Show it" }));
 
     await waitFor(() => {
-      expect(screen.getByText("1 of 13 excerpts recorded as read by you")).toBeTruthy();
+      expect(screen.getByRole("button", { name: /This Is a Concern/ })).toHaveProperty("disabled", false);
     });
-    expect(screen.getByRole("button", { name: /Confirm T2/ })).toHaveProperty("disabled", false);
-    expect(
-      screen.queryByText("No excerpt has been rendered to you yet. Open one in the timeline first."),
-    ).toBeNull();
+    expect(screen.queryByText("Read the conversation above first.")).toBeNull();
   });
 
   it("refuses to propose a report where the tier rests on the actor score alone", async () => {
     await renderCase("pair_3c88");
 
-    const blocked = screen.getAllByText(
-      /This tier rests on the per-actor score alone, with no conversational fact on the pair\. A report cannot be proposed from it\./,
-    );
-    expect(blocked.length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /Propose T3/ })).toHaveProperty("disabled", true);
+    expect(screen.getByText(/It's here because of what the older account did in other conversations/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Report It/ })).toHaveProperty("disabled", true);
   });
 
   it("shows the retention outcome rather than an error when the excerpts are gone", async () => {
     await renderCase("pair_3c88");
-    expect(
-      screen.getByText("The excerpts for this case were deleted under the retention rule."),
-    ).toBeTruthy();
+    expect(screen.getByText("These messages were deleted on schedule.")).toBeTruthy();
   });
 
   it("gives a resolved case the reopen path, and refuses it once a report was confirmed", async () => {
     await renderCase("pair_c5e1");
-    expect(screen.getByRole("heading", { name: "This case is resolved" })).toBeTruthy();
-    expect(
-      screen.getByText(/A case that reached a reviewer-confirmed report is not reopened here/),
-    ).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Reopen this case" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Decided" })).toBeTruthy();
+    expect(screen.getByText("This was reported, so it can't be reopened here.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Reopen" })).toBeNull();
   });
 
   /*
@@ -146,8 +133,8 @@ describe("the case detail at /cases/[id]", () => {
     pair.queue.targetBand = { band: "UNKNOWN", confidence: null, provenance: "unknown" };
 
     const { container } = await renderCase("pair_4f2a");
-    expect(container.textContent).toContain("not known to Guardian");
-    expect(container.textContent).toContain("the age gap counted for nothing");
+    expect(container.textContent).toContain("Guardian doesn't know how old either account is");
+    expect(container.textContent).toContain("age played no part in this");
     expect(container.textContent).not.toContain("no confidence published");
   });
 
@@ -160,7 +147,7 @@ describe("the case detail at /cases/[id]", () => {
    */
   it("says a reply was a reply", async () => {
     const { container } = await renderCase("pair_4f2a");
-    expect(container.textContent).toContain("These two were replying to each other");
+    expect(container.textContent).toContain("They were replying to each other.");
   });
 
   it("warns when the pair was inferred from who else was in the channel", async () => {
@@ -170,8 +157,8 @@ describe("the case detail at /cases/[id]", () => {
     data.pairs.find((p) => p.queue.pairId === "pair_4f2a")!.queue.targetSource = "adjacency";
 
     const { container } = await renderCase("pair_4f2a");
-    expect(container.textContent).toContain("only people talking in this channel");
-    expect(container.textContent).toContain("read the timeline before you treat this as one conversation");
+    expect(container.textContent).toContain("because nobody else was talking in the channel");
+    expect(container.textContent).toContain("read the messages to check it's really one conversation");
   });
 
   it("says so when nothing recorded how the pair was made", async () => {
@@ -181,13 +168,13 @@ describe("the case detail at /cases/[id]", () => {
     data.pairs.find((p) => p.queue.pairId === "pair_4f2a")!.queue.targetSource = null;
 
     const { container } = await renderCase("pair_4f2a");
-    expect(container.textContent).toContain("was not recorded");
+    expect(container.textContent).toContain("Guardian didn't record how it knew these two were talking.");
   });
 
   it("makes a case claimed by somebody else read only", async () => {
     await renderCase("pair_0b3e");
     expect(
-      screen.getByRole("heading", { name: "You are reading a case somebody else claimed" }),
+      screen.getByRole("heading", { name: "Someone else is looking at this" }),
     ).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Your decision" })).toBeNull();
   });
@@ -202,40 +189,35 @@ describe("the case detail at /cases/[id]", () => {
    */
   it("offers the concurrence on a claimed case that carries an open proposal", async () => {
     await renderCase("pair_91c7");
-    expect(screen.getByRole("heading", { name: "A proposal is waiting on you" })).toBeTruthy();
-    expect(
-      screen.queryByRole("heading", { name: "You are reading a case somebody else claimed" }),
-    ).toBeNull();
+    expect(screen.getByRole("heading", { name: "Do you agree this should be reported?" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Someone else is looking at this" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Your decision" })).toBeNull();
   });
 
-  it("opens the T3 confirmation with its consequences, and holds the send until each one is met", async () => {
+  it("opens the report dialog, and holds the send until each step is done", async () => {
     await renderCase("pair_4f2a");
-    fireEvent.click(screen.getByRole("button", { name: /threat language, 22 words/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Hidden: a threat. Show it" }));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Propose T3/ })).toHaveProperty("disabled", false);
+      expect(screen.getByRole("button", { name: /Report It/ })).toHaveProperty("disabled", false);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Propose T3/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Report It/ }));
 
     const dialog = screen.getByRole("dialog");
     expect(
-      within(dialog).getByText(
-        "This proposes a report. It does not create one, and it does not create tier T3.",
-      ),
+      within(dialog).getByText("Nothing is reported until someone else on your team reads this and agrees."),
     ).toBeTruthy();
-    expect(within(dialog).getByText(/Only\s+their concurrence writes tier T3/)).toBeTruthy();
-    expect(within(dialog).getByText(/one-year preservation under 18 USC 2258A/)).toBeTruthy();
-    expect(within(dialog).getByText(/a report is drafted for the operator to file/)).toBeTruthy();
-    expect(
-      within(dialog).getByText("Do not message either account about this case."),
-    ).toBeTruthy();
+    expect(within(dialog).getByText("Don't message either account about this.")).toBeTruthy();
+    // NCMEC's own page says to call 911 for immediate danger. This used to say
+    // a report "does not go to the police".
+    expect(within(dialog).getByText(/If a child is in danger right now, call 911/)).toBeTruthy();
+    expect(within(dialog).queryByText(/does not go to the police/)).toBeNull();
 
-    expect(within(dialog).getByRole("button", { name: /Send to a second reviewer/ })).toHaveProperty(
+    expect(within(dialog).getByRole("button", { name: /Ask a Teammate to Agree/ })).toHaveProperty(
       "disabled",
       true,
     );
-    expect(within(dialog).getByText(/The timeline note is empty/)).toBeTruthy();
+    expect(within(dialog).getByText(/Say what in the conversation made you decide/)).toBeTruthy();
   });
 
   /**
@@ -249,21 +231,21 @@ describe("the case detail at /cases/[id]", () => {
     );
     await renderCase("pair_4f2a");
 
-    fireEvent.click(screen.getByRole("button", { name: /threat language, 22 words/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Hidden: a threat. Show it" }));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Confirm T2/ })).toHaveProperty("disabled", false);
+      expect(screen.getByRole("button", { name: /This Is a Concern/ })).toHaveProperty("disabled", false);
     });
 
-    fireEvent.change(screen.getByLabelText(/What in the timeline supports this/), {
-      target: { value: "Supervision probe, then a migration ask 19 hours later." },
+    fireEvent.change(screen.getByLabelText(/What in the conversation made you decide/), {
+      target: { value: "Asked who checks the phone, then asked to move to Snapchat." },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Confirm T2/ }));
+    fireEvent.click(screen.getByRole("button", { name: /This Is a Concern/ }));
     fireEvent.click(screen.getByRole("button", { name: "Record this decision" }));
 
     const recorded = await screen.findByRole("region", { name: "Decision recorded" });
     expect(document.activeElement).toBe(recorded);
     expect(document.getElementById("guardian-live-region")?.textContent).toMatch(
-      /You can reverse it for the next 60 seconds/,
+      /You can undo this for the next 60 seconds/,
     );
 
     // Undo is reachable, and it is the first control inside the region.
@@ -278,31 +260,14 @@ describe("the case detail at /cases/[id]", () => {
    */
   it("declares the reason filter as a combobox that owns the listbox", async () => {
     await renderCase("pair_4f2a");
-    fireEvent.click(screen.getByRole("button", { name: /Dismiss/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Not a Concern/ }));
 
-    const filter = screen.getByRole("combobox", { name: "Filter reasons" });
+    const filter = screen.getByRole("combobox", { name: "Search the reasons" });
     expect(filter.getAttribute("aria-expanded")).toBe("true");
     expect(filter.getAttribute("aria-haspopup")).toBe("listbox");
     expect(filter.getAttribute("aria-controls")).toBe("reasons-dismiss");
     expect(screen.getByRole("listbox").id).toBe("reasons-dismiss");
     expect(filter.getAttribute("aria-activedescendant")).toMatch(/^reasons-dismiss-/);
-  });
-
-  /**
-   * A term that lowered the tier and a term that raised it must not draw the
-   * same bar in the same direction: read by length alone, the negative term
-   * looks like the second largest reason the case is here.
-   */
-  it("draws a negative fusion term as a subtraction, in words and in geometry", async () => {
-    const { container } = await renderCase("pair_aa19");
-
-    expect(screen.getByText(/pulled the tier down/)).toBeTruthy();
-    expect(screen.getAllByText(/pushed the tier up/).length).toBeGreaterThan(0);
-
-    const fills = Array.from(container.querySelectorAll('[class*="barFill"]'));
-    const negative = fills.filter((fill) => fill.className.includes("barNegative"));
-    expect(negative.length).toBe(1);
-    expect(fills.length).toBeGreaterThan(negative.length);
   });
 
   /**
@@ -314,19 +279,17 @@ describe("the case detail at /cases/[id]", () => {
   it("drafts nothing on a case the model tiered and nobody decided", async () => {
     await renderCase("pair_4f2a");
     expect(
-      screen.queryByRole("heading", { name: "Report Draft for NCMEC" }),
+      screen.queryByRole("heading", { name: "Your Report" }),
     ).toBeNull();
   });
 
-  it("gives an owner a drafted report that says Guardian submits nothing", async () => {
+  it("gives an owner a report that they send themselves", async () => {
     await renderCase("pair_c5e1");
-    expect(
-      screen.getByRole("heading", { name: "Report Draft for NCMEC" }),
-    ).toBeTruthy();
-    const link = screen.getByRole("link", { name: "Open report.cybertip.org" });
+    expect(screen.getByRole("heading", { name: "Your Report" })).toBeTruthy();
+    const link = screen.getByRole("link", { name: "Open NCMEC's Report Form" });
     expect(link.getAttribute("href")).toBe("https://report.cybertip.org");
-    expect(screen.getByRole("button", { name: "Download as .txt" })).toBeTruthy();
-    expect(screen.getByText(/Guardian drafts this\. Guardian does not submit it/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Download" })).toBeTruthy();
+    expect(screen.getByText(/Guardian wrote this report\. You send it yourself/)).toBeTruthy();
   });
 });
 

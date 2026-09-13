@@ -108,3 +108,84 @@ export function listSeats(session: Session): SeatView[] {
 export function hasSecondSeat(session: Session): boolean {
   return listSeats(session).length >= 2;
 }
+
+/**
+ * Who the organization is when it sends a report: its name, a person NCMEC can
+ * contact, and where it is. Owner only.
+ *
+ * The report card listed each of these as missing and said to add them "in
+ * settings", and there was nowhere in the console to do it. A report on a real
+ * account could never become ready to send.
+ */
+export interface ReportingDetails {
+  organizationName: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  country: string | null;
+  region: string | null;
+  timezone: string | null;
+}
+
+export async function getReportingDetails(session: Session): Promise<ReportingDetails | null> {
+  if (isMockMode()) {
+    const data = await getMockData();
+    if (data.customer.customerId !== session.customerId) return null;
+    return {
+      organizationName: data.customer.ncmecProviderName,
+      contactName: data.reportingContact.name,
+      contactEmail: data.reportingContact.email,
+      country: data.customer.jurisdictionCountry,
+      region: data.customer.jurisdictionSubdivision,
+      timezone: data.customer.timezone,
+    };
+  }
+  const prisma = await getPrisma();
+  const row = await prisma.customer.findUnique({
+    where: { id: session.customerId },
+    select: {
+      ncmecProviderName: true,
+      contactName: true,
+      contactEmail: true,
+      jurisdictionCountry: true,
+      jurisdictionSubdivision: true,
+      timezone: true,
+    },
+  });
+  if (!row) return null;
+  return {
+    organizationName: row.ncmecProviderName,
+    contactName: row.contactName,
+    contactEmail: row.contactEmail,
+    country: row.jurisdictionCountry,
+    region: row.jurisdictionSubdivision,
+    timezone: row.timezone,
+  };
+}
+
+export async function updateReportingDetails(
+  session: Session,
+  details: ReportingDetails,
+): Promise<void> {
+  if (isMockMode()) {
+    const data = await getMockData();
+    data.customer.ncmecProviderName = details.organizationName;
+    data.customer.jurisdictionCountry = details.country;
+    data.customer.jurisdictionSubdivision = details.region;
+    data.customer.timezone = details.timezone;
+    data.customer.contactOnFile = Boolean(details.contactName) && Boolean(details.contactEmail);
+    data.reportingContact = { name: details.contactName, email: details.contactEmail };
+    return;
+  }
+  const prisma = await getPrisma();
+  await prisma.customer.update({
+    where: { id: session.customerId },
+    data: {
+      ncmecProviderName: details.organizationName,
+      contactName: details.contactName,
+      contactEmail: details.contactEmail,
+      jurisdictionCountry: details.country,
+      jurisdictionSubdivision: details.region,
+      timezone: details.timezone,
+    },
+  });
+}

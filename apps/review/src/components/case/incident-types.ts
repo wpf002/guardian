@@ -39,18 +39,18 @@ export interface IncidentChoice {
 /** What a reviewer picking one of the eight is choosing, in plain words. */
 export const INCIDENT_TYPE_NOTES: Record<NcmecIncidentType, string> = {
   "Child Pornography (possession, manufacture, and distribution)":
-    "Only where your own scanner established a match. Guardian never opened a file and cannot support this on its own.",
+    "Only if your own scanner matched an image. Guardian never sees images.",
   "Child Sex Trafficking":
-    "Something of value offered or exchanged, with the conversation moving toward a meeting.",
-  "Child Sex Tourism": "Travel arranged or discussed for the purpose of sexual contact with a child.",
-  "Child Sexual Molestation": "Contact offending described in the conversation, rather than solicited in it.",
-  "Misleading Domain Name": "A domain built to route a child to sexual material.",
+    "Money or something else offered for sex with a child, often with plans to meet.",
+  "Child Sex Tourism": "Travel planned for sexual contact with a child.",
+  "Child Sexual Molestation": "The conversation describes abuse that already happened in person.",
+  "Misleading Domain Name": "A web address made to lead a child to sexual material.",
   "Misleading Words or Digital Images on the Internet":
-    "Listings or words built to route a child to sexual material.",
+    "Words or pictures made to lead a child to sexual material.",
   "Online Enticement of Children for Sexual Acts":
-    "Solicitation of a child over a service. Sextortion is reported here, with the sextortion annotation set.",
+    "Trying to get a child to do something sexual online. Threats to share images belong here too.",
   "Unsolicited Obscene Material Sent to a Child":
-    "Sexual material sent to a child who did not ask for it.",
+    "Sexual images or messages sent to a child who didn't ask for them.",
 };
 
 /**

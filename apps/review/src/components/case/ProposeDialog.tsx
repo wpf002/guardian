@@ -67,13 +67,13 @@ export function ProposeDialog({
     typed.trim() === CONFIRM_WORD;
 
   const blockedReason = !reasonCode
-    ? "Pick the incident type first."
+    ? "Pick what kind of report this is."
     : missingNote
-      ? "The timeline note is empty. Say what in the timeline supports this before you send it."
+      ? "Say what in the conversation made you decide, in the box on the page."
       : !readClaim || !originClaim
-        ? "Both claims have to be true and checked."
+        ? "Check both boxes."
         : !imminentOk
-          ? "Imminent danger needs a reason in words."
+          ? "Say why a child may be in danger."
           : typed.trim() !== CONFIRM_WORD
             ? `Type ${CONFIRM_WORD} to confirm.`
             : undefined;
@@ -93,12 +93,12 @@ export function ProposeDialog({
   return (
     <Dialog
       open={open}
-      title="Send to a Second Reviewer"
+      title="Report this?"
       onClose={onClose}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel, stay at confirm T2
+            Cancel
           </Button>
           <Button
             variant="primary"
@@ -107,38 +107,24 @@ export function ProposeDialog({
             disabledReason={ready ? undefined : blockedReason}
             onClick={submit}
           >
-            Send to a second reviewer
+            Ask a Teammate to Agree
           </Button>
         </>
       }
     >
       <div className={styles.dialogBody}>
+        {/*
+          One sentence on what this does. There were three bullets on the
+          hash-chained audit log, who writes T3, and 18 USC 2258A.
+        */}
         <p className={styles.dialogLead}>
-          This proposes a report. It does not create one, and it does not create tier T3.
+          Nothing is reported until someone else on your team reads this and agrees.
         </p>
-
-        <ul className={styles.consequences}>
-          <li>
-            Sending this writes one entry to the hash-chained audit log, carrying your id, the
-            incident type, your reasons and notes, which excerpts you read, and the attestation
-            below.
-          </li>
-          <li>
-            A second reviewer who is not you sees your reasons and your notes and decides. Only
-            their concurrence writes tier T3. Disagreement returns the case to T2 and records a
-            quality event, and neither outcome is a finding about a person.
-          </li>
-          <li>
-            If they uphold it, the excerpts move to one-year preservation under 18 USC 2258A
-            and a report is drafted for the operator to file at report.cybertip.org. Guardian
-            never submits it.
-          </li>
-        </ul>
 
         <ConsequenceCopy context="propose" />
 
         <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>Incident Type</legend>
+          <legend className={styles.legend}>What Kind of Report Is This?</legend>
           {reasons.map((reason) => (
             <label key={reason.code} className={styles.radioRow}>
               <input
@@ -157,14 +143,14 @@ export function ProposeDialog({
         </fieldset>
 
         <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>Annotations</legend>
+          <legend className={styles.legend}>Anything Else?</legend>
           <label className={styles.radioRow}>
             <input
               type="checkbox"
               checked={sextortion}
               onChange={(event) => setSextortion(event.target.checked)}
             />
-            <span>Sextortion pattern present</span>
+            <span>They&apos;re threatening to share sexual images</span>
           </label>
           <label className={styles.radioRow}>
             <input
@@ -172,17 +158,17 @@ export function ProposeDialog({
               checked={imminent}
               onChange={(event) => setImminent(event.target.checked)}
             />
-            <span>Imminent danger, which needs a reason</span>
+            <span>A child may be in danger right now</span>
           </label>
           {imminent ? (
             <label className={styles.radioRow}>
-              <span className="sr-only">Why this is imminent</span>
+              <span className="sr-only">Why a child may be in danger</span>
               <input
                 type="text"
                 className={styles.filter}
                 value={imminentReason}
-                placeholder="Why this is imminent, in one sentence"
-                aria-label="Why this is imminent"
+                placeholder="Why, in one sentence"
+                aria-label="Why a child may be in danger"
                 onChange={(event) => setImminentReason(event.target.value)}
               />
             </label>
@@ -190,20 +176,14 @@ export function ProposeDialog({
         </fieldset>
 
         <div className={styles.completeness}>
-          <span className={styles.completenessLabel}>bundle completeness</span>
           <span>
-            {readCount} of {totalExcerpts} excerpts were read by you. The rest were read by
-            nobody, and the bundle says so.
+            {`You've read ${readCount} of the ${totalExcerpts} messages.`}
           </span>
-          {missing.length === 0 ? (
-            <span>Nothing is recorded as missing from this bundle.</span>
-          ) : (
-            <span>Missing: {missing.join("; ")}. Ask the operator for it.</span>
-          )}
+          {missing.length > 0 ? <span>{`Still missing: ${missing.join("; ")}.`}</span> : null}
         </div>
 
         <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>Your Claims</legend>
+          <legend className={styles.legend}>Please Confirm</legend>
           <label className={styles.check}>
             <input
               type="checkbox"
@@ -212,13 +192,9 @@ export function ProposeDialog({
               onChange={(event) => setReadClaim(event.target.checked)}
             />
             <span>
-              I read the excerpts marked as read above, and I am not claiming to have read the
-              others.
+              I read the messages I opened, and I&apos;m not saying I read any others.
               {readBound ? null : (
-                <span className={styles.blocked}>
-                  This is unavailable until at least one excerpt has been rendered to you. There
-                  is no minimum number to read.
-                </span>
+                <span className={styles.blocked}>Read at least one message first.</span>
               )}
             </span>
           </label>
@@ -228,10 +204,7 @@ export function ProposeDialog({
               checked={originClaim}
               onChange={(event) => setOriginClaim(event.target.checked)}
             />
-            <span>
-              This decision is mine and was not made at the direction of a law enforcement
-              request.
-            </span>
+            <span>This is my own decision. No police or government agency asked me to make it.</span>
           </label>
         </fieldset>
 

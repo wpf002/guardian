@@ -7,16 +7,24 @@ import { KeyboardHelp } from "@/components/KeyboardHelp";
 import { PageHeader } from "@/components/PageHeader";
 import {
   LexiconEditor,
+  ReportingDetailsForm,
   RetentionTable,
   ThemePicker,
   WebhookPanel,
 } from "@/components/settings";
 import { requireSession, roleAllows } from "@/lib/auth";
-import { withheldStringCount } from "@/lib/compose";
-import { getCustomerSettings, hasSecondSeat, listSeats } from "@/lib/data/settings";
+import { countryOptions } from "@/lib/countries";
+import {
+  getCustomerSettings,
+  getReportingDetails,
+  hasSecondSeat,
+  listSeats,
+  type ReportingDetails,
+} from "@/lib/data/settings";
 import {
   addLexiconPhrasesAction,
   removeLexiconPhraseAction,
+  saveReportingDetailsAction,
   sendTestDeliveryAction,
   updateWebhookUrlAction,
 } from "./actions";
@@ -30,7 +38,7 @@ import styles from "@/components/settings/settings.module.css";
 
 export const metadata: Metadata = {
   title: "Settings",
-  description: "Your account and your organization's configuration.",
+  description: "Your account, and how Guardian is set up for your organization.",
 };
 
 const ROLE_WORD: Record<string, string> = {
@@ -42,14 +50,14 @@ const ROLE_WORD: Record<string, string> = {
 export default async function SettingsPage() {
   const session = await requireSession();
   const isOperator = roleAllows(session.role, "operator");
+  const isOwner = session.role === "owner";
 
   const customer = await getCustomerSettings(session).catch(() => null);
   const seats = listSeats(session);
   const secondSeat = hasSecondSeat(session);
 
-  // Each operator section is read on its own, so one failing read leaves the
-  // rest of the page usable rather than blanking a screen somebody opened to
-  // change one thing.
+  // Each section is read on its own, so one failing read leaves the rest of the
+  // page usable rather than blanking a screen somebody opened to change one thing.
   let lexicon: LexiconView | null = null;
   let lexiconFailed = false;
   let webhook: WebhookView | null = null;
@@ -66,28 +74,22 @@ export default async function SettingsPage() {
       webhookFailed = true;
     }
   }
-
-  const withheld = withheldStringCount();
+  let reporting: ReportingDetails | null = null;
+  if (isOwner) {
+    reporting = await getReportingDetails(session).catch(() => null);
+  }
 
   return (
     <div className={`container ${styles.page}`}>
-      <PageHeader
-        title="Settings"
-        about={<p>Every change here is recorded, with who made it and when.</p>}
-      />
-
       {/*
-        Three groups, in the order somebody arrives needing them.
-
-        This was seven cards in one flat stack, and they were four different
-        subjects: who you are, how this screen behaves, what Guardian reads in
-        your servers, and what it keeps and can prove. Nothing said where one
-        subject ended and the next began, so a moderator changing the theme
-        scrolled past the webhook signing scheme and the retention schedule to
-        reach it, and an operator setting up a webhook scrolled past the theme.
+        No line under the title. It said "Every change here is recorded, with
+        who made it and when", and that was not true: the theme is kept in the
+        browser, and a webhook change writes no record anywhere.
       */}
+      <PageHeader title="Settings" />
+
       <div className={styles.groups}>
-        <Group title="You" note="This seat, and how the console behaves for you.">
+        <Group title="You" note="Your account, and how Guardian looks for you.">
           <Card title="Your Account">
             <div className={styles.rows}>
               <div className={styles.row}>
@@ -100,15 +102,15 @@ export default async function SettingsPage() {
               </div>
               <div className={styles.row}>
                 <span className={styles.rowLabel}>Organization</span>
-                <span className={styles.rowValue}>{customer?.name ?? session.customerId}</span>
+                <span className={styles.rowValue}>{customer?.name ?? PAGE_UNNAMED}</span>
               </div>
               <div className={styles.row}>
-                <span className={styles.rowLabel}>Reviewers</span>
+                <span className={styles.rowLabel}>People on your team</span>
                 <span className={styles.rowValue}>{seats.length}</span>
                 <p className={styles.rowNote}>
                   {secondSeat
-                    ? "Enough to confirm a report. Two people have to agree before Guardian files anything."
-                    : "Not enough to file. Two people have to agree before a report exists, so cases here end with a draft you send to NCMEC yourself."}
+                    ? "Two people have to agree before anything is reported."
+                    : "Reporting needs two people. Until you add someone, send reports to NCMEC yourself."}
                 </p>
               </div>
             </div>
@@ -116,11 +118,6 @@ export default async function SettingsPage() {
 
           <Card title="How You Work">
             <ThemePicker />
-            {/*
-              The shortcut sheet is forty lines. Printed inline it was most of
-              why this page scrolled: somebody changing the theme read every
-              binding in the app on the way past.
-            */}
             <details className={styles.shortcuts}>
               <summary className={styles.shortcutsSummary}>Keyboard Shortcuts</summary>
               <KeyboardHelp />
@@ -128,16 +125,33 @@ export default async function SettingsPage() {
           </Card>
         </Group>
 
+        {isOwner ? (
+          <Group title="Reporting" note="Who you are when you send a report.">
+            <Card title="Reporting Details">
+              {reporting ? (
+                <ReportingDetailsForm
+                  details={reporting}
+                  countries={countryOptions()}
+                  timezones={Intl.supportedValuesOf("timeZone")}
+                  save={saveReportingDetailsAction}
+                />
+              ) : (
+                <ErrorState
+                  title="Your reporting details couldn't be loaded."
+                  unaffected="Guardian is still watching. Only this part of the page failed."
+                />
+              )}
+            </Card>
+          </Group>
+        ) : null}
+
         {isOperator ? (
-          <Group
-            title="What Guardian Reads"
-            note="Applies to every server on this account. Changing either of these changes what the kernel sees."
-          >
-            <Card title="Custom Phrases" aside={lexicon ? lexicon.mergedVersion : undefined}>
+          <Group title="What Guardian Reads" note="These apply to every server on your account.">
+            <Card title="Custom Phrases">
               {lexiconFailed || !lexicon ? (
                 <ErrorState
-                  title="The lexicon could not be read."
-                  unaffected="Scoring is unaffected. The kernel loads the lexicon from its own copy, so this is a read failure on this page."
+                  title="Your phrases couldn't be loaded."
+                  unaffected="Guardian is still watching with its built-in list. Only this part of the page failed."
                 />
               ) : (
                 <LexiconEditor
@@ -151,8 +165,8 @@ export default async function SettingsPage() {
             <Card title="Send Alerts to Your Own System">
               {webhookFailed || !webhook ? (
                 <ErrorState
-                  title="The webhook configuration could not be read."
-                  unaffected="Delivery is unaffected. The scorer reads the endpoint from the customer row, not from this page."
+                  title="This couldn't be loaded."
+                  unaffected="Alerts are still being sent. Only this part of the page failed."
                 />
               ) : (
                 <WebhookPanel
@@ -165,67 +179,39 @@ export default async function SettingsPage() {
           </Group>
         ) : null}
 
-        {/*
-          What Guardian keeps and what it can prove. Both are read only, both
-          are things somebody checks rather than sets, and neither belongs in
-          the path of a person changing a setting.
-        */}
-        <Group title="Records" note="Read only. What Guardian keeps, for how long, and how it proves none of it changed.">
+        <Group title="Records" note="What Guardian keeps, and for how long.">
           <Card title="Evidence Log">
             <p className={`${styles.rowNote} ${styles.introNote}`}>
-              Every score, every reviewer decision and every download, each locked to the record
-              before it. Change one and the rest stop matching, which is what makes it hold up when
-              somebody asks whether the evidence was tampered with.
+              A permanent record of everything Guardian and your team did. Nobody can change it
+              afterwards.
             </p>
             <Link className={styles.settingsLink} href="/audit">
               Open the Evidence Log
             </Link>
           </Card>
 
+          {/*
+            Four short lines, open. The Wording Guard card that sat under this,
+            a count of strings withheld since the server started, was a
+            diagnostic for whoever runs the deployment. It still logs.
+          */}
           <Card title="How Long Data Is Kept">
-            <p className={`${styles.rowNote} ${styles.introNote}`}>
-              Deletion is a scheduled job on the class a row was written with. Text on a
-              conversation that scored nothing is gone within 24 hours; a conversation two
-              reviewers reported is held for a year.
-            </p>
-            {/*
-              The full table is four rows of class names, durations and a
-              sentence each. It is a reference somebody checks once, and it sat
-              open on a page people come to for one control.
-            */}
-            <details className={styles.shortcuts}>
-              <summary className={styles.shortcutsSummary}>All Four Retention Classes</summary>
-              <RetentionTable rows={retentionRows(RETENTION_MS)} />
-            </details>
+            <RetentionTable rows={retentionRows(RETENTION_MS)} />
           </Card>
-
-          {session.role === "owner" ? (
-            <Card title="Wording Guard">
-              <div className={styles.rows}>
-                <div className={styles.row}>
-                  <span className={styles.rowLabel}>Strings withheld</span>
-                  <span className={styles.rowValue}>{withheld}</span>
-                  <p className={styles.rowNote}>
-                    {withheld === 0
-                      ? "No string built from data has been replaced by the guard since this server started."
-                      : "A string built from data was replaced with the withheld sentence rather than rendered. That is a defect somebody can act on, and the case it came from is in the server log."}
-                  </p>
-                </div>
-              </div>
-            </Card>
-          ) : null}
         </Group>
       </div>
     </div>
   );
 }
 
+const PAGE_UNNAMED = "Your organization";
+
 /**
  * A labelled run of cards.
  *
  * The heading is the point. Seven cards in one column with no breaks reads as
  * one long list of unrelated things, and the reader has to open each title to
- * work out whether it is theirs to change. Three headings say it once.
+ * work out whether it is theirs to change. A heading per group says it once.
  */
 function Group({
   title,

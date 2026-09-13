@@ -103,6 +103,7 @@ describe("the incident type control", () => {
       readyToFile: true,
     },
     accounts: { actorUid: "a".repeat(64), targetUid: "b".repeat(64) },
+    names: { actor: "aaaaaaaa", target: "bbbbbbbb" },
     actorBandLabel: "21 and over",
     targetBandLabel: "13 to 15",
     reportedSubjectUid: "a".repeat(64),
@@ -114,7 +115,7 @@ describe("the incident type control", () => {
     const redraft = vi.fn(async () => ({ draft: "REBUILT DRAFT" }));
     render(<ReportDraft {...base} onIncidentType={redraft} />);
 
-    const select = screen.getByLabelText("Incident Type on This Report") as HTMLSelectElement;
+    const select = screen.getByLabelText("Kind of report") as HTMLSelectElement;
     expect(select.options).toHaveLength(8);
     expect(select.value).toBe(base.derivedIncidentType);
 
@@ -122,10 +123,10 @@ describe("the incident type control", () => {
     await waitFor(() => {
       expect(redraft).toHaveBeenCalledWith("pair_4f2a", "Child Sex Trafficking");
     });
-    expect((screen.getByLabelText("Drafted report text") as HTMLTextAreaElement).value).toBe(
+    expect((screen.getByLabelText("The report") as HTMLTextAreaElement).value).toBe(
       "REBUILT DRAFT",
     );
-    expect(screen.getByText(/Chosen by you/)).toBeTruthy();
+    expect(screen.getByText("You picked this.")).toBeTruthy();
   });
 
   /**
@@ -143,19 +144,19 @@ describe("the incident type control", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Incident Type on This Report"), {
+    fireEvent.change(screen.getByLabelText("Kind of report"), {
       target: { value: "Child Sex Tourism" },
     });
     await waitFor(() => {
-      expect(screen.getByText(/could not be rebuilt under that incident type/)).toBeTruthy();
+      expect(screen.getByText("The report couldn't be updated. Reload the page before you send it.")).toBeTruthy();
     });
-    expect((screen.getByLabelText("Drafted report text") as HTMLTextAreaElement).value).toBe(
+    expect((screen.getByLabelText("The report") as HTMLTextAreaElement).value).toBe(
       "ORIGINAL DRAFT",
     );
   });
 
   it("calls a fallback a fallback and asks for a choice before filing", () => {
     render(<ReportDraft {...base} incidentTypeDerived={false} onIncidentType={async () => ({ draft: "" })} />);
-    expect(screen.getByText(/has nothing behind it/)).toBeTruthy();
+    expect(screen.getByText("Guardian couldn't tell. Pick the kind that fits before you send it.")).toBeTruthy();
   });
 });

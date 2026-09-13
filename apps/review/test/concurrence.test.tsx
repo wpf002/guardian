@@ -59,22 +59,22 @@ describe("answering a proposal in the console", () => {
    */
   it("offers no answer until an excerpt has been rendered to this reviewer", () => {
     renderPanel(THEIRS, 0);
-    expect(screen.getByRole("button", { name: /Uphold/ })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: /Overturn/ })).toHaveProperty("disabled", true);
-    expect(screen.getByText(/No excerpt has been rendered to you yet/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Agree, Report It/ })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: /Don't Report/ })).toHaveProperty("disabled", true);
+    expect(screen.getByText("Read the conversation above first.")).toBeTruthy();
   });
 
   it("offers no answer when the timeline did not load", () => {
     renderPanel(THEIRS, 4, false);
-    expect(screen.getByRole("button", { name: /Uphold/ })).toHaveProperty("disabled", true);
-    expect(screen.getByText(/did not load/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Agree, Report It/ })).toHaveProperty("disabled", true);
+    expect(screen.getByText(/didn't load/)).toBeTruthy();
   });
 
   it("upholds with an uphold reason, and names the proposal it answers", async () => {
     const { onConcur } = renderPanel(THEIRS, 4);
-    fireEvent.click(screen.getByRole("button", { name: /Uphold/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Agree, Report It/ }));
 
-    const option = await screen.findByText("Same reading from the evidence");
+    const option = await screen.findByText("I read it, and I agree");
     fireEvent.click(option);
 
     await waitFor(() => expect(onConcur).toHaveBeenCalledTimes(1));
@@ -90,9 +90,9 @@ describe("answering a proposal in the console", () => {
 
   it("overturns with an overturn reason, and sends upheld false", async () => {
     const { onConcur } = renderPanel(THEIRS, 4);
-    fireEvent.click(screen.getByRole("button", { name: /Overturn/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Don't Report/ }));
 
-    fireEvent.click(await screen.findByText("The evidence does not carry it"));
+    fireEvent.click(await screen.findByText("The conversation doesn't show it"));
 
     await waitFor(() => expect(onConcur).toHaveBeenCalledTimes(1));
     expect(onConcur.mock.calls[0]![0]).toMatchObject({
@@ -103,8 +103,8 @@ describe("answering a proposal in the console", () => {
 
   it("never offers a propose reason to the second reviewer", async () => {
     renderPanel(THEIRS, 4);
-    fireEvent.click(screen.getByRole("button", { name: /Uphold/ }));
-    await screen.findByText("Same reading from the evidence");
+    fireEvent.click(screen.getByRole("button", { name: /Agree, Report It/ }));
+    await screen.findByText("I read it, and I agree");
     expect(screen.queryByText("Online enticement of a child for sexual acts", { selector: "span" }))
       .toBeNull();
     expect(screen.queryByText("Child sex trafficking")).toBeNull();
@@ -116,10 +116,10 @@ describe("answering a proposal in the console", () => {
    */
   it("offers the proposer a withdrawal and nothing else", async () => {
     const { onWithdraw } = renderPanel(MINE, 4);
-    expect(screen.queryByRole("button", { name: /Uphold/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Overturn/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Agree, Report It/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Don't Report/ })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Withdraw the Proposal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take It Back" }));
     await waitFor(() => expect(onWithdraw).toHaveBeenCalledTimes(1));
     expect(onWithdraw.mock.calls[0]![0]).toEqual({
       pairId: "pair_91c7",
@@ -140,10 +140,10 @@ describe("answering a proposal in the console", () => {
         leaveHref="/queue"
       />,
     );
-    const note = screen.getByLabelText(/What in the timeline led you there/);
+    const note = screen.getByLabelText(/What in the conversation made you decide/);
     fireEvent.change(note, { target: { value: "The migration ask lands nine minutes in." } });
-    fireEvent.click(screen.getByRole("button", { name: /Uphold/ }));
-    fireEvent.click(await screen.findByText("Same reading from the evidence"));
+    fireEvent.click(screen.getByRole("button", { name: /Agree, Report It/ }));
+    fireEvent.click(await screen.findByText("I read it, and I agree"));
 
     await waitFor(() => expect(screen.getByText("That proposal is no longer open.")).toBeTruthy());
     expect((note as HTMLTextAreaElement).value).toBe(
@@ -188,19 +188,19 @@ describe("a partition with one reviewer seat", () => {
     );
   }
 
-  it("blocks the proposal and names the drafted bundle as the path", () => {
+  it("blocks reporting and says to send it yourself", () => {
     renderDecision(false);
-    expect(screen.getByRole("button", { name: /Propose T3/ })).toHaveProperty("disabled", true);
-    expect(screen.getByText(/one reviewer seat, so a proposal here cannot be upheld/)).toBeTruthy();
-    expect(screen.getByText(/the T3 path ends here/)).toBeTruthy();
-    // Confirm still works. A one-seat operator can still record a T2.
-    expect(screen.getByRole("button", { name: /Confirm T2/ })).toHaveProperty("disabled", false);
+    expect(screen.getByRole("button", { name: /Report It/ })).toHaveProperty("disabled", true);
+    expect(screen.getByText("Reporting needs a second person on your team.")).toBeTruthy();
+    expect(screen.getByText(/report it yourself at report.cybertip.org/)).toBeTruthy();
+    // Marking it a concern still works with one person.
+    expect(screen.getByRole("button", { name: /This Is a Concern/ })).toHaveProperty("disabled", false);
   });
 
-  it("leaves the proposal live where there is a second seat", () => {
+  it("leaves reporting open where there is a second person", () => {
     renderDecision(true);
-    expect(screen.getByRole("button", { name: /Propose T3/ })).toHaveProperty("disabled", false);
-    expect(screen.queryByText(/the T3 path ends here/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Report It/ })).toHaveProperty("disabled", false);
+    expect(screen.queryByText(/report it yourself/)).toBeNull();
   });
 
   it("says nothing about a person on either branch", () => {
@@ -231,10 +231,10 @@ describe("a partition with one reviewer seat", () => {
     const one = filingReadiness({ ...(input as object), secondSeat: false } as never);
     const two = filingReadiness({ ...(input as object), secondSeat: true } as never);
     const gapOf = (r: { gaps: Array<{ what: string; gather: string }> }) =>
-      r.gaps.find((g) => g.what.includes("tier T3"))!.gather;
+      r.gaps.find((g) => g.what.includes("haven't agreed"))!.gather;
 
-    expect(gapOf(one)).toMatch(/one reviewer seat/);
-    expect(gapOf(one)).toMatch(/file it yourself/);
-    expect(gapOf(two)).toMatch(/a second reviewer has to uphold it/);
+    expect(gapOf(one)).toMatch(/only person on your team/);
+    expect(gapOf(one)).toMatch(/Send it yourself/);
+    expect(gapOf(two)).toMatch(/someone else on your team has to agree/);
   });
 });

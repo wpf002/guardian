@@ -24,37 +24,42 @@ interface Verb {
   listTitle: string;
 }
 
+/*
+ * The four choices, in the words somebody would use.
+ *
+ * They were "Dismiss", "Watch", "Confirm T2" and "Propose T3", each with a
+ * line about tiers, retention rules and "the friction your operator
+ * configured". The decision codes underneath are unchanged, and so are the
+ * number keys; the badges that printed them are gone.
+ */
 const VERBS: Verb[] = [
   {
     decision: "dismiss",
-    word: "Dismiss",
+    word: "Not a Concern",
     hint: "1",
-    consequence:
-      "The pair returns to normal scoring, and retention drops to the T0 rules. It does not clear anyone of anything.",
-    listTitle: "Why are you dismissing this pair?",
+    consequence: "Guardian goes back to watching as normal.",
+    listTitle: "Why isn't this a concern?",
   },
   {
     decision: "watch",
-    word: "Watch",
+    word: "Keep an Eye on It",
     hint: "2",
-    consequence: "Holds the pair at T1, retains it 30 days, and raises its priority.",
-    listTitle: "Why are you holding this pair at watch?",
+    consequence: "Guardian keeps this for 30 days and brings it back if anything new happens.",
+    listTitle: "Why keep an eye on it?",
   },
   {
     decision: "confirm",
-    word: "Confirm T2",
+    word: "This Is a Concern",
     hint: "3",
-    consequence:
-      "Records a reviewer-confirmed T2. The friction your operator configured becomes available to them.",
-    listTitle: "What pattern are you confirming?",
+    consequence: "Your moderators can act on it, like a timeout.",
+    listTitle: "What did you see?",
   },
   {
     decision: "report",
-    word: "Propose T3",
+    word: "Report It",
     hint: "4",
-    consequence:
-      "Opens the proposal. It does not create tier T3, and it does not create a report.",
-    listTitle: "Which incident type is this?",
+    consequence: "Someone else on your team has to agree before anything is reported.",
+    listTitle: "What kind of report is this?",
   },
 ];
 
@@ -154,7 +159,6 @@ function useMinutesOnCase(openedAt: number): number {
 
 export function DecisionPanel({
   pairId,
-  modelTier,
   secondSeat,
   soleAutomatedBasis,
   timelineAvailable,
@@ -176,8 +180,10 @@ export function DecisionPanel({
   const [outcome, setOutcome] = useState<DecisionOutcome | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [undone, setUndone] = useState(false);
-  const [correctedMinutes, setCorrectedMinutes] = useState<string>("");
-  const [interrupted, setInterrupted] = useState(false);
+  // Taken automatically. The fields that let a reviewer correct the minutes or
+  // mark the case interrupted went with the reporting page that read them.
+  const correctedMinutes = "";
+  const interrupted = false;
   const [noteTimeline, setNoteTimeline] = useState("");
   const [noteContext, setNoteContext] = useState("");
   const [noteRecommendation, setNoteRecommendation] = useState("");
@@ -196,26 +202,26 @@ export function DecisionPanel({
     recordedRef.current?.focus();
     announce(
       outcome?.state === "proposed"
-        ? `${outcome?.summary ?? "Proposal recorded."} You can withdraw it until a second reviewer decides.`
-        : `${outcome?.summary ?? "Decision recorded."} You can reverse it for the next ${Math.round(UNDO_WINDOW_MS / 1000)} seconds.`,
+        ? "Saved. You can take it back until someone else answers."
+        : `Saved. You can undo this for the next ${Math.round(UNDO_WINDOW_MS / 1000)} seconds.`,
     );
   }, [decided, outcome?.state, outcome?.summary]);
 
   const blocked = useCallback(
     (decision: ReviewDecision): string | undefined => {
-      if (decided) return "This case already carries a decision from you.";
+      if (decided) return "You've already decided on this one.";
       if (decision === "report" && !secondSeat) {
-        return "This partition has one reviewer seat, so a proposal here cannot be upheld and Guardian will not record a T3. Confirm the T2, and file the drafted bundle yourself on the CyberTipline public form.";
+        return "Reporting needs a second person on your team.";
       }
       if (decision === "report" && soleAutomatedBasis) {
-        return "This tier rests on the per-actor score alone, with no conversational fact on the pair. A report cannot be proposed from it.";
+        return "Nothing in this conversation itself can be reported. It's here because of the account's other conversations.";
       }
       if (decision === "confirm" || decision === "report") {
         if (!timelineAvailable) {
-          return "The evidence timeline did not load. Do not confirm or propose on the strip alone.";
+          return "The conversation didn't load. Reload the page first.";
         }
         if (readCount === 0) {
-          return "No excerpt has been rendered to you yet. Open one in the timeline first.";
+          return "Read the conversation above first.";
         }
       }
       return undefined;
@@ -273,7 +279,7 @@ export function DecisionPanel({
     try {
       const result = await onSubmit(input);
       if (!result.ok) {
-        setFailure(result.error ?? "The decision was not recorded. Nothing changed.");
+        setFailure(result.error ?? "That didn't save. Nothing changed.");
         return;
       }
       setOutcome(result);
@@ -281,7 +287,7 @@ export function DecisionPanel({
       setProposeOpen(false);
       onDecisionRecorded?.();
     } catch {
-      setFailure("The decision was not recorded. Nothing changed, and what you typed is still here.");
+      setFailure("That didn't save. Nothing changed, and what you typed is still here.");
     } finally {
       setBusy(null);
     }
@@ -320,45 +326,37 @@ export function DecisionPanel({
     if (!outcome?.reviewId) return;
     const result = await onUndo({ pairId, reviewId: outcome.reviewId });
     if (!result.ok) {
-      setFailure(result.error ?? "The reversal was not recorded. The decision still stands.");
+      setFailure(result.error ?? "Undo didn't save. Your decision still stands.");
       return;
     }
     setUndone(true);
     onDecisionReversed?.();
-    announce("The decision was reversed. The earlier row is unchanged.");
+    announce("Undone.");
   }
 
   if (decided) {
     return (
       <section className={styles.panel} aria-label="Decision recorded" ref={recordedRef} tabIndex={-1}>
         <div className={styles.result}>
-          <h2 className={styles.title}>Decision Recorded</h2>
+          <h2 className={styles.title}>Saved</h2>
           <p className={styles.resultSummary}>{outcome?.summary}</p>
           {/* The undo bar comes before the chain link, because DESIGN-UI 12
               makes Undo the first tab stop after the confirmation region. */}
           {outcome?.state === "proposed" ? (
             <p className={styles.consequence}>
-              A proposal writes no tier. It waits for a second reviewer, and until they decide
-              it can still be withdrawn by you.
+              Someone else on your team has to agree before it&apos;s reported.
             </p>
           ) : (
             <Toast
-              message={`You can reverse this decision for ${Math.round(
-                UNDO_WINDOW_MS / 1000,
-              )} seconds. The original row is never edited.`}
+              message={`You can undo this for ${Math.round(UNDO_WINDOW_MS / 1000)} seconds.`}
               countdownSeconds={Math.round(UNDO_WINDOW_MS / 1000)}
               action={{ label: "Undo", onAction: () => void undo() }}
             />
           )}
-          {outcome?.auditSeq ? (
-            <p className={styles.consequence}>
-              Chain entry <a href={`/audit/${outcome.auditSeq}`}>#{outcome.auditSeq}</a>.
-            </p>
-          ) : null}
           {failure ? <p className={styles.failure}>{failure}</p> : null}
           <div className={styles.escapes}>
             <Link className={styles.linkEscape} href={leaveHref}>
-              Next Case
+              Back to Dashboard
             </Link>
           </div>
         </div>
@@ -369,18 +367,15 @@ export function DecisionPanel({
   return (
     <section className={styles.panel} aria-label="Decision">
       <h2 className={styles.title}>Your Decision</h2>
-      <p className={styles.lead}>
-        {modelTier === null
-          ? "This pair was scored before Guardian recorded the model's own tier separately, so the tier on the case is the one it carries now."
-          : `Guardian assigned tier ${modelTier}.`}{" "}
-        Only a reviewer and a second reviewer together can produce T3. Every decision carries a
-        reason.
-      </p>
+      {/*
+        Only when it changes what you can do. The lead used to name the tier
+        Guardian assigned and explain that two reviewers produce T3, on every
+        case, before a single button.
+      */}
       {!secondSeat ? (
         <p className={styles.lead}>
-          There is one reviewer seat on this partition, so the T3 path ends here. Confirm what you
-          find, and the drafted bundle is what you file, on the CyberTipline public form under your
-          own name. Guardian does not file it for you and does not record a tier nobody upheld.
+          You&apos;re the only person on your team, so Guardian can&apos;t send a report. If this
+          needs reporting, mark it a concern and report it yourself at report.cybertip.org.
         </p>
       ) : null}
 
@@ -397,10 +392,7 @@ export function DecisionPanel({
                 aria-expanded={openVerb === verb.decision}
                 onClick={() => openList(verb.decision)}
               >
-                <span className={styles.verbWord}>
-                  {verb.word}
-                  <span className={styles.hint}>{verb.hint}</span>
-                </span>
+                <span className={styles.verbWord}>{verb.word}</span>
                 <span className={styles.consequence}>{verb.consequence}</span>
               </button>
               {reason ? <p className={styles.blocked}>{reason}</p> : null}
@@ -421,60 +413,42 @@ export function DecisionPanel({
 
       {openVerb === "confirm" ? <ConsequenceCopy context="confirm" /> : null}
 
+      {/*
+        One box in the open, and the other two folded. All three sat open on
+        every case, and the minutes-on-this-case field and the interrupted
+        checkbox under them were workload measurement for a reporting page that
+        no longer exists. The time is still taken automatically.
+      */}
       <div className={styles.notes}>
         <Textarea
           id="note-timeline"
-          label="What in the timeline supports this?"
-          help="Required on confirm and on a proposal. Optional on dismiss and watch."
+          label="What in the conversation made you decide?"
+          help="Needed to mark it a concern or report it."
           rows={3}
           value={noteTimeline}
           onChange={(event) => setNoteTimeline(event.target.value)}
         />
-        <Textarea
-          id="note-context"
-          label="What context did you gather outside the timeline?"
-          optional
-          rows={2}
-          value={noteContext}
-          onChange={(event) => setNoteContext(event.target.value)}
-        />
-        <Textarea
-          id="note-recommendation"
-          label="What are you recommending the operator do?"
-          help="This one survives into the report as your context note."
-          optional
-          rows={2}
-          value={noteRecommendation}
-          onChange={(event) => setNoteRecommendation(event.target.value)}
-        />
+        <details>
+          <summary className={styles.moreSummary}>Add More Detail</summary>
+          <Textarea
+            id="note-context"
+            label="Anything you know from outside this conversation?"
+            optional
+            rows={2}
+            value={noteContext}
+            onChange={(event) => setNoteContext(event.target.value)}
+          />
+          <Textarea
+            id="note-recommendation"
+            label="What should your moderators do?"
+            help="This goes into the report."
+            optional
+            rows={2}
+            value={noteRecommendation}
+            onChange={(event) => setNoteRecommendation(event.target.value)}
+          />
+        </details>
       </div>
-
-      {openVerb || proposeOpen ? (
-        <div className={styles.minutes}>
-          <label className={styles.check} htmlFor="minutes-spent">
-            <span>
-              Minutes on this case
-              <input
-                id="minutes-spent"
-                className={styles.minutesField}
-                type="number"
-                min={0}
-                inputMode="numeric"
-                value={correctedMinutes === "" ? String(timed) : correctedMinutes}
-                onChange={(event) => setCorrectedMinutes(event.target.value)}
-              />
-            </span>
-          </label>
-          <label className={styles.check}>
-            <input
-              type="checkbox"
-              checked={interrupted}
-              onChange={(event) => setInterrupted(event.target.checked)}
-            />
-            <span>This was interrupted</span>
-          </label>
-        </div>
-      ) : null}
 
       {failure ? (
         <p className={styles.failure}>

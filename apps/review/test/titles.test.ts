@@ -50,9 +50,10 @@ describe("every route names itself", () => {
     expect(layout).toMatch(/template:\s*"%s · Guardian review console"/);
   });
 
-  it("a case page titles itself by its pair, so two tabs are tellable apart", async () => {
+  // By what happened, not by "Pair 4f2a", so two tabs are told apart in words.
+  it("a case page titles itself by what happened, so two tabs are tellable apart", async () => {
     const { generateMetadata } = await import("@/app/cases/[id]/page");
     const meta = await generateMetadata({ params: Promise.resolve({ id: "pair_4f2a" }) });
-    expect(meta.title).toBe("Pair 4f2a");
+    expect(meta.title).toBe("Asked whether anyone checks these messages, then asked to move to Snapchat");
   });
 });

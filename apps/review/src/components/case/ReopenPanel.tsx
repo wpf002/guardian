@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, TierBadge } from "@/components";
+import { Button } from "@/components";
 import type { Tier } from "@/lib/data/types";
 import styles from "./Decision.module.css";
 
@@ -35,34 +35,23 @@ export function ReopenPanel({
 
   return (
     <section className={styles.panel} aria-label="Resolved case">
-      <h2 className={styles.title}>This case is resolved</h2>
-      <p className={styles.lead}>
-        Recorded on {resolvedAt.toLocaleString()} at <TierBadge tier={resolvedTier} withMeaning />.
-      </p>
+      <h2 className={styles.title}>Decided</h2>
+      <p className={styles.lead}>{`Decided on ${resolvedAt.toLocaleDateString()}.`}</p>
 
       {reported ? (
-        <p className={styles.consequence}>
-          A case that reached a reviewer-confirmed report is not reopened here. Retracting a
-          filed report is a separate act with its own consequence, and that path is not built
-          yet.
-        </p>
+        <p className={styles.consequence}>This was reported, so it can&apos;t be reopened here.</p>
       ) : excerptsExpired ? (
-        <p className={styles.consequence}>
-          The excerpts behind this decision were deleted under the retention rule, so there is
-          nothing left to read. The features and the tier remain.
-        </p>
+        <p className={styles.consequence}>The messages were deleted on schedule, so there&apos;s nothing left to read.</p>
       ) : (
         <>
           <p className={styles.consequence}>
-            Reopening records a new decision alongside the earlier one. The earlier row is not
-            edited and not deleted, and it stays visible in the decision log exactly as it was.
             {retentionDeadline
-              ? ` Reopening is available until the excerpts are deleted on ${retentionDeadline.toLocaleDateString()}.`
-              : ""}
+              ? `You can reopen this until the messages are deleted on ${retentionDeadline.toLocaleDateString()}. The earlier decision stays on record.`
+              : "Reopening keeps the earlier decision on record."}
           </p>
           <div className={styles.escapes}>
             <Button variant="secondary" onClick={onReopen}>
-              Reopen this case
+              Reopen
             </Button>
           </div>
         </>

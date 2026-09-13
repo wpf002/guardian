@@ -64,3 +64,22 @@
     gap: var(--space-1);
   }
 }
+
+/* The raw record, folded, for whoever has to check it. */
+.technical {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+}
+
+.technicalSummary {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.technicalSummary:hover {
+  color: var(--text);
+}

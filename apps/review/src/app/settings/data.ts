@@ -222,10 +222,40 @@ export function mergedLexiconVersion(session: Session): string {
   return `${latestLexiconVersion()}+${mergeLabel(session)}`;
 }
 
-/** "migration_ask" reads as "Migration ask" in a picker and nowhere else. */
+/*
+ * Each phrase list, named for what is in it, checked against lexicon v3.
+ *
+ * The picker showed the field names with underscores turned into spaces:
+ * "Coercion mark qualifier", "Supervision probe", "Economic bait". Somebody
+ * adding their server's slang has to know which list it belongs in, and none
+ * of those names says.
+ */
+const FIELD_WORDS: Record<string, string> = {
+  platforms: "Other apps, like Snapchat or Telegram",
+  migration_ask: "Asking to move to another app",
+  supervision_probe: "Asking whether anyone is watching",
+  secrecy: "Keeping it secret",
+  economic_bait: "Offering free things, like Robux or gift cards",
+  payment_platforms: "Payment apps, like Cash App",
+  payment_verbs: "Asking to be paid",
+  payment_demand: "Demanding money",
+  age_relationship_framing: "Talk about age or dating",
+  image_solicitation: "Asking for pictures",
+  threat_templates: "Threats",
+  meetup_logistics: "Planning to meet in person",
+  trafficking_recruitment: "Offers of money, work or a place to stay",
+  coercion_selfharm_directive: "Telling someone to hurt themselves",
+  coercion_mark_directive: "Telling someone to cut or write a name on their body",
+  coercion_mark_noun: "Words for a name cut or written on the body",
+  coercion_mark_qualifier: "Whose name, like \"with my name\"",
+  coercion_compliance_demand: "Demanding proof",
+};
+
 export function fieldLabel(field: string): string {
-  const words = field.split("_").join(" ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
+  const words = FIELD_WORDS[field];
+  if (words) return words;
+  const fallback = field.split("_").join(" ");
+  return fallback.charAt(0).toUpperCase() + fallback.slice(1);
 }
 
 export function isPhraseField(value: string): value is (typeof PHRASE_FIELDS)[number] {
@@ -286,32 +316,43 @@ export function assertExtensionMerges(
 
 /* --------------------------------------------------------------- retention */
 
-const CLASS_MEANING: Record<string, { meaning: string; tiers: string }> = {
+/*
+ * What each kind of record is, in words, and what happens to it.
+ *
+ * The table printed EPHEMERAL_24H and WATCH_30D, which tiers each applied to,
+ * and "preserved under the 18 USC 2258A duty". A person checking how long
+ * their members' messages are kept needs the four answers and nothing else.
+ */
+const CLASS_MEANING: Record<string, { label: string; meaning: (duration: string) => string }> = {
   EPHEMERAL_24H: {
-    meaning: "Features are kept. Raw text is deleted.",
-    tiers: "T0",
+    label: "Nothing stood out",
+    meaning: (duration) => `Messages are deleted after ${duration}.`,
   },
   WATCH_30D: {
-    meaning: "The excerpts an evidence bundle needs are kept.",
-    tiers: "T1 and T2",
+    label: "Being watched, or waiting for a look",
+    meaning: (duration) => `Kept for ${duration}.`,
   },
   CASE_1Y: {
-    meaning: "Everything is preserved under the 18 USC 2258A duty.",
-    tiers: "T3",
+    label: "Reported",
+    meaning: (duration) => `Kept for ${duration}, as the law requires.`,
   },
   LEGAL_HOLD: {
-    meaning: "Held until a named custodian releases it.",
-    tiers: "Set by hand, never by a tier",
+    label: "Put on hold by your team",
+    meaning: () => "Kept until someone releases it.",
   },
 };
 
 export function retentionRows(retentionMs: Record<string, number | null>): RetentionRow[] {
-  return Object.entries(retentionMs).map(([retentionClass, ms]) => ({
-    retentionClass,
-    meaning: CLASS_MEANING[retentionClass]?.meaning ?? "",
-    duration: durationWords(ms),
-    tiers: CLASS_MEANING[retentionClass]?.tiers ?? "",
-  }));
+  return Object.entries(retentionMs).map(([retentionClass, ms]) => {
+    const duration = durationWords(ms);
+    const words = CLASS_MEANING[retentionClass];
+    return {
+      retentionClass,
+      tiers: words?.label ?? retentionClass,
+      duration,
+      meaning: words ? words.meaning(duration) : duration,
+    };
+  });
 }
 
 export function durationWords(ms: number | null): string {

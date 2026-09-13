@@ -61,3 +61,8 @@ export interface RetentionRow {
   duration: string;
   tiers: string;
 }
+
+export interface ReportingState {
+  error: string | null;
+  message: string | null;
+}

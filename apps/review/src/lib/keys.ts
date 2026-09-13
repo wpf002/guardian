@@ -21,53 +21,44 @@ export interface KeyGroup {
   bindings: KeyBinding[];
 }
 
+/*
+ * Only keys that do something, checked against every key handler in src.
+ *
+ * The sheet listed t to jump to the timeline, g then p, a, y or v for panels
+ * that have since been removed, [ and ] between message rows, Space and
+ * Shift+Space to reveal, x for a popover, s to skip, n for the next case,
+ * Cmd+Z to undo and Cmd+1 to 4 as aliases. None of those was ever wired. A
+ * shortcut sheet that lists keys that do nothing teaches people to stop
+ * trying the ones that work.
+ */
 export const KEY_GROUPS: KeyGroup[] = [
   {
-    name: "In the Queue",
+    name: "On the Dashboard",
     bindings: [
-      { keys: "j / k", action: "Move selection down or up. Does not open, does not claim" },
-      { keys: "Enter or o", action: "Claim and open the selected case" },
-      { keys: "Shift+Enter", action: "Open read only without claiming" },
+      { keys: "j / k", action: "Move to the next or previous card" },
+      { keys: "Tab, then Enter", action: "Open a conversation" },
+      { keys: "?", action: "Show these shortcuts" },
     ],
   },
   {
-    name: "In a Case",
+    name: "In a Conversation",
     bindings: [
-      { keys: "t", action: "Jump to the timeline" },
-      { keys: "g then p, a, y or v", action: "Go to pair context, actor context, policy or versions" },
-      { keys: "[ / ]", action: "Previous or next stage-annotated message row" },
-      { keys: "Space", action: "Reveal the focused collapsed span" },
-      { keys: "Shift+Space", action: "Reveal every span in this case, after a confirm that says how many" },
-      { keys: "x", action: "Open the focused normalization popover. Escape closes it" },
-      { keys: "s", action: "Skip with a reason" },
+      { keys: "1", action: "Not a concern" },
+      { keys: "2", action: "Keep an eye on it" },
+      { keys: "3", action: "This is a concern" },
+      { keys: "4", action: "Report it" },
+      { keys: "Up / Down", action: "Move through the reasons" },
+      { keys: "Enter", action: "Save with the highlighted reason" },
+      { keys: "Escape", action: "Close without deciding" },
     ],
   },
   {
-    name: "Deciding",
+    name: "When a Teammate Wants to Report",
     bindings: [
-      { keys: "1", action: "Open the dismiss reasons", alias: "Cmd+1" },
-      { keys: "2", action: "Open the watch reasons", alias: "Cmd+2" },
-      { keys: "3", action: "Open the confirm reasons", alias: "Cmd+3" },
-      { keys: "4", action: "Open the propose reasons", alias: "Cmd+4" },
-      { keys: "type", action: "Filter the reason list" },
-      { keys: "Up / Down", action: "Move within the reason list" },
-      { keys: "Enter", action: "Submit the decision with the highlighted reason. This is the write" },
-      { keys: "Escape", action: "Close the list, return focus to the verb, decide nothing" },
-      { keys: "Cmd+Z", action: "Undo, for 60 seconds" },
-      { keys: "n", action: "Next case. Only after a decision" },
+      { keys: "1", action: "Agree, report it" },
+      { keys: "2", action: "Don't report" },
+      { keys: "Enter", action: "Save your answer" },
+      { keys: "Escape", action: "Close without answering" },
     ],
-  },
-  {
-    name: "Answering a Proposal",
-    bindings: [
-      { keys: "1", action: "Open the uphold reasons. Upholding writes tier T3" },
-      { keys: "2", action: "Open the overturn reasons. Overturning returns the case to T2" },
-      { keys: "Enter", action: "Record your answer with the highlighted reason" },
-      { keys: "Escape", action: "Close the list, answer nothing" },
-    ],
-  },
-  {
-    name: "Anywhere",
-    bindings: [{ keys: "?", action: "Open this sheet" }],
   },
 ];

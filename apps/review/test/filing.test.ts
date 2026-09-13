@@ -36,27 +36,30 @@ describe("filingReadiness", () => {
     const result = await readiness("pair_4f2a");
     const bySeverity = new Map(result.gaps.map((gap) => [gap.what, gap.severity]));
 
-    // The fixture customer has done the local setup and none of the NCMEC
-    // registration, which is the ordinary state. Registration is missing, so
-    // the report is drafted for the public form rather than blocked.
-    expect(bySeverity.get("No provider name as registered with NCMEC")).toBe("degrading");
-    expect(bySeverity.get("No named point of contact")).toBe("degrading");
-    expect(bySeverity.get("No ESP identifier")).toBe("enriching");
+    // The fixture customer has set a country and a time zone and nothing else,
+    // which is the ordinary state. A name and a contact help; neither blocks.
+    expect(bySeverity.get("Your organization's name isn't set")).toBe("degrading");
+    expect(bySeverity.get("There's no contact person")).toBe("degrading");
 
-    // The timezone is set on this customer, so it is not a gap.
-    expect(bySeverity.has("No timezone on the customer record")).toBe(false);
+    // The time zone is set on this customer, so it is not a gap.
+    expect(bySeverity.has("Your time zone isn't set")).toBe(false);
 
-    // And the one thing that does block: nobody has read the excerpts yet.
-    expect(bySeverity.get("No excerpt has been read by a person")).toBe("blocking");
+    // A Discord server owner files at NCMEC's public form, which needs no
+    // registration and no counsel-settled legal basis (docs/V1.md section 4).
+    // Neither gap is listed, because nobody on a Discord server can close it.
+    expect([...bySeverity.keys()].some((what) => /ESP|legal basis/i.test(what))).toBe(false);
+
+    // And the one thing that does block: nobody has read the messages yet.
+    expect(bySeverity.get("Nobody has read the messages")).toBe("blocking");
     expect(result.readyToFile).toBe(false);
   });
 
   it("blocks on a jurisdiction nobody set, because that is the number NCMEC publishes", async () => {
     const result = await readiness("pair_4f2a", { jurisdictionCountry: null });
-    const gap = result.gaps.find((g) => g.what === "No jurisdiction on the customer record");
+    const gap = result.gaps.find((g) => g.what === "Your country isn't set");
     expect(gap?.severity).toBe("blocking");
     expect(result.readyToFile).toBe(false);
-    expect(filingHeadline(result)).toMatch(/has to be fixed|have to be fixed/);
+    expect(filingHeadline(result)).toMatch(/to fix before you send this/);
   });
 
   it("blocks on a fallback incident type", async () => {
@@ -70,7 +73,7 @@ describe("filingReadiness", () => {
       settings,
       incident: { incidentType: ENTICEMENT, source: "default", drivenBy: [] },
     });
-    expect(result.gaps.some((g) => g.what === "The incident type is a fallback")).toBe(true);
+    expect(result.gaps.some((g) => g.what === "The kind of report isn't picked")).toBe(true);
     expect(result.blockingCount).toBeGreaterThan(0);
   });
 
@@ -89,12 +92,12 @@ describe("filingReadiness", () => {
       settings,
       incident: { incidentType: ENTICEMENT, source: "signals", drivenBy: ["threat_template"] },
     });
-    expect(result.gaps.some((g) => g.what === "No excerpt has been read by a person")).toBe(true);
+    expect(result.gaps.some((g) => g.what === "Nobody has read the messages")).toBe(true);
   });
 
   it("blocks when the excerpts are already gone under the retention rule", async () => {
     const result = await readiness("pair_3c88");
-    expect(result.gaps.some((g) => g.what === "No excerpts to attach")).toBe(true);
+    expect(result.gaps.some((g) => g.what === "The messages were deleted")).toBe(true);
   });
 
   it("reads an unreadable settings row as nothing on file rather than as fine", async () => {
@@ -183,7 +186,7 @@ describe("who the drafted report is about", () => {
   it("blocks a filing until somebody says", async () => {
     const result = await readiness("pair_4f2a");
     const gap = result.gaps.find(
-      (g) => g.what === "Nobody has said which account this report is about",
+      (g) => g.what === "No account is picked",
     );
     expect(gap?.severity).toBe("blocking");
     expect(gap?.gather).toMatch(/sometimes the child/);
@@ -245,7 +248,7 @@ describe("who the drafted report is about", () => {
       incident: { incidentType: ENTICEMENT, source: "signals", drivenBy: ["threat_template"] },
     });
     expect(
-      result.gaps.some((g) => g.what === "Nobody has said which account this report is about"),
+      result.gaps.some((g) => g.what === "No account is picked"),
     ).toBe(false);
   });
 });

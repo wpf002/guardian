@@ -5,10 +5,11 @@ import { KeyboardHelp } from "./KeyboardHelp";
 describe("KeyboardHelp", () => {
   it("renders from the keymap registry so the sheet cannot drift", () => {
     render(<KeyboardHelp />);
-    expect(screen.getByRole("heading", { name: "Deciding" })).toBeTruthy();
-    expect(
-      screen.getByText(/Submit the decision with the highlighted reason/),
-    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "In a Conversation" })).toBeTruthy();
+    expect(screen.getByText("Save with the highlighted reason")).toBeTruthy();
+    // Only keys that do something. These were listed and never wired.
+    expect(screen.queryByText(/Jump to the timeline/)).toBeNull();
+    expect(screen.queryByText(/Next case/)).toBeNull();
   });
 
   it("renders in a dialog when the caller opens it as a sheet", () => {

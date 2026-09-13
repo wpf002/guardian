@@ -63,6 +63,8 @@ export interface MockPair extends CaseDetail {
 
 export interface MockData {
   customer: CustomerSettings;
+  /** The reporting contact, which CustomerSettings reports only as present or not. */
+  reportingContact: { name: string | null; email: string | null };
   pairs: MockPair[];
   reviews: ReviewRecord[];
   guilds: GuildConfigView[];
@@ -294,7 +296,7 @@ function specs(): PairSpec[] {
       criticalSignals: ["threat_template"],
       patternClause: "Asked whether anyone checks these messages, then asked to move to Snapchat",
       whySentence:
-        "An account in the 16-17 band asked who supervises the younger account's phone, then asked to continue on another app 19 hours later. A threat-template match followed.",
+        "The older account, 16 to 17, asked whether anyone checks the younger one's phone. Nineteen hours later it asked to move to another app, then made a threat.",
       actorBand: band("A16_17", 0.42, "server_role"),
       targetBand: band("A9_12", 0.61, "server_role"),
       actorContext: "This account is in 3 conversations like this one this week.",
@@ -349,7 +351,7 @@ function specs(): PairSpec[] {
       criticalSignals: [],
       patternClause: "Asked to keep talking on Snapchat instead",
       whySentence:
-        "An account in the 18-20 band asked to continue the conversation on another app 9 minutes after first contact with an account in the 13-15 band.",
+        "The older account, 18 to 20, asked to move to another app nine minutes after it first talked to the younger one, who is 13 to 15.",
       actorBand: band("A18_20", 0.55, "server_role"),
       targetBand: band("A13_15", null, "platform_default"),
       actorContext: "First time Guardian has seen this account.",
@@ -393,7 +395,7 @@ function specs(): PairSpec[] {
       criticalSignals: ["coercion_nonfinancial"],
       patternClause: "Demanded self-harm, and proof of it",
       whySentence:
-        "Both accounts sit in the 13-15 band. A directive with a proof demand was recorded, and no payment was asked for.",
+        "Both accounts are 13 to 15. One told the other to hurt themselves and send proof. No money was asked for.",
       actorBand: band("A13_15", 0.66, "server_role"),
       targetBand: band("A13_15", 0.7, "server_role"),
       actorContext: "First time Guardian has seen either account.",
@@ -435,7 +437,7 @@ function specs(): PairSpec[] {
       criticalSignals: [],
       patternClause: "Offered free Robux to anyone who adds them",
       whySentence:
-        "An account offered in-game currency to accounts that add it. No further stage was reached.",
+        "An account offered free in-game currency to anyone who adds it. Nothing else happened after that.",
       actorBand: band("UNKNOWN", null, "unknown"),
       targetBand: band("A13_15", null, "platform_default"),
       actorContext: "Nothing progressed here.",
@@ -473,7 +475,7 @@ function specs(): PairSpec[] {
       criticalSignals: [],
       patternClause: "Swapped Snapchat handles",
       whySentence:
-        "Two accounts in the 13-15 band exchanged usernames for another app. Nothing else in the window carried a signal.",
+        "Two accounts, both 13 to 15, swapped usernames for another app. Nothing else stood out.",
       actorBand: band("A13_15", 0.72, "server_role"),
       targetBand: band("A13_15", 0.69, "server_role"),
       actorContext: "First time Guardian has seen this account.",
@@ -508,7 +510,7 @@ function specs(): PairSpec[] {
       criticalSignals: [],
       patternClause: "Nothing said here stood out. This is on the list because of what the older account did elsewhere",
       whySentence:
-        "The per-actor score alone stands behind this tier. Nothing on this pair carried a signal.",
+        "Nothing in this conversation stood out. It is here because of what the older account has done in other conversations.",
       actorBand: band("A18_20", null, "platform_default"),
       targetBand: band("A16_17", null, "platform_default"),
       actorContext: "This account is in 5 conversations like this one this week.",
@@ -544,7 +546,7 @@ function specs(): PairSpec[] {
       criticalSignals: ["payment_after_media", "threat_template"],
       patternClause: "Demanded money four minutes after an image was sent",
       whySentence:
-        "An account in the 21+ band solicited an image from an account in the 13-15 band, then demanded payment 3 minutes after the media event.",
+        "The older account, 21 or over, asked the younger one, 13 to 15, for an image, then demanded money three minutes after it was sent.",
       actorBand: band("A21_PLUS", 0.81, "customer_declared"),
       targetBand: band("A13_15", 0.74, "server_role"),
       actorContext: "This account is in 2 conversations like this one this week.",
@@ -987,6 +989,7 @@ async function build(): Promise<MockData> {
   linkProposals(pairs, reviews);
 
   return {
+    reportingContact: { name: null, email: null },
     customer: {
       customerId: MOCK_CUSTOMER_ID,
       name: MOCK_CUSTOMER_NAME,

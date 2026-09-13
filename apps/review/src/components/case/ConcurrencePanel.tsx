@@ -64,10 +64,10 @@ export function ConcurrencePanel({
 
   const blocked = useCallback((): string | undefined => {
     if (!timelineAvailable) {
-      return "The evidence timeline did not load. Do not answer a proposal on the strip alone.";
+      return "The conversation didn't load. Reload the page before you answer.";
     }
     if (readCount === 0) {
-      return "No excerpt has been rendered to you yet. A concurrence is a second reading, so open the timeline first.";
+      return "Read the conversation above first.";
     }
     return undefined;
   }, [readCount, timelineAvailable]);
@@ -119,14 +119,14 @@ export function ConcurrencePanel({
         viewedExcerptCount: readCount,
       });
       if (!result.ok) {
-        setFailure(result.error ?? "The answer was not recorded. The proposal still stands.");
+        setFailure(result.error ?? "Your answer didn't save. Nothing changed.");
         return;
       }
       setOutcome(result);
       setSide(null);
     } catch {
       setFailure(
-        "The answer was not recorded. The proposal still stands, and what you typed is still here.",
+        "Your answer didn't save. Nothing changed, and what you typed is still here.",
       );
     } finally {
       setBusy(false);
@@ -139,7 +139,7 @@ export function ConcurrencePanel({
     try {
       const result = await onWithdraw({ pairId, proposalReviewId: proposal.reviewId });
       if (!result.ok) {
-        setFailure(result.error ?? "The withdrawal was not recorded.");
+        setFailure(result.error ?? "That didn't save. The request to report is still open.");
         return;
       }
       setOutcome(result);
@@ -157,22 +157,17 @@ export function ConcurrencePanel({
         tabIndex={-1}
       >
         <div className={styles.result}>
-          <h2 className={styles.title}>Recorded</h2>
+          <h2 className={styles.title}>Saved</h2>
           <p className={styles.resultSummary}>{outcome?.summary}</p>
           {outcome?.resultTier === "T3" ? (
             <Toast
-              message="Tier T3 is written and the excerpts are held for one year. Undo does not reach a T3: retracting a report is a separate act with its own record."
+              message="This is marked for reporting, and the messages will be kept for a year."
               tone="info"
             />
           ) : null}
-          {outcome?.auditSeq ? (
-            <p className={styles.consequence}>
-              Chain entry <a href={`/audit/${outcome.auditSeq}`}>#{outcome.auditSeq}</a>.
-            </p>
-          ) : null}
           <div className={styles.escapes}>
             <Link className={styles.linkEscape} href={leaveHref}>
-              Next Case
+              Back to Dashboard
             </Link>
           </div>
         </div>
@@ -189,29 +184,19 @@ export function ConcurrencePanel({
   if (proposal.mine) {
     return (
       <section className={styles.panel} aria-label="Your proposal">
-        <h2 className={styles.title}>Your proposal is waiting for a second reviewer</h2>
+        <h2 className={styles.title}>Waiting for someone else to agree</h2>
         <p className={styles.lead}>
-          You proposed this for report as {proposal.reasonLabel.toLowerCase()}. It wrote no tier.
-          Until another reviewer on this partition answers it, no report exists and the case sits
-          at the tier the model left it at.
-        </p>
-        <p className={styles.consequence}>
-          You cannot answer your own proposal. That is the whole point of the second reader, and
-          the server refuses it whichever seat you are signed in from.
+          {`You asked to report this as ${proposal.reasonLabel.toLowerCase()}. Nothing is reported until someone else on your team reads it and agrees.`}
         </p>
         {failure ? <p className={styles.failure}>{failure}</p> : null}
         <div className={styles.escapes}>
           <Button variant="secondary" loading={busy} onClick={() => void withdraw()}>
-            Withdraw the Proposal
+            Take It Back
           </Button>
           <Link className={styles.linkEscape} href={leaveHref}>
-            Next Case
+            Back to Dashboard
           </Link>
         </div>
-        <p className={styles.consequence}>
-          Withdrawing returns the case to the queue at its model tier and writes a chain entry. It
-          is not a dismissal and it clears nobody of anything.
-        </p>
       </section>
     );
   }
@@ -220,12 +205,16 @@ export function ConcurrencePanel({
 
   return (
     <section className={styles.panel} aria-label="Answer the proposal">
-      <h2 className={styles.title}>A proposal is waiting on you</h2>
+      {/*
+        What is being asked, who asked, and what each answer does, in the words
+        somebody would use. It said a proposal "wrote no tier", that upholding
+        "writes T3 and starts a one-year preservation hold", and cited 18 USC
+        2258A on the button. The 1 and 2 badges are gone too; the keys still
+        work.
+      */}
+      <h2 className={styles.title}>Do you agree this should be reported?</h2>
       <p className={styles.lead}>
-        {proposal.proposerName} proposed this for report as {proposal.reasonLabel.toLowerCase()}.
-        Their proposal wrote no tier. Yours does: upholding writes T3 and starts a one-year
-        preservation hold, overturning returns the case to T2 and writes no report. Neither says
-        anything about a person.
+        {`${proposal.proposerName} read this and wants to report it as ${proposal.reasonLabel.toLowerCase()}. It isn't reported unless you agree.`}
       </p>
 
       <div className={styles.verbs}>
@@ -238,13 +227,9 @@ export function ConcurrencePanel({
             aria-expanded={side === "uphold"}
             onClick={() => openSide("uphold")}
           >
-            <span className={styles.verbWord}>
-              Uphold
-              <span className={styles.hint}>1</span>
-            </span>
+            <span className={styles.verbWord}>Agree, Report It</span>
             <span className={styles.consequence}>
-              Writes tier T3 and moves the excerpts to one-year preservation under 18 USC 2258A.
-              The report becomes filable by the operator.
+              It gets marked for reporting, and the messages are kept for a year.
             </span>
           </button>
         </div>
@@ -257,13 +242,9 @@ export function ConcurrencePanel({
             aria-expanded={side === "overturn"}
             onClick={() => openSide("overturn")}
           >
-            <span className={styles.verbWord}>
-              Overturn
-              <span className={styles.hint}>2</span>
-            </span>
+            <span className={styles.verbWord}>Don&apos;t Report</span>
             <span className={styles.consequence}>
-              Returns the case to T2 with your reason on the chain. Both of you see the outcome in
-              the decision log. It is not a dismissal.
+              {`It stays open, and ${proposal.proposerName} sees your reason.`}
             </span>
           </button>
         </div>
@@ -276,9 +257,7 @@ export function ConcurrencePanel({
           listKey={`concurrence-${side}`}
           reasons={concurrenceReasons(side)}
           title={
-            side === "uphold"
-              ? "What did your own reading find?"
-              : "Why does the evidence not carry it?"
+            side === "uphold" ? "What did you see?" : "Why not?"
           }
           busy={busy}
           onCommit={(picked) => void commit(picked)}
@@ -289,8 +268,8 @@ export function ConcurrencePanel({
       <div className={styles.notes}>
         <Textarea
           id="concurrence-note"
-          label="What in the timeline led you there?"
-          help="Required. It is your own reading, not a review of theirs."
+          label="What in the conversation made you decide?"
+          help="Required."
           rows={3}
           value={note}
           onChange={(event) => setNote(event.target.value)}

@@ -45,11 +45,15 @@
   }
 }
 
+/* Each choice fills its grid cell. They sized to their own text, so the short
+   ones sat narrower than the long ones beside them and the grid looked ragged. */
 .verb {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-1);
+  inline-size: 100%;
+  block-size: 100%;
   min-height: 48px;
   padding: var(--space-3);
   border: 1px solid var(--border);
@@ -371,4 +375,16 @@
 .panel:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+/* The two optional note boxes, folded under the one that matters. */
+.moreSummary {
+  margin-block: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.moreSummary:hover {
+  color: var(--text);
 }

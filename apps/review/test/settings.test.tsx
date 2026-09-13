@@ -51,7 +51,7 @@ describe("the settings page", () => {
 
     // Three groups, and every card an owner sees inside them. The page was one
     // flat column of seven cards covering four unrelated subjects.
-    for (const group of ["You", "What Guardian Reads", "Records"]) {
+    for (const group of ["You", "Reporting", "What Guardian Reads", "Records"]) {
       expect(screen.getByRole("region", { name: group })).toBeDefined();
     }
     for (const title of [
@@ -59,32 +59,50 @@ describe("the settings page", () => {
       "How You Work",
       "Custom Phrases",
       "Send Alerts to Your Own System",
+      "Reporting Details",
       "Evidence Log",
       "How Long Data Is Kept",
-      "Wording Guard",
     ]) {
       expect(screen.getByRole("heading", { name: title })).toBeDefined();
     }
 
-    // Retention is read only and comes from RETENTION_MS, so the classes and
-    // their durations are printed rather than editable.
-    expect(screen.getByText("EPHEMERAL_24H")).toBeDefined();
-    expect(screen.getByText("24 hours")).toBeDefined();
-    expect(screen.getByText("1 year")).toBeDefined();
+    // Retention is read only and comes from RETENTION_MS, in words. The table
+    // printed EPHEMERAL_24H and the tiers each class covered.
+    expect(screen.getByText("Messages are deleted after 24 hours.")).toBeDefined();
+    expect(screen.getByText("Kept for 1 year, as the law requires.")).toBeDefined();
+    expect(screen.queryByText("EPHEMERAL_24H")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Wording Guard" })).toBeNull();
 
     // Two seats on the fixture roster, which is what the fixtures describe:
     // M. Osei holds a claim and proposes the report A. Rivera answers. The
     // one-seat wording is the other branch, and DecisionPanel covers it.
-    expect(screen.getByText(/Enough to confirm a report/)).toBeDefined();
+    expect(screen.getByText("Two people have to agree before anything is reported.")).toBeDefined();
   });
 
-  it("prints the merged lexicon version a score row would record", async () => {
+  // The version string is still what a score records, and the Evidence Log
+  // keeps it. The page says what it means instead of printing it.
+  it("keeps the merged lexicon version for the record, and says what it means on the page", async () => {
     const view = await getLexiconView(mockSession());
     expect(view.mergedVersion).toBe(`${view.baseVersion}+cus_northwood`);
 
     render(await SettingsPage());
-    // Once on the card and once beside the base version, which is deliberate.
-    expect(screen.getAllByText(view.mergedVersion).length).toBeGreaterThan(0);
+    expect(screen.queryByText(view.mergedVersion)).toBeNull();
+    expect(screen.getByText(/Guardian is using its built-in list/)).toBeDefined();
+  });
+
+  /*
+   * The report card listed a missing country, organization name, contact and
+   * time zone and sent the owner to settings for them, and settings had no place
+   * to put any of them.
+   */
+  it("gives an owner a place to set the details every report needs", async () => {
+    render(await SettingsPage());
+    expect(screen.getByLabelText(/Your organization's name/)).toBeDefined();
+    expect(screen.getByLabelText(/Who NCMEC should contact/)).toBeDefined();
+    expect(screen.getByLabelText(/Their email/)).toBeDefined();
+    expect(screen.getByLabelText("Country")).toBeDefined();
+    expect(screen.getByLabelText("Time zone")).toBeDefined();
+    expect(screen.getByRole("option", { name: "United States", selected: true })).toBeDefined();
   });
 });
 
@@ -118,7 +136,7 @@ describe("the lexicon editor", () => {
     fireEvent.change(screen.getByLabelText(/Phrases to add/), {
       target: { value: "wanna go on vc\nsend it on the other app" },
     });
-    fireEvent.click(screen.getByLabelText(/on our own initiative/));
+    fireEvent.click(screen.getByLabelText(/No police or government agency/));
     fireEvent.click(screen.getByRole("button", { name: /Add phrases/ }));
 
     await waitFor(() => expect(addAction).toHaveBeenCalledTimes(1));
@@ -142,7 +160,7 @@ describe("the lexicon editor", () => {
         removeAction={async () => EMPTY}
       />,
     );
-    expect(screen.getByText(/Nothing added\. Scoring is running on the base lexicon/)).toBeDefined();
+    expect(screen.getByText("Nothing added yet.")).toBeDefined();
     expect(screen.queryByRole("heading", { name: "Phrases this customer added" })).toBeNull();
   });
 });
@@ -164,10 +182,7 @@ describe("the add-phrases action", () => {
     );
 
     expect(state.error).toBeNull();
-    // The base version is not pinned here. What matters is that the merged
-    // string names the customer's extension, so a score row says which lexicon
-    // produced it including the per-customer part.
-    expect(state.message).toMatch(/lexicon v\d+\+cus_northwood/);
+    expect(state.message).toBe("Added 1 phrase.");
 
     const view = await getLexiconView(session);
     const field = view.fields.find((row) => row.field === "migration_ask");
@@ -177,7 +192,9 @@ describe("the add-phrases action", () => {
     expect(after.length).toBe(before.length + 1);
     expect(after[0]!.payload.field).toBe("migration_ask");
     expect(String(after[0]!.payload.mergedVersion)).toMatch(/^v\d+\+cus_northwood$/);
-    expect(String(after[0]!.payload.changeOrigin)).toContain("not at the direction");
+    // The chain still records the merged version, and the attestation says the
+    // same thing it always did, in plainer words.
+    expect(String(after[0]!.payload.changeOrigin)).toContain("No police or government agency");
   });
 
   it("refuses the save without the change-origin attestation", async () => {
@@ -185,7 +202,7 @@ describe("the add-phrases action", () => {
       EMPTY,
       form({ field: "migration_ask", phrases: "hop on the other app" }),
     );
-    expect(state.error).toContain("change-origin");
+    expect(state.error).toContain("Check the box first");
     expect(state.message).toBeNull();
   });
 
