@@ -2,400 +2,382 @@
 
 import { useId, useState } from "react";
 import { AGE_BANDS } from "@guardian/schema/agebands";
-import { Button, Card, Dialog, Field, Select, Toast, type SelectOption, type ToastTone } from "@/components";
-import type { AgeBand } from "@/lib/data/types";
+import { Button, Card, Dialog, Select, Toast, type ToastTone } from "@/components";
+import type { AgeBand, DirectoryEntry } from "@/lib/data/types";
 import {
-  ACTIONS,
-  BANDS,
-  BAND_LABEL,
-  BAND_MEANING,
-  ENABLE,
-  EXCLUDED,
-  MOD_CHANNEL,
-  PROVENANCE_LABEL,
+  AGE_LABEL,
+  AGES,
+  ALERTS,
+  MODERATORS,
+  PAGE,
   SAVE,
-  SNOWFLAKE,
-  SNOWFLAKE_ERROR,
-  TRUSTED,
+  SKIP,
+  TIMEOUT,
+  TIMEOUT_LENGTHS,
 } from "./copy";
-import { BandLegend } from "./BandLegend";
-import { IdListField } from "./IdListField";
-import { ReadinessChecklist } from "./ReadinessChecklist";
-import { RoleBandFields } from "./RoleBandFields";
 import type { GuildPatch, GuildView, SaveGuild } from "./types";
 import styles from "./Guilds.module.css";
 
-const BAND_OPTIONS: SelectOption[] = AGE_BANDS.map((band) => ({
-  value: band,
-  label: BAND_LABEL[band],
-}));
+export interface GuildEditorProps {
+  config: GuildView;
+  /** The server action, bound to this server. Passed in so a test can stub it. */
+  save: SaveGuild;
+}
 
-const MIN_TIMEOUT_MINUTES = 1;
-/** One week, matching guildConfigSchema in apps/discord-bot/src/config.ts. */
-const MAX_TIMEOUT_MINUTES = 10080;
+const AGE_OPTIONS = AGE_BANDS.map((band) => ({ value: band, label: AGE_LABEL[band] }));
 
 function isBand(value: string): value is AgeBand {
   return (AGE_BANDS as readonly string[]).includes(value);
 }
 
-export interface GuildEditorProps {
-  config: GuildView;
-  /**
-   * The server action, already bound to this guild id. Passed rather than
-   * imported so the write path stays on the server and this component stays
-   * testable with a stub.
-   */
-  save: SaveGuild;
+/** A name for an id, or null when the server no longer has it. */
+function nameOf(list: DirectoryEntry[], id: string): string | null {
+  return list.find((entry) => entry.id === id)?.name ?? null;
 }
 
-type Section =
-  | "enabled"
-  | "modChannelId"
-  | "roleBands"
-  | "trustedRoleIds"
-  | "excludedChannelIds"
-  | "timeout";
-
 /**
- * Every editable setting for one Discord server.
+ * Setting up Guardian for one Discord server.
  *
- * Sections save one at a time on their own button. A single save-everything
- * button would mean an owner who fixed the mod channel also silently shipped a
- * half-finished role map, and each of these settings changes what the bot reads
- * or does.
+ * Five cards, and every control picks from the server's own channels and roles
+ * by name. This screen used to be 5,957 pixels tall: a readiness checklist
+ * repeating the controls under it, seven paragraphs on what each age means to
+ * the scorer, a table of T0 to T3, a list of what the bot will and will not do,
+ * and a text box per setting for an 18-digit id copied with Developer Mode on.
+ * A server admin could not use it without a developer next to them.
+ *
+ * Every change saves as it is made, and says so. There is no save button per
+ * card, because a setting that looks changed and is not saved is the worst
+ * thing a settings screen can do.
  */
 export function GuildEditor({ config, save }: GuildEditorProps) {
-  const channelFieldId = useId();
-  const defaultBandId = useId();
-  const minutesFieldId = useId();
-  const timeoutCheckboxId = useId();
+  const ids = {
+    channel: useId(),
+    everyone: useId(),
+    addAge: useId(),
+    addMod: useId(),
+    addSkip: useId(),
+    timeoutCheck: useId(),
+    timeoutLength: useId(),
+  };
 
-  const [draft, setDraft] = useState<GuildView>(config);
-  const [pending, setPending] = useState<Section | null>(null);
+  const [current, setCurrent] = useState<GuildView>(config);
+  const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ tone: ToastTone; message: string } | null>(null);
-
-  const [channelDraft, setChannelDraft] = useState(config.modChannelId ?? "");
-  const [channelError, setChannelError] = useState<string | null>(null);
-  const [roleBands, setRoleBands] = useState(config.roleBands);
-  const [defaultBand, setDefaultBand] = useState<AgeBand>(config.defaultBand);
-  const [trusted, setTrusted] = useState(config.trustedRoleIds);
-  const [excluded, setExcluded] = useState(config.excludedChannelIds);
-  const [timeoutOn, setTimeoutOn] = useState(config.autoTimeoutOnT2);
-  const [minutesDraft, setMinutesDraft] = useState(String(config.autoTimeoutMinutes));
-  const [minutesError, setMinutesError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const busy = pending !== null;
+  const loaded = current.channels.length > 0 || current.roles.length > 0;
 
-  async function run(section: Section, patch: GuildPatch, message: string) {
-    setPending(section);
+  async function apply(patch: GuildPatch, message: string = SAVE.ok) {
+    const before = current;
+    // Shown at once, and put back if the save fails, so the screen never claims
+    // a setting the server does not have.
+    setCurrent((view) => ({ ...view, ...patch }));
+    setBusy(true);
     setStatus(null);
     try {
       const result = await save(patch);
       if (result.ok) {
-        setDraft((current) => ({ ...current, ...patch }));
-        // The section's own sentence, not the action's generic one: an owner
-        // needs to read which setting landed, not that something did.
         setStatus({ tone: "success", message });
       } else {
+        setCurrent(before);
         setStatus({ tone: "warning", message: result.message });
       }
     } catch {
+      setCurrent(before);
       setStatus({ tone: "warning", message: SAVE.failed });
     } finally {
-      setPending(null);
+      setBusy(false);
     }
   }
 
-  function saveModChannel() {
-    const trimmed = channelDraft.trim();
-    if (trimmed !== "" && !SNOWFLAKE.test(trimmed)) {
-      setChannelError(SNOWFLAKE_ERROR);
-      return;
-    }
-    setChannelError(null);
-    void run("modChannelId", { modChannelId: trimmed === "" ? null : trimmed }, MOD_CHANNEL.saved);
-  }
-
-  function saveTimeout(on: boolean) {
-    const minutes = Number(minutesDraft);
-    if (!Number.isInteger(minutes) || minutes < MIN_TIMEOUT_MINUTES || minutes > MAX_TIMEOUT_MINUTES) {
-      setMinutesError(ACTIONS.timeoutMinutesError);
-      return;
-    }
-    setMinutesError(null);
-    void run("timeout", { autoTimeoutOnT2: on, autoTimeoutMinutes: minutes }, ACTIONS.saved);
-  }
-
-  function onTimeoutSave() {
-    // Turning it on is an enforcement action taken before a human looks, so it
-    // gets an explicit second confirmation. Turning it off never does.
-    if (timeoutOn && !draft.autoTimeoutOnT2) {
-      setConfirmOpen(true);
-      return;
-    }
-    saveTimeout(timeoutOn);
-  }
-
-  const canEnable = draft.modChannelId !== null;
+  const unmappedRoles = current.roles.filter((role) => !(role.id in current.roleBands));
+  const unmodRoles = current.roles.filter((role) => !current.trustedRoleIds.includes(role.id));
+  const unskippedChannels = current.channels.filter(
+    (channel) => !current.excludedChannelIds.includes(channel.id) && channel.id !== current.modChannelId,
+  );
+  const lengths = TIMEOUT_LENGTHS.some((length) => length.minutes === current.autoTimeoutMinutes)
+    ? TIMEOUT_LENGTHS
+    : [...TIMEOUT_LENGTHS, { minutes: current.autoTimeoutMinutes, label: `${current.autoTimeoutMinutes} minutes` }];
 
   return (
     <div className={styles.sections}>
       {status ? (
         <div className={styles.status}>
-          <Toast
-            message={status.message}
-            tone={status.tone}
-            onDismiss={() => setStatus(null)}
-          />
+          <Toast message={status.message} tone={status.tone} onDismiss={() => setStatus(null)} />
         </div>
       ) : null}
 
-      <ReadinessChecklist config={draft} />
+      {!loaded ? <p className={styles.notice}>{PAGE.notLoaded}</p> : null}
 
-      <Card title={ENABLE.title} as="section">
-        <p className={styles.body}>{ENABLE.onNote}</p>
-        <div className={styles.saveRow}>
+      <Card title={ALERTS.title} as="section">
+        <div className={styles.inline}>
+          <Select
+            id={ids.channel}
+            label={ALERTS.label}
+            help={ALERTS.help}
+            value={current.modChannelId ?? ""}
+            disabled={busy || !loaded}
+            options={[
+              { value: "", label: ALERTS.placeholder },
+              ...current.channels.map((channel) => ({ value: channel.id, label: `#${channel.name}` })),
+            ]}
+            onChange={(event) => {
+              const id = event.target.value || null;
+              // No alerts channel means nowhere to send one, so watching stops too.
+              void apply(id ? { modChannelId: id } : { modChannelId: null, enabled: false });
+            }}
+          />
           <Button
-            variant="primary"
-            loading={pending === "enabled"}
-            disabledReason={!canEnable && !draft.enabled ? ENABLE.needsChannel : undefined}
-            disabled={busy && pending !== "enabled"}
+            variant={current.enabled ? "secondary" : "primary"}
+            disabled={busy || (!current.enabled && current.modChannelId === null)}
+            disabledReason={!current.enabled && current.modChannelId === null ? ALERTS.needsChannel : undefined}
             onClick={() =>
-              void run(
-                "enabled",
-                { enabled: !draft.enabled },
-                draft.enabled ? ENABLE.savedOff : ENABLE.savedOn,
+              void apply(
+                { enabled: !current.enabled },
+                current.enabled ? ALERTS.stopped : ALERTS.started,
               )
             }
           >
-            {draft.enabled ? ENABLE.turnOff : ENABLE.turnOn}
+            {current.enabled ? ALERTS.stop : ALERTS.start}
           </Button>
         </div>
       </Card>
 
-      <Card title={MOD_CHANNEL.title} as="section">
-        <p className={styles.prose}>{MOD_CHANNEL.help}</p>
-        <p className={styles.prose}>{MOD_CHANNEL.clearHelp}</p>
-        <div className={styles.controls}>
-          <Field
-            id={channelFieldId}
-            label={MOD_CHANNEL.label}
-            error={channelError ?? undefined}
-            inputMode="numeric"
-            autoComplete="off"
-            value={channelDraft}
-            disabled={busy}
-            onChange={(event) => {
-              setChannelDraft(event.target.value);
-              if (channelError) setChannelError(null);
-            }}
-          />
-          <Button
-            variant="secondary"
-            loading={pending === "modChannelId"}
-            disabled={busy && pending !== "modChannelId"}
-            onClick={saveModChannel}
-          >
-            {MOD_CHANNEL.saveLabel}
-          </Button>
-        </div>
-      </Card>
-
-      <Card title={BANDS.title} as="section">
-        <p className={styles.prose}>{BANDS.intro}</p>
-        <p className={styles.prose}>{BANDS.noBirthdates}</p>
-        <div className={styles.note}>
-          <p>{BANDS.provenanceNote}</p>
-          <p>{BANDS.provenanceNoteTwo}</p>
-          <p>
-            {`Fallback source on this server: ${PROVENANCE_LABEL[draft.defaultBandProvenance]}.`}
-          </p>
-        </div>
-
-        <div className={styles.controls}>
-          <Select
-            id={defaultBandId}
-            label={BANDS.defaultLabel}
-            help={`${BANDS.defaultHelp} ${BAND_MEANING[defaultBand]}`}
-            options={BAND_OPTIONS}
-            value={defaultBand}
-            disabled={busy}
-            onChange={(event) => {
-              const next = event.target.value;
-              if (isBand(next)) setDefaultBand(next);
-            }}
-          />
-        </div>
-
-        <BandLegend />
-
-        <RoleBandFields value={roleBands} onChange={setRoleBands} disabled={busy} />
-
-        <div className={styles.saveRow}>
-          <Button
-            variant="secondary"
-            loading={pending === "roleBands"}
-            disabled={busy && pending !== "roleBands"}
-            onClick={() => void run("roleBands", { roleBands, defaultBand }, BANDS.saved)}
-          >
-            {BANDS.saveLabel}
-          </Button>
-        </div>
-      </Card>
-
-      <Card title={TRUSTED.title} as="section">
-        <p className={styles.prose}>{TRUSTED.intro}</p>
-        <p className={styles.prose}>{TRUSTED.effect}</p>
-        <p className={styles.prose}>{TRUSTED.limit}</p>
-        <IdListField
-          label={TRUSTED.label}
-          addLabel={TRUSTED.addLabel}
-          itemLabel={TRUSTED.itemLabel}
-          removeLabel={BANDS.removeLabel}
-          emptyMessage={TRUSTED.none}
-          duplicateMessage={BANDS.duplicateError}
-          value={trusted}
-          onChange={setTrusted}
-          disabled={busy}
-        />
-        <div className={styles.saveRow}>
-          <Button
-            variant="secondary"
-            loading={pending === "trustedRoleIds"}
-            disabled={busy && pending !== "trustedRoleIds"}
-            onClick={() => void run("trustedRoleIds", { trustedRoleIds: trusted }, TRUSTED.saved)}
-          >
-            {TRUSTED.saveLabel}
-          </Button>
-        </div>
-      </Card>
-
-      <Card title={ACTIONS.title} as="section">
-        <ul className={styles.tierList}>
-          <li className={styles.tierRow} data-available="true">
-            <span>T0</span>
-            <span>{ACTIONS.t0}</span>
-          </li>
-          <li className={styles.tierRow} data-available="true">
-            <span>T1</span>
-            <span>{ACTIONS.t1}</span>
-          </li>
-          <li className={styles.tierRow} data-available="true">
-            <span>T2</span>
-            <span>{ACTIONS.t2}</span>
-          </li>
-          <li className={styles.tierRow} data-available="false">
-            <span>T3</span>
-            <span>{ACTIONS.t3}</span>
+      <Card title={AGES.title} as="section">
+        <p className={styles.intro}>{AGES.intro}</p>
+        <ul className={styles.pickList}>
+          {Object.entries(current.roleBands).map(([roleId, band]) => {
+            const name = nameOf(current.roles, roleId);
+            return (
+              <li key={roleId} className={styles.pickRow}>
+                <span className={styles.pickName} data-missing={name ? undefined : "true"}>
+                  {name ? `@${name}` : AGES.deletedRole}
+                </span>
+                <select
+                  className={styles.pickSelect}
+                  aria-label={`Age for ${name ?? AGES.deletedRole}`}
+                  value={band}
+                  disabled={busy}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    if (isBand(next)) void apply({ roleBands: { ...current.roleBands, [roleId]: next } });
+                  }}
+                >
+                  {AGE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className={styles.removeButton}
+                  disabled={busy}
+                  onClick={() => {
+                    const { [roleId]: _removed, ...rest } = current.roleBands;
+                    void apply({ roleBands: rest });
+                  }}
+                >
+                  {AGES.remove}
+                </button>
+              </li>
+            );
+          })}
+          <li className={styles.pickRow}>
+            <span className={styles.pickName}>{AGES.everyoneElse}</span>
+            <select
+              id={ids.everyone}
+              className={styles.pickSelect}
+              aria-label={AGES.everyoneElse}
+              value={current.defaultBand}
+              disabled={busy}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (isBand(next)) void apply({ defaultBand: next });
+              }}
+            >
+              {AGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {/* An empty third cell, so this select lines up with the ones above it. */}
+            <span aria-hidden="true" />
+            <span className={styles.pickHelp}>{AGES.everyoneElseHelp}</span>
           </li>
         </ul>
-        <p className={styles.locked}>{ACTIONS.critical}</p>
-
-        <h3 className={styles.subHeadingSpaced}>{ACTIONS.timeoutHeading}</h3>
-        <p className={styles.prose}>{ACTIONS.timeoutOptIn}</p>
-        <p className={styles.prose}>{ACTIONS.timeoutSupport}</p>
-
-        <div className={styles.checkboxRow}>
-          <input
-            className={styles.checkbox}
-            id={timeoutCheckboxId}
-            type="checkbox"
-            checked={timeoutOn}
+        {unmappedRoles.length > 0 ? (
+          <AddPicker
+            id={ids.addAge}
+            label={AGES.add}
+            options={unmappedRoles.map((role) => ({ value: role.id, label: `@${role.name}` }))}
             disabled={busy}
-            onChange={(event) => setTimeoutOn(event.target.checked)}
+            onPick={(id) => void apply({ roleBands: { ...current.roleBands, [id]: "UNKNOWN" } })}
           />
-          <label className={styles.checkboxLabel} htmlFor={timeoutCheckboxId}>
-            {ACTIONS.timeoutCheckbox}
-          </label>
-        </div>
-
-        <div className={styles.controls}>
-          <Field
-            id={minutesFieldId}
-            label={ACTIONS.timeoutMinutesLabel}
-            help={ACTIONS.timeoutMinutesHelp}
-            error={minutesError ?? undefined}
-            type="number"
-            min={MIN_TIMEOUT_MINUTES}
-            max={MAX_TIMEOUT_MINUTES}
-            step={1}
-            value={minutesDraft}
-            disabled={busy || !timeoutOn}
-            onChange={(event) => {
-              setMinutesDraft(event.target.value);
-              if (minutesError) setMinutesError(null);
-            }}
-          />
-          <Button
-            variant="secondary"
-            loading={pending === "timeout"}
-            disabled={busy && pending !== "timeout"}
-            onClick={onTimeoutSave}
-          >
-            {ACTIONS.saveLabel}
-          </Button>
-        </div>
+        ) : null}
       </Card>
 
-      <Card title={EXCLUDED.title} as="section">
-        <p className={styles.prose}>{EXCLUDED.intro}</p>
-        <p className={styles.prose}>{EXCLUDED.note}</p>
-        <IdListField
-          label={EXCLUDED.label}
-          addLabel={EXCLUDED.addLabel}
-          itemLabel={EXCLUDED.itemLabel}
-          removeLabel={BANDS.removeLabel}
-          emptyMessage={EXCLUDED.none}
-          duplicateMessage={BANDS.duplicateError}
-          value={excluded}
-          onChange={setExcluded}
+      <Card title={MODERATORS.title} as="section">
+        <p className={styles.intro}>{MODERATORS.intro}</p>
+        <Chips
+          entries={current.trustedRoleIds.map((id) => ({ id, label: nameOf(current.roles, id) ? `@${nameOf(current.roles, id)}` : AGES.deletedRole }))}
+          empty={MODERATORS.none}
           disabled={busy}
+          onRemove={(id) => void apply({ trustedRoleIds: current.trustedRoleIds.filter((r) => r !== id) })}
         />
-        <div className={styles.saveRow}>
-          <Button
-            variant="secondary"
-            loading={pending === "excludedChannelIds"}
-            disabled={busy && pending !== "excludedChannelIds"}
-            onClick={() =>
-              void run("excludedChannelIds", { excludedChannelIds: excluded }, EXCLUDED.saved)
-            }
-          >
-            {EXCLUDED.saveLabel}
-          </Button>
+        {unmodRoles.length > 0 ? (
+          <AddPicker
+            id={ids.addMod}
+            label={MODERATORS.add}
+            options={unmodRoles.map((role) => ({ value: role.id, label: `@${role.name}` }))}
+            disabled={busy}
+            onPick={(id) => void apply({ trustedRoleIds: [...current.trustedRoleIds, id] })}
+          />
+        ) : null}
+      </Card>
+
+      <Card title={SKIP.title} as="section">
+        <p className={styles.intro}>{SKIP.intro}</p>
+        <Chips
+          entries={current.excludedChannelIds.map((id) => ({ id, label: nameOf(current.channels, id) ? `#${nameOf(current.channels, id)}` : SKIP.deletedChannel }))}
+          empty={SKIP.none}
+          disabled={busy}
+          onRemove={(id) => void apply({ excludedChannelIds: current.excludedChannelIds.filter((c) => c !== id) })}
+        />
+        {unskippedChannels.length > 0 ? (
+          <AddPicker
+            id={ids.addSkip}
+            label={SKIP.add}
+            options={unskippedChannels.map((channel) => ({ value: channel.id, label: `#${channel.name}` }))}
+            disabled={busy}
+            onPick={(id) => void apply({ excludedChannelIds: [...current.excludedChannelIds, id] })}
+          />
+        ) : null}
+      </Card>
+
+      <Card title={TIMEOUT.title} as="section">
+        <div className={styles.inline}>
+          <div className={styles.checkboxRow}>
+            <input
+              className={styles.checkbox}
+              id={ids.timeoutCheck}
+              type="checkbox"
+              checked={current.autoTimeoutOnT2}
+              disabled={busy}
+              onChange={(event) => {
+                // Turning it on acts on an account before a person has read
+                // anything, so it asks once. Turning it off never does.
+                if (event.target.checked) setConfirmOpen(true);
+                else void apply({ autoTimeoutOnT2: false });
+              }}
+            />
+            <label className={styles.checkboxLabel} htmlFor={ids.timeoutCheck}>
+              {TIMEOUT.checkbox}
+            </label>
+          </div>
+          <Select
+            id={ids.timeoutLength}
+            label={TIMEOUT.lengthLabel}
+            value={String(current.autoTimeoutMinutes)}
+            disabled={busy || !current.autoTimeoutOnT2}
+            options={lengths.map((length) => ({ value: String(length.minutes), label: length.label }))}
+            onChange={(event) => void apply({ autoTimeoutMinutes: Number(event.target.value) })}
+          />
         </div>
       </Card>
 
       <Dialog
         open={confirmOpen}
-        title={ACTIONS.confirmTitle}
+        title={TIMEOUT.confirmTitle}
         onClose={() => setConfirmOpen(false)}
         footer={
           <>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setTimeoutOn(false);
-                setConfirmOpen(false);
-              }}
-            >
-              {ACTIONS.confirmCancel}
+            <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
+              {TIMEOUT.confirmCancel}
             </Button>
             <Button
               variant="primary"
               onClick={() => {
                 setConfirmOpen(false);
-                saveTimeout(true);
+                void apply({ autoTimeoutOnT2: true });
               }}
             >
-              {ACTIONS.confirmAccept}
+              {TIMEOUT.confirmAccept}
             </Button>
           </>
         }
       >
-        <p className={styles.body}>{ACTIONS.confirmBody}</p>
-        <p className={styles.note}>{ACTIONS.timeoutSupport}</p>
+        <p className={styles.body}>{TIMEOUT.confirmBody}</p>
       </Dialog>
     </div>
+  );
+}
+
+/** A select that adds what you pick and then resets, so it reads as an action. */
+function AddPicker({
+  id,
+  label,
+  options,
+  disabled,
+  onPick,
+}: {
+  id: string;
+  label: string;
+  options: { value: string; label: string }[];
+  disabled: boolean;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <select
+      id={id}
+      className={styles.addPicker}
+      aria-label={label}
+      value=""
+      disabled={disabled}
+      onChange={(event) => {
+        if (event.target.value) onPick(event.target.value);
+      }}
+    >
+      <option value="">{`${label}…`}</option>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** Picked roles or channels, each with a way to take it off. */
+function Chips({
+  entries,
+  empty,
+  disabled,
+  onRemove,
+}: {
+  entries: { id: string; label: string }[];
+  empty: string;
+  disabled: boolean;
+  onRemove: (id: string) => void;
+}) {
+  if (entries.length === 0) return <p className={styles.empty}>{empty}</p>;
+  return (
+    <ul className={styles.chips}>
+      {entries.map((entry) => (
+        <li key={entry.id} className={styles.chip}>
+          <span>{entry.label}</span>
+          <button
+            type="button"
+            className={styles.chipRemove}
+            aria-label={`Remove ${entry.label}`}
+            disabled={disabled}
+            onClick={() => onRemove(entry.id)}
+          >
+            ×
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

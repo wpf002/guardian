@@ -47,7 +47,7 @@ export async function saveGuildSettings(
 
   const parsed = patchSchema.safeParse(patch);
   if (!parsed.success) {
-    return { ok: false, message: guildCopy.SNOWFLAKE_ERROR };
+    return { ok: false, message: guildCopy.SAVE.invalid };
   }
   if (Object.keys(parsed.data).length === 0) {
     return { ok: false, message: guildCopy.SAVE.failed };

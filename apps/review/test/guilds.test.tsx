@@ -1,10 +1,9 @@
 /**
- * Guild setup at /guilds and /guilds/[guildId].
+ * The servers list at /guilds and one server's setup at /guilds/[guildId].
  *
- * The pages are async server components, so they are awaited and their returned
- * element is rendered. Nothing here opens a database: setup.ts puts the process
- * in mock mode, and the fixtures carry two servers, one configured and one that
- * has never been set up.
+ * The pages are async server components, so they are awaited and rendered.
+ * setup.ts puts the process in mock mode, and the fixtures carry two servers:
+ * Northwood Gaming, set up, and a server the bot has joined but never loaded.
  */
 
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -13,15 +12,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import GuildsPage from "@/app/guilds/page";
 import GuildPage from "@/app/guilds/[guildId]/page";
 import { GuildEditor } from "@/components/guilds/GuildEditor";
-import { guildCopy, isGuildReady, readiness, type GuildView } from "@/components/guilds";
+import { guildCopy, isGuildReady, type GuildView } from "@/components/guilds";
 import { resetMockData } from "@/lib/mock/fixtures";
 
-// revalidatePath is a request-scoped Next API. The pages import the action
-// module, so it has to resolve, but nothing in these tests calls the action.
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 const CONFIGURED_GUILD = "742118990011223344";
-const UNCONFIGURED_GUILD = "742118990055667788";
+const UNLOADED_GUILD = "742118990055667788";
 
 const BASE: GuildView = {
   guildId: CONFIGURED_GUILD,
@@ -29,6 +26,16 @@ const BASE: GuildView = {
   guildName: "Northwood Gaming",
   modChannelId: "742118990011223999",
   modChannelName: "mod-alerts",
+  channels: [
+    { id: "742118990011224200", name: "general" },
+    { id: "742118990011223999", name: "mod-alerts" },
+    { id: "742118990011224100", name: "staff-lounge" },
+  ],
+  roles: [
+    { id: "742118990011224003", name: "Moderators" },
+    { id: "742118990011224001", name: "Teens" },
+    { id: "742118990011224004", name: "Adults" },
+  ],
   roleBands: { "742118990011224001": "A13_15" },
   trustedRoleIds: [],
   defaultBand: "A13_15",
@@ -40,140 +47,181 @@ const BASE: GuildView = {
   updatedAt: new Date("2026-09-01T12:00:00.000Z").toISOString(),
 };
 
+/*
+ * The standard these pages are held to. A Discord id is 17 to 20 digits and is
+ * never something a person should have to read or type. The words are the
+ * scorer's own vocabulary, which meant nothing to the admins reading it.
+ */
+const DISCORD_ID = /\b\d{17,20}\b/;
+const INTERNAL_WORDS =
+  /\b(T[0-3]|tiers?|bands?|pairs?|signals?|kernel|fan[ -]out|provenance|lexicon|bundles?|snowflake|developer mode)\b/i;
+
+function visibleText(container: HTMLElement): string {
+  return container.textContent ?? "";
+}
+
 beforeEach(() => {
   resetMockData();
 });
 
-describe("readiness", () => {
-  it("mirrors isReady in the bot: a mod channel and scoring on, nothing else", () => {
+describe("isGuildReady", () => {
+  it("mirrors isReady in the bot: turned on, with an alerts channel", () => {
     expect(isGuildReady({ enabled: true, modChannelId: "1" })).toBe(true);
     expect(isGuildReady({ enabled: true, modChannelId: null })).toBe(false);
     expect(isGuildReady({ enabled: false, modChannelId: "1" })).toBe(false);
   });
-
-  it("marks exactly the two gating steps required", () => {
-    const items = readiness(BASE);
-    const required = items.filter((item) => item.required).map((item) => item.key);
-    expect(required).toEqual(["modChannel", "enabled"]);
-    expect(items.find((item) => item.key === "roleBands")?.done).toBe(true);
-    expect(items.find((item) => item.key === "trustedRoleIds")?.done).toBe(false);
-  });
 });
 
 describe("/guilds", () => {
-  /*
- * ROADMAP 2b.2. Every limit here is one an owner would otherwise find by
- * wondering why a conversation they know about produced nothing.
- */
-  it("says on the list page what the bot can and cannot see", async () => {
-    const { container } = render(await GuildsPage());
-    expect(container.textContent).toContain("What Guardian Can and Cannot See");
-    expect(container.textContent).toContain("only two people posting in a channel");
-    expect(container.textContent).toContain("Direct messages, ever");
-    expect(container.textContent).toContain("game-chat bridge gets no age at all");
+  async function renderList() {
+    return render(await GuildsPage());
+  }
+
+  it("lists each server by name, whether it is watching, and where alerts go", async () => {
+    const { container } = await renderList();
+    const table = within(screen.getByRole("table"));
+    expect(table.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Server",
+      "Watching",
+      "Alerts Go To",
+    ]);
+    expect(table.getByRole("link", { name: /Northwood Gaming/ })).toBeTruthy();
+    expect(table.getByText("#mod-alerts")).toBeTruthy();
+    expect(table.getByRole("link", { name: /New server/ })).toBeTruthy();
+    expect(visibleText(container)).not.toMatch(DISCORD_ID);
   });
 
-  it("lists both fixture servers with their scoring state", async () => {
-    render(await GuildsPage());
+  it("says in two lines what Guardian can and cannot see", async () => {
+    await renderList();
+    expect(screen.getByText(guildCopy.PAGE.seesCan)).toBeTruthy();
+    expect(screen.getByText(guildCopy.PAGE.seesCannot)).toBeTruthy();
+  });
 
-    expect(screen.getByRole("heading", { name: guildCopy.PAGE.listTitle })).toBeDefined();
-
-    const table = screen.getByRole("table");
-    expect(within(table).getByText(CONFIGURED_GUILD)).toBeDefined();
-    expect(within(table).getByText(UNCONFIGURED_GUILD)).toBeDefined();
-    expect(within(table).getByText(guildCopy.TABLE.on)).toBeDefined();
-    expect(within(table).getByText(guildCopy.TABLE.off)).toBeDefined();
-    expect(within(table).getByText(guildCopy.TABLE.notSet)).toBeDefined();
-
-    const link = screen.getAllByRole("link")[0] as HTMLAnchorElement;
-    expect(link.getAttribute("href")).toBe(`/guilds/${CONFIGURED_GUILD}`);
+  it("uses no internal words", async () => {
+    const { container } = await renderList();
+    expect(visibleText(container)).not.toMatch(INTERNAL_WORDS);
   });
 });
 
 describe("/guilds/[guildId]", () => {
-  it("renders the checklist, the band meanings and the bot's refusals", async () => {
-    render(await GuildPage({ params: Promise.resolve({ guildId: CONFIGURED_GUILD }) }));
+  async function renderServer(guildId: string) {
+    return render(await GuildPage({ params: Promise.resolve({ guildId }) }));
+  }
 
-    expect(screen.getByRole("heading", { name: guildCopy.PAGE.detailTitle })).toBeDefined();
-    expect(screen.getByText(guildCopy.READINESS.onWord)).toBeDefined();
-
-    // Six bands plus unknown, each with what picking it does.
-    expect(screen.getByText(guildCopy.BAND_MEANING.UNKNOWN)).toBeDefined();
-    expect(screen.getByText(guildCopy.BANDS.noBirthdates)).toBeDefined();
-    expect(screen.getByText(guildCopy.BANDS.provenanceNote)).toBeDefined();
-
-    // T3 is shown and unavailable rather than hidden.
-    expect(screen.getByText(guildCopy.ACTIONS.t3)).toBeDefined();
-    expect(screen.getByText(guildCopy.ACTIONS.critical)).toBeDefined();
-
-    // FORBIDDEN_ACTIONS, in the owner's words.
-    for (const line of guildCopy.BOUNDARIES.not) {
-      expect(screen.getByText(line)).toBeDefined();
-    }
+  it("titles the page with the server's name and says whether it is watching", async () => {
+    await renderServer(CONFIGURED_GUILD);
+    expect(screen.getByRole("heading", { level: 1, name: "Northwood Gaming" })).toBeTruthy();
+    expect(screen.getByText("Watching")).toBeTruthy();
   });
 
-  it("shows the empty state for a server this account has no row for", async () => {
-    render(await GuildPage({ params: Promise.resolve({ guildId: "999999999999999999" }) }));
-    expect(screen.getByText(guildCopy.STATES.notFoundTitle)).toBeDefined();
+  it("has five cards and nothing else", async () => {
+    await renderServer(CONFIGURED_GUILD);
+    const cards = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(cards).toEqual(["Alerts", "Ages", "Moderators", "Channels to Skip", "Automatic Timeout"]);
   });
 
-  it("says why scoring cannot be turned on before a mod channel is set", async () => {
-    render(await GuildPage({ params: Promise.resolve({ guildId: UNCONFIGURED_GUILD }) }));
+  /*
+   * The page was 5,957 pixels of explanation: the UK Online Safety Act, why no
+   * birthdate is stored, what each age means to the scorer, T0 to T3, and what
+   * the bot will not do. And a box per setting for an 18-digit id.
+   */
+  it("shows no Discord id and no internal word anywhere", async () => {
+    const { container } = await renderServer(CONFIGURED_GUILD);
+    const text = visibleText(container);
+    expect(text).not.toMatch(DISCORD_ID);
+    expect(text).not.toMatch(INTERNAL_WORDS);
+    expect(text).not.toMatch(/Online Safety Act|birthdate|what this bot does/i);
+  });
 
-    const enable = screen.getByRole("button", { name: guildCopy.ENABLE.turnOn });
-    expect(enable.hasAttribute("disabled")).toBe(true);
-    expect(screen.getAllByText(guildCopy.ENABLE.needsChannel).length).toBeGreaterThan(0);
+  it("names every setting by the server's own channel and role names", async () => {
+    await renderServer(CONFIGURED_GUILD);
+    expect(screen.getByRole("option", { name: "#mod-alerts", selected: true })).toBeTruthy();
+    const ages = within(screen.getByRole("region", { name: "Ages" }));
+    expect(ages.getByText("@Teens")).toBeTruthy();
+    const mods = within(screen.getByRole("region", { name: "Moderators" }));
+    expect(mods.getByText("@Moderators")).toBeTruthy();
+    const skip = within(screen.getByRole("region", { name: "Channels to Skip" }));
+    expect(skip.getByText("#staff-lounge")).toBeTruthy();
+  });
+
+  it("says so, in one line, when the bot has not loaded the server yet", async () => {
+    await renderServer(UNLOADED_GUILD);
+    expect(screen.getByRole("heading", { level: 1, name: "New server" })).toBeTruthy();
+    expect(screen.getByText(guildCopy.PAGE.notLoaded)).toBeTruthy();
+    expect(screen.getByText("Not watching yet")).toBeTruthy();
+  });
+
+  it("shows the not-found state for a server this account is not set up for", async () => {
+    await renderServer("999999999999999999");
+    expect(screen.getByText(guildCopy.STATES.notFoundTitle)).toBeTruthy();
   });
 });
 
 describe("GuildEditor", () => {
-  it("validates a Discord id and then writes the mod channel through the save action", async () => {
-    const save = vi.fn().mockResolvedValue({ ok: true, message: guildCopy.SAVE.ok });
+  it("saves the alerts channel as soon as one is picked", async () => {
+    const save = vi.fn(async () => ({ ok: true as const, message: "Saved." }));
     render(<GuildEditor config={{ ...BASE, modChannelId: null, enabled: false }} save={save} />);
 
-    const input = screen.getByLabelText(guildCopy.MOD_CHANNEL.label);
-    const button = screen.getByRole("button", { name: guildCopy.MOD_CHANNEL.saveLabel });
+    fireEvent.change(screen.getByLabelText("Send alerts to"), {
+      target: { value: "742118990011224200" },
+    });
+    await waitFor(() => expect(save).toHaveBeenCalledWith({ modChannelId: "742118990011224200" }));
+    expect(await screen.findByText("Saved.")).toBeTruthy();
+  });
 
-    fireEvent.change(input, { target: { value: "not-an-id" } });
-    fireEvent.click(button);
-    expect(screen.getByText(guildCopy.SNOWFLAKE_ERROR)).toBeDefined();
-    expect(save).not.toHaveBeenCalled();
-
-    fireEvent.change(input, { target: { value: "742118990011223999" } });
-    fireEvent.click(button);
-
-    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-    expect(save).toHaveBeenCalledWith({ modChannelId: "742118990011223999" });
-    await screen.findByText(guildCopy.MOD_CHANNEL.saved);
-
-    // The checklist reflects the write without a reload.
-    await waitFor(() =>
-      expect(screen.getAllByText(guildCopy.READINESS.doneWord, { exact: false }).length).toBeGreaterThan(0),
+  it("won't start watching until an alerts channel is picked, and says why", () => {
+    render(
+      <GuildEditor config={{ ...BASE, modChannelId: null, enabled: false }} save={vi.fn()} />,
     );
+    expect(screen.getByRole("button", { name: "Start Watching" })).toHaveProperty("disabled", true);
+    expect(screen.getByText("Pick a channel first.")).toBeTruthy();
   });
 
-  it("asks for a second confirmation before turning the automatic timeout on", async () => {
-    const save = vi.fn().mockResolvedValue({ ok: true, message: guildCopy.SAVE.ok });
+  it("stops watching when the alerts channel is cleared, because there is nowhere to send one", async () => {
+    const save = vi.fn(async () => ({ ok: true as const, message: "Saved." }));
     render(<GuildEditor config={BASE} save={save} />);
+    fireEvent.change(screen.getByLabelText("Send alerts to"), { target: { value: "" } });
+    await waitFor(() => expect(save).toHaveBeenCalledWith({ modChannelId: null, enabled: false }));
+  });
 
-    fireEvent.click(screen.getByLabelText(guildCopy.ACTIONS.timeoutCheckbox));
-    fireEvent.click(screen.getByRole("button", { name: guildCopy.ACTIONS.saveLabel }));
+  it("adds a role to Ages by name, starting at Not sure", async () => {
+    const save = vi.fn(async () => ({ ok: true as const, message: "Saved." }));
+    render(<GuildEditor config={BASE} save={save} />);
+    const ages = within(screen.getByRole("region", { name: "Ages" }));
+    fireEvent.change(ages.getByLabelText("Add a role"), { target: { value: "742118990011224004" } });
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith({
+        roleBands: { "742118990011224001": "A13_15", "742118990011224004": "UNKNOWN" },
+      }),
+    );
+    expect(ages.getByText("@Adults")).toBeTruthy();
+  });
 
+  it("asks once before turning automatic timeouts on, and never before turning them off", async () => {
+    const save = vi.fn(async () => ({ ok: true as const, message: "Saved." }));
+    render(<GuildEditor config={BASE} save={save} />);
+    const box = screen.getByLabelText("Time out an account when Guardian sends an alert");
+
+    fireEvent.click(box);
+    expect(screen.getByRole("dialog", { name: "Turn on automatic timeouts?" })).toBeTruthy();
     expect(save).not.toHaveBeenCalled();
-    expect(screen.getByText(guildCopy.ACTIONS.confirmBody)).toBeDefined();
-
-    fireEvent.click(screen.getByRole("button", { name: guildCopy.ACTIONS.confirmAccept }));
-    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-    expect(save).toHaveBeenCalledWith({ autoTimeoutOnT2: true, autoTimeoutMinutes: 60 });
+    fireEvent.click(screen.getByRole("button", { name: "Turn On" }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith({ autoTimeoutOnT2: true }));
   });
 
-  it("keeps the setting when the write is refused, and says so", async () => {
-    const save = vi.fn().mockResolvedValue({ ok: false, message: guildCopy.SAVE.noRow });
+  it("puts the setting back when the save is refused, and says so", async () => {
+    const save = vi.fn(async () => ({ ok: false as const, message: "Only an operator can change this." }));
     render(<GuildEditor config={BASE} save={save} />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop Watching" }));
+    expect(await screen.findByText("Only an operator can change this.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Stop Watching" })).toBeTruthy();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: guildCopy.ENABLE.turnOff }));
-
-    await screen.findByText(guildCopy.SAVE.noRow);
-    expect(screen.getByRole("button", { name: guildCopy.ENABLE.turnOff })).toBeDefined();
+  it("marks a role the server deleted rather than showing its id", () => {
+    render(
+      <GuildEditor config={{ ...BASE, roleBands: { "742118990011229999": "A16_17" } }} save={vi.fn()} />,
+    );
+    expect(screen.getByText("Deleted role")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(DISCORD_ID);
   });
 });

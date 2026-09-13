@@ -7,6 +7,10 @@ import { AGE_BANDS, AGE_BAND_PROVENANCES } from "@guardian/schema";
  * band rather than a birthdate (CLAUDE.md rule 9).
  */
 
+/** One channel or role, by id and the name the server gave it. */
+export const directoryEntry = z.object({ id: z.string(), name: z.string() });
+export type DirectoryEntry = z.infer<typeof directoryEntry>;
+
 export const guildConfigSchema = z.object({
   guildId: z.string(),
   /**
@@ -22,6 +26,15 @@ export const guildConfigSchema = z.object({
   modChannelId: z.string().nullable(),
   /** That channel's name, for the same reason as guildName. */
   modChannelName: z.string().nullable().default(null),
+  /**
+   * The server's text channels and roles by name, as the bot last saw them.
+   *
+   * Setting up meant pasting an 18-digit id for every channel and role, copied
+   * with Developer Mode on. With these the console offers a list instead.
+   * Names the operator created, and no member data.
+   */
+  channels: z.array(directoryEntry).default([]),
+  roles: z.array(directoryEntry).default([]),
   /** Role id to age band. First match in role order wins. */
   roleBands: z.record(z.string(), z.enum(AGE_BANDS)).default({}),
   /**

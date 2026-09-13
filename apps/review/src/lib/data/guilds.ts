@@ -10,7 +10,7 @@
 import { getPrisma, isMockMode } from "../db";
 import { getMockData } from "../mock/fixtures";
 import type { Session } from "../session";
-import type { AgeBand, GuildConfigView } from "./types";
+import type { AgeBand, DirectoryEntry, GuildConfigView } from "./types";
 
 function toView(row: {
   guildId: string;
@@ -27,6 +27,8 @@ function toView(row: {
   updatedAt: Date;
   guildName?: string | null;
   modChannelName?: string | null;
+  channels?: unknown;
+  roles?: unknown;
 }): GuildConfigView {
   const roleBands: Record<string, AgeBand> = {};
   if (typeof row.roleBands === "object" && row.roleBands !== null) {
@@ -40,6 +42,8 @@ function toView(row: {
     guildName: row.guildName ?? null,
     modChannelId: row.modChannelId,
     modChannelName: row.modChannelName ?? null,
+    channels: directory(row.channels),
+    roles: directory(row.roles),
     roleBands,
     trustedRoleIds: row.trustedRoleIds,
     defaultBand: row.defaultBand as AgeBand,
@@ -50,6 +54,17 @@ function toView(row: {
     enabled: row.enabled,
     updatedAt: row.updatedAt,
   };
+}
+
+/** A Json column of [{ id, name }], read defensively: anything malformed is dropped. */
+function directory(value: unknown): DirectoryEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const record = entry as { id?: unknown; name?: unknown };
+    return typeof record?.id === "string" && typeof record?.name === "string"
+      ? [{ id: record.id, name: record.name }]
+      : [];
+  });
 }
 
 export async function listGuildConfigs(session: Session): Promise<GuildConfigView[]> {

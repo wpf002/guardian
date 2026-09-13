@@ -6,7 +6,12 @@ import {
   type CustomerReportingIdentity,
   type Tier,
 } from "@guardian/schema";
-import { guildConfigSchema, type GuildConfig, type GuildConfigStore } from "./config.js";
+import {
+  guildConfigSchema,
+  type DirectoryEntry,
+  type GuildConfig,
+  type GuildConfigStore,
+} from "./config.js";
 
 /**
  * Postgres-backed guild configuration over the guild_configs table.
@@ -27,6 +32,9 @@ export interface GuildConfigRow {
   guildName: string | null;
   modChannelId: string | null;
   modChannelName: string | null;
+  /** Json columns, [{ id, name }]. Validated through guildConfigSchema on read. */
+  channels: unknown;
+  roles: unknown;
   /** Json column. Validated through guildConfigSchema on read. */
   roleBands: unknown;
   trustedRoleIds: string[];
@@ -43,6 +51,8 @@ export interface GuildConfigWrite {
   guildName: string | null;
   modChannelId: string | null;
   modChannelName: string | null;
+  channels: DirectoryEntry[];
+  roles: DirectoryEntry[];
   roleBands: Record<string, AgeBand>;
   trustedRoleIds: string[];
   defaultBand: AgeBand;
@@ -126,6 +136,8 @@ export class PrismaGuildConfigStore implements GuildConfigStore {
       guildName: row.guildName,
       modChannelId: row.modChannelId,
       modChannelName: row.modChannelName,
+      channels: row.channels ?? [],
+      roles: row.roles ?? [],
       roleBands: row.roleBands ?? {},
       trustedRoleIds: row.trustedRoleIds,
       defaultBand: row.defaultBand,
@@ -143,6 +155,8 @@ export class PrismaGuildConfigStore implements GuildConfigStore {
       guildName: config.guildName,
       modChannelId: config.modChannelId,
       modChannelName: config.modChannelName,
+      channels: config.channels,
+      roles: config.roles,
       roleBands: config.roleBands,
       trustedRoleIds: config.trustedRoleIds,
       defaultBand: config.defaultBand,

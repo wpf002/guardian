@@ -1,27 +1,17 @@
 /*
- * Guild setup. Spacing from the 4px scale, semantic tokens only, 1px borders
- * rather than shadows, and no motion beyond opacity on a state change.
+ * The servers list and one server's setup.
+ *
+ * This file had 47 classes, most of them for explanation blocks: a readiness
+ * checklist, a legend of what each age means to the scorer, a tier table, a
+ * list of what the bot will and will not do. Those blocks are gone, and so are
+ * their styles.
  */
 
-/*
- * The page stacks a header, a card and a table as plain siblings with nothing
- * between them, so the card's bottom edge sat flush against the table's top
- * edge and the two read as one block. A grid with a gap spaces every child,
- * including anything added later.
- */
 .page {
   display: grid;
   align-content: start;
   gap: var(--space-5);
   padding-block: var(--space-6) var(--space-8);
-}
-
-.pageHead {
-  margin-block-end: var(--space-6);
-}
-
-.pageTitle {
-  font-weight: var(--weight-bold);
 }
 
 .crumb {
@@ -30,27 +20,25 @@
   font-size: var(--text-sm);
 }
 
-.intro {
-  margin-block-start: var(--space-3);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-}
-
 .sections {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
 }
 
-.prose {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
+.status {
+  position: sticky;
+  top: var(--space-3);
+  z-index: 2;
 }
 
-.prose + .prose {
-  margin-block-start: var(--space-3);
+.notice {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 .body {
@@ -58,257 +46,159 @@
   line-height: var(--leading-normal);
 }
 
-/* A statement the owner reads once and cannot dismiss, so it is set apart by a
-   rule rather than by a colour fill. */
-.note {
-  margin-block-start: var(--space-4);
-  padding-inline-start: var(--space-3);
-  border-inline-start: 2px solid var(--divider);
+/* One sentence under a card title saying what the card is for. */
+.intro {
+  margin-block-end: var(--space-3);
   color: var(--text-muted);
   font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-}
-
-.note p + p {
-  margin-block-start: var(--space-2);
-}
-
-.mono {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-3);
-  margin-block-start: var(--space-4);
-}
-
-.saveRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-  margin-block-start: var(--space-4);
-}
-
-.status {
-  margin-block-end: var(--space-4);
-}
-
-/* Checklist ------------------------------------------------------------- */
-
-.checklist {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.checkItem {
-  display: grid;
-  grid-template-columns: var(--space-4) 1fr;
-  gap: var(--space-1) var(--space-3);
-  padding-block: var(--space-3);
-  border-block-start: 1px solid var(--divider);
-}
-
-.checkItem:first-child {
-  border-block-start: 0;
-  padding-block-start: 0;
-}
-
-/* Never colour alone: the mark is a glyph and the state is also a word. */
-.checkMark {
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-  color: var(--text-subtle);
-}
-
-.checkItem[data-done="true"] .checkMark {
-  color: var(--success);
-}
-
-.checkHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-}
-
-.checkState {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-regular);
-  color: var(--text-muted);
-}
-
-.checkDetail {
-  grid-column: 2;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-normal);
-}
-
-.scoringLine {
-  margin-block-end: var(--space-4);
-  padding: var(--space-3);
-  border: 1px solid var(--divider);
-  border-radius: var(--radius-md);
-  background: var(--surface-sunken);
-}
-
-.scoringWord {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-}
-
-.scoringDetail {
-  margin-block-start: var(--space-1);
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-normal);
-}
-
-/* Id lists -------------------------------------------------------------- */
-
-.idList {
-  list-style: none;
-  padding: 0;
-  margin: var(--space-3) 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.idRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--divider);
-  border-radius: var(--radius-md);
-}
-
-.bandRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--divider);
-  border-radius: var(--radius-md);
-}
-
-.bandRow > :first-child {
-  flex: 1 1 220px;
-  min-width: 0;
-}
-
-.bandMeaning {
-  flex: 1 1 100%;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
   line-height: var(--leading-normal);
 }
 
 .empty {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* A control and its button side by side, wrapping on a narrow screen. */
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.inline > :first-child {
+  flex: 1 1 18rem;
+}
+
+/* A role or a channel, what it is set to, and a way to remove it. */
+.pickList {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.pickRow {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) 12rem 5rem;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--divider);
+}
+
+.pickRow:last-child {
+  border-block-end: 0;
+}
+
+.pickName {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.pickName[data-missing="true"] {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Under the row rather than in a column: a long note in the third column widened
+   it on that row alone, and the selects stopped lining up. */
+.pickHelp {
+  grid-column: 1 / -1;
+  margin-block-start: calc(-1 * var(--space-1));
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+.pickSelect,
+.addPicker {
+  min-height: 34px;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.pickSelect:disabled,
+.addPicker:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.addPicker {
   margin-block-start: var(--space-3);
   color: var(--text-muted);
-  font-size: var(--text-sm);
 }
 
-/* Tier rows ------------------------------------------------------------- */
-
-.tierList {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.tierRow {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: start;
-  gap: var(--space-3);
-  padding-block: var(--space-3);
-  border-block-start: 1px solid var(--divider);
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-}
-
-.tierRow:first-child {
-  border-block-start: 0;
-  padding-block-start: 0;
-}
-
-/* T3 is shown and unavailable rather than hidden, so the boundary is legible. */
-.tierRow[data-available="false"] {
+.removeButton {
+  justify-self: end;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  background: none;
   color: var(--text-muted);
-}
-
-.locked {
-  margin-block-start: var(--space-4);
-  padding-inline-start: var(--space-3);
-  border-inline-start: 2px solid var(--border);
+  font: inherit;
   font-size: var(--text-sm);
-  line-height: var(--leading-normal);
+  cursor: pointer;
 }
 
-/* Boundaries ------------------------------------------------------------ */
-
-.boundaries {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--space-5);
+.removeButton:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-.boundaryHeading {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  margin-block-end: var(--space-2);
-}
-
-.boundaryList {
-  list-style: none;
+/* Picked roles or channels. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   padding: 0;
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  color: var(--text);
   font-size: var(--text-sm);
-  line-height: var(--leading-normal);
 }
 
-.boundaryList li {
-  display: grid;
-  grid-template-columns: var(--space-4) 1fr;
-  gap: var(--space-2);
+.chipRemove {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 22px;
+  block-size: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-md);
+  line-height: 1;
+  cursor: pointer;
 }
 
-.boundaryList li::before {
-  content: "";
-  margin-block-start: 0.55em;
-  width: var(--space-2);
-  height: 1px;
-  background: var(--text-subtle);
+.chipRemove:hover:not(:disabled) {
+  background: var(--surface-raised);
+  color: var(--text);
 }
-
-/* Checkbox -------------------------------------------------------------- */
 
 .checkboxRow {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-3);
-  margin-block-start: var(--space-4);
+  min-height: 36px;
 }
 
 .checkbox {
@@ -321,118 +211,28 @@
 
 .checkboxLabel {
   font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
 }
-
-/* Table ----------------------------------------------------------------- */
 
 .tableLink {
   font-size: var(--text-sm);
 }
 
-@media (max-width: 640px) {
+.sees {
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 40rem) {
   .page {
     padding-block: var(--space-5) var(--space-6);
   }
 
-  .idRow,
-  .bandRow {
-    align-items: stretch;
+  .pickRow {
+    grid-template-columns: 1fr auto;
   }
-}
 
-.subHeading {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  margin-block-end: var(--space-2);
-}
-
-.subHeadingSpaced {
-  composes: subHeading;
-  margin-block-start: var(--space-5);
-}
-
-/* Band legend ----------------------------------------------------------- */
-
-.legend {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.legendRow {
-  display: grid;
-  grid-template-columns: minmax(96px, 140px) 1fr;
-  gap: var(--space-3);
-  padding-block: var(--space-3);
-  border-block-start: 1px solid var(--divider);
-}
-
-.legendRow:first-child {
-  border-block-start: 0;
-  padding-block-start: 0;
-}
-
-.legendTerm {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-}
-
-.legendDetail {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-}
-
-@media (max-width: 640px) {
-  .legendRow {
-    grid-template-columns: 1fr;
-    gap: var(--space-1);
+  .pickRow > .pickSelect {
+    grid-column: 1 / -1;
   }
-}
-
-/*
- * The two halves of what the bot sees. Green-ish and muted rather than a
- * warning colour: this is a description of a boundary, not an error, and an
- * owner reading it is doing the right thing.
- */
-.sees {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.seesCan,
-.seesCannot {
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-}
-
-.seesCan {
-  color: var(--text);
-}
-
-.seesCannot {
-  color: var(--text-muted);
-}
-
-/* The server's name, with its Discord id under it in small type. The column
-   used to be the id alone, which named nothing anybody recognises. */
-.serverName {
-  display: block;
-  color: inherit;
-  font-size: var(--text-sm);
-}
-
-.serverName[data-unnamed="true"] {
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.serverId {
-  display: block;
-  margin-block-start: 2px;
-  color: var(--text-subtle);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
 }

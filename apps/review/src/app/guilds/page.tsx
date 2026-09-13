@@ -8,11 +8,9 @@ export const metadata = {
   title: "Servers",
 };
 
-const DATE = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
-
 /**
- * Every Discord server on this account. Operator and owner only: a reviewer
- * reads cases and does not configure what the bot reads.
+ * Every Discord server Guardian is in. Operator and owner only: a reviewer reads
+ * conversations and does not set up what the bot reads.
  */
 export default async function GuildsPage() {
   const session = await requireRole("operator");
@@ -22,41 +20,33 @@ export default async function GuildsPage() {
     guildId: guild.guildId,
     guildName: guild.guildName,
     scoring: isGuildReady({ enabled: guild.enabled, modChannelId: guild.modChannelId }),
-    modChannelId: guild.modChannelId,
     modChannelName: guild.modChannelName,
-    rolesMapped: Object.keys(guild.roleBands).length,
-    updatedAt: DATE.format(guild.updatedAt),
+    hasModChannel: guild.modChannelId !== null,
   }));
 
   return (
     <div className={`container ${styles.page}`}>
-      <PageHeader
-        title={guildCopy.PAGE.listTitle}
-        meta={`${rows.length} ${rows.length === 1 ? "Server" : "Servers"}`}
-        about={<p>{guildCopy.PAGE.listIntro}</p>}
-      />
+      <PageHeader title={guildCopy.PAGE.listTitle} about={<p>{guildCopy.PAGE.listIntro}</p>} />
 
       {/*
-        The limits, on the page where somebody turns scoring on (ROADMAP 2b.2).
-        Every line is something an owner would otherwise discover by wondering
-        why a conversation they know about produced nothing at all.
+        Two lines. This was two paragraphs covering reply detection, the
+        ten-minute window, role mapping, the default age and game-chat bridges.
+        What an admin needs from this card is what Guardian can see and what it
+        can't, and the rest is how the kernel works.
       */}
       <Card title={guildCopy.PAGE.seesTitle}>
         <div className={styles.sees}>
-          <p className={styles.seesCan}>
-            <strong>It reads:</strong> {guildCopy.PAGE.seesCan}
+          <p>
+            <strong>Reads:</strong> {guildCopy.PAGE.seesCan}
           </p>
-          <p className={styles.seesCannot}>
-            <strong>It does not:</strong> {guildCopy.PAGE.seesCannot}
+          <p>
+            <strong>Never reads:</strong> {guildCopy.PAGE.seesCannot}
           </p>
         </div>
       </Card>
 
       {rows.length === 0 ? (
-        <EmptyState
-          title={guildCopy.STATES.emptyTitle}
-          detail={guildCopy.STATES.emptyDetail}
-        />
+        <EmptyState title={guildCopy.STATES.emptyTitle} detail={guildCopy.STATES.emptyDetail} />
       ) : (
         <GuildTable rows={rows} />
       )}

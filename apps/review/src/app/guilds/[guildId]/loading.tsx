@@ -6,7 +6,7 @@ import styles from "@/components/guilds/Guilds.module.css";
 export default function GuildLoading() {
   return (
     <div className={`container ${styles.page}`}>
-      <PageHeader title={guildCopy.PAGE.detailTitle} />
+      <PageHeader title={guildCopy.PAGE.unnamed} />
       <LoadingState label={guildCopy.STATES.loadingDetail} count={4} rowHeight={140} />
     </div>
   );

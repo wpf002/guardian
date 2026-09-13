@@ -693,6 +693,11 @@ model GuildConfig {
   modChannelId String?
   /// The mod channel's name, for the same reason.
   modChannelName String?
+  /// The server's text channels, [{ id, name }], as the bot last saw them. The
+  /// console offers these by name, so nobody pastes a Discord id to set up.
+  channels   Json     @default("[]")
+  /// The server's roles, [{ id, name }], minus @everyone and bot-managed roles.
+  roles      Json     @default("[]")
   roleBands  Json     @default("{}")
   trustedRoleIds String[] @default([])
   defaultBand AgeBand @default(A13_15)

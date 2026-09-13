@@ -32,6 +32,7 @@ import {
 import {
   MemoryGuildConfigStore,
   defaultGuildConfig,
+  type DirectoryEntry,
   type GuildConfig,
   type GuildConfigStore,
 } from "./config.js";
@@ -205,6 +206,84 @@ async function refreshNames(
     : null;
   if (guildName === config.guildName && modChannelName === config.modChannelName) return;
   await deps.configs.put({ ...config, guildName, modChannelName });
+}
+
+/** The slice of a discord.js Guild the directory reads. Fakes in tests match it. */
+export interface GuildLike {
+  id: string;
+  name: string;
+  channels?: {
+    cache?: Iterable<[string, ChannelLike]> | Map<string, ChannelLike>;
+  };
+  roles?: { cache?: Iterable<[string, RoleLike]> | Map<string, RoleLike> };
+}
+
+interface ChannelLike {
+  id: string;
+  name?: string;
+  position?: number;
+  isTextBased?: () => boolean;
+  isThread?: () => boolean;
+}
+
+interface RoleLike {
+  id: string;
+  name: string;
+  position?: number;
+  managed?: boolean;
+}
+
+/**
+ * The server's text channels and roles, by name.
+ *
+ * Threads are left out because they come and go by the minute and nobody sends
+ * alerts to one. @everyone is left out because it is every member, and a role a
+ * bot manages is left out because it belongs to an integration rather than to
+ * people. Both lists come back in the order Discord shows them.
+ */
+export function directoryOf(guild: GuildLike): { channels: DirectoryEntry[]; roles: DirectoryEntry[] } {
+  const channels = [...(guild.channels?.cache ?? new Map<string, ChannelLike>())]
+    .map(([, channel]) => channel)
+    .filter((channel) => channel.isTextBased?.() === true && channel.isThread?.() !== true)
+    .filter((channel) => typeof channel.name === "string")
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .map((channel) => ({ id: channel.id, name: channel.name! }));
+  const roles = [...(guild.roles?.cache ?? new Map<string, RoleLike>())]
+    .map(([, role]) => role)
+    .filter((role) => role.id !== guild.id && role.managed !== true)
+    .sort((a, b) => (b.position ?? 0) - (a.position ?? 0))
+    .map((role) => ({ id: role.id, name: role.name }));
+  return { channels, roles };
+}
+
+function sameDirectory(a: DirectoryEntry[], b: DirectoryEntry[]): boolean {
+  return a.length === b.length && a.every((entry, i) => entry.id === b[i]!.id && entry.name === b[i]!.name);
+}
+
+/**
+ * Write the server's name, channels and roles back when they have changed.
+ *
+ * Runs when the bot connects, when it joins a server, and when a channel or
+ * role is created, renamed or deleted. It creates the settings row for a server
+ * that has none, which is what makes a server appear in the console as soon as
+ * the bot is invited. Scoring stays off on that row until somebody picks an
+ * alerts channel and turns it on.
+ */
+export async function syncDirectory(guild: GuildLike, deps: HandlerDeps): Promise<void> {
+  const config = (await deps.configs.get(guild.id)) ?? defaultGuildConfig(guild.id);
+  const { channels, roles } = directoryOf(guild);
+  const modChannelName = config.modChannelId
+    ? (channels.find((channel) => channel.id === config.modChannelId)?.name ?? config.modChannelName)
+    : null;
+  if (
+    config.guildName === guild.name &&
+    config.modChannelName === modChannelName &&
+    sameDirectory(config.channels, channels) &&
+    sameDirectory(config.roles, roles)
+  ) {
+    return;
+  }
+  await deps.configs.put({ ...config, guildName: guild.name, modChannelName, channels, roles });
 }
 
 /** Score one message and apply whatever the pipeline decided. */
@@ -404,7 +483,33 @@ export function registerHandlers(client: Client, deps: HandlerDeps): void {
 
   client.once(Events.ClientReady, (ready) => {
     console.log(`guardian discord bot ready as ${ready.user.tag}`);
+    for (const guild of ready.guilds.cache.values()) {
+      void guarded(deps, "directory.ready", () => syncDirectory(guild, deps));
+    }
   });
+
+  // Keep each server's channel and role names current, so the console can offer
+  // them by name. Every body is guarded: a label on a settings page is never
+  // worth an exception in the gateway loop.
+  client.on(Events.GuildCreate, (guild) => {
+    void guarded(deps, "directory.guildCreate", () => syncDirectory(guild, deps));
+  });
+  for (const event of [Events.ChannelCreate, Events.ChannelDelete, Events.ChannelUpdate] as const) {
+    client.on(event, (...args: unknown[]) => {
+      const channel = args[args.length - 1] as { guild?: GuildLike } | undefined;
+      const guild = channel?.guild;
+      if (!guild) return;
+      void guarded(deps, `directory.${event}`, () => syncDirectory(guild, deps));
+    });
+  }
+  for (const event of [Events.GuildRoleCreate, Events.GuildRoleDelete, Events.GuildRoleUpdate] as const) {
+    client.on(event, (...args: unknown[]) => {
+      const role = args[args.length - 1] as { guild?: GuildLike } | undefined;
+      const guild = role?.guild;
+      if (!guild) return;
+      void guarded(deps, `directory.${event}`, () => syncDirectory(guild, deps));
+    });
+  }
 }
 
 export async function start(): Promise<void> {

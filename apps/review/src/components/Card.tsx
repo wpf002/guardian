@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import styles from "./Card.module.css";
 
 export interface CardProps {
@@ -24,11 +24,20 @@ export function Card({
 }: CardProps) {
   const densityClass =
     density === "tight" ? styles.tight : density === "padded" ? styles.padded : "";
+  // The prop comment always said the title is the section's accessible name,
+  // and nothing wired it: a section with no label is not a landmark, so a
+  // screen reader listing regions skipped every card in the app.
+  const titleId = useId();
   return (
-    <Tag className={[styles.card, densityClass, className ?? ""].filter(Boolean).join(" ")}>
+    <Tag
+      className={[styles.card, densityClass, className ?? ""].filter(Boolean).join(" ")}
+      aria-labelledby={title && Tag === "section" ? titleId : undefined}
+    >
       {title ? (
         <div className={styles.header}>
-          <h2 className={styles.title}>{title}</h2>
+          <h2 className={styles.title} id={titleId}>
+            {title}
+          </h2>
           {aside ? <span className={styles.aside}>{aside}</span> : null}
         </div>
       ) : null}

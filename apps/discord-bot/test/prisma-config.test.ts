@@ -32,6 +32,8 @@ function fakeDelegate(): GuildConfigDelegate & { rows: Map<string, GuildConfigRo
         guildName: write.guildName,
         modChannelId: write.modChannelId,
         modChannelName: write.modChannelName,
+        channels: write.channels,
+        roles: write.roles,
         roleBands: write.roleBands,
         trustedRoleIds: write.trustedRoleIds,
         defaultBand: write.defaultBand,

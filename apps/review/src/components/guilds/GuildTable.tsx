@@ -7,39 +7,33 @@ import styles from "./Guilds.module.css";
 
 export interface GuildRow {
   guildId: string;
-  /** Null until the bot has handled a message in this server. */
+  /** Null until the bot has connected to this server. */
   guildName: string | null;
   scoring: boolean;
-  modChannelId: string | null;
   modChannelName: string | null;
-  rolesMapped: number;
-  updatedAt: string;
+  hasModChannel: boolean;
 }
 
 /**
- * A client wrapper, because DataTable takes render functions in its columns and
- * a function cannot cross the server boundary. Rows arrive already serialized.
+ * One row per server: its name, whether Guardian is watching, and where alerts
+ * go. Three columns.
+ *
+ * There were five. The Discord id printed under each name, a count of mapped
+ * roles, and the date of the last change. None of them tells an admin anything
+ * they act on from a list: whether the ages are right is a question for the
+ * server's own page, and nobody picks a server by the day it was last edited.
+ *
+ * A client wrapper, because DataTable takes render functions and a function
+ * cannot cross the server boundary.
  */
 export function GuildTable({ rows }: { rows: GuildRow[] }) {
   const columns: Column<GuildRow>[] = [
-    /*
-      The name, with the snowflake under it.
-      
-      This column printed an 18-digit Discord id and nothing else, because the
-      id was the only thing Guardian stored about a server. An operator looking
-      at their own two rows could not tell which was which. The bot writes the
-      name back from the gateway now; the id stays, small, because it is what
-      somebody pastes into a Discord support thread.
-    */
     {
       key: "guildId",
       header: TABLE.server,
       render: (row) => (
         <Link className={styles.tableLink} href={`/guilds/${row.guildId}`}>
-          <span className={styles.serverName} data-unnamed={row.guildName ? undefined : "true"}>
-            {row.guildName ?? TABLE.unnamed}
-          </span>
-          <span className={styles.serverId}>{row.guildId}</span>
+          {row.guildName ?? PAGE.unnamed}
           <span className="sr-only">{` ${TABLE.openLabel}`}</span>
         </Link>
       ),
@@ -49,34 +43,13 @@ export function GuildTable({ rows }: { rows: GuildRow[] }) {
       header: TABLE.scoring,
       render: (row) => (row.scoring ? TABLE.on : TABLE.off),
     },
-    // Same again: the channel had only its snowflake to show.
     {
-      key: "modChannelId",
+      key: "modChannelName",
       header: TABLE.modChannel,
-      render: (row) => {
-        if (!row.modChannelId) return TABLE.notSet;
-        return row.modChannelName ? `#${row.modChannelName}` : <span className={styles.mono}>{row.modChannelId}</span>;
-      },
-    },
-    {
-      key: "rolesMapped",
-      header: TABLE.roles,
-      numeric: true,
-      render: (row) => (row.rolesMapped === 0 ? TABLE.noRoles : row.rolesMapped),
-    },
-    {
-      key: "updatedAt",
-      header: TABLE.updated,
-      render: (row) => row.updatedAt,
+      render: (row) =>
+        row.hasModChannel ? (row.modChannelName ? `#${row.modChannelName}` : TABLE.notSet) : TABLE.notSet,
     },
   ];
 
-  return (
-    <DataTable
-      caption={PAGE.listCaption}
-      columns={columns}
-      rows={rows}
-      rowKey={(row) => row.guildId}
-    />
-  );
+  return <DataTable caption={PAGE.listCaption} columns={columns} rows={rows} rowKey={(row) => row.guildId} />;
 }

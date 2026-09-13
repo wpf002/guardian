@@ -391,6 +391,12 @@ export interface DashboardSummary {
   versions: Versions;
 }
 
+/** A channel or role in a Discord server, by the name the server gave it. */
+export interface DirectoryEntry {
+  id: string;
+  name: string;
+}
+
 export interface GuildConfigView {
   guildId: string;
   customerId: string;
@@ -402,6 +408,9 @@ export interface GuildConfigView {
   guildName: string | null;
   modChannelId: string | null;
   modChannelName: string | null;
+  /** The server's text channels and roles by name, as the bot last saw them. */
+  channels: DirectoryEntry[];
+  roles: DirectoryEntry[];
   roleBands: Record<string, AgeBand>;
   trustedRoleIds: string[];
   defaultBand: AgeBand;

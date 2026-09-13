@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { EmptyState, PageHeader } from "@/components";
-import { BotBoundaries, GuildEditor, guildCopy, toGuildView } from "@/components/guilds";
+import { GuildEditor, guildCopy, isGuildReady, toGuildView } from "@/components/guilds";
 import { requireRole } from "@/lib/auth";
 import { getGuildConfig } from "@/lib/data/guilds";
 import { saveGuildSettings } from "../actions";
@@ -12,15 +12,20 @@ export async function generateMetadata({
   params: Promise<{ guildId: string }>;
 }): Promise<{ title: string }> {
   const { guildId } = await params;
-  return { title: `Server ${guildId}` };
+  const session = await requireRole("operator");
+  const config = await getGuildConfig(session, guildId);
+  return { title: config?.guildName ?? guildCopy.PAGE.unnamed };
 }
 
 /**
- * Setup for one Discord server.
+ * Setting up Guardian for one Discord server.
  *
- * A guild id this account has no row for renders the empty state rather than an
- * error: another deployment can be present in the same server, and its settings
- * are none of this account's business (CLAUDE.md rule 8).
+ * The title is the server's name. It was "Server Setup" over an 18-digit id,
+ * which is what the database calls the server and not what anybody else does.
+ *
+ * A server id this account has no row for gets the not-found state rather than
+ * an error: another deployment can be in the same server, and its settings are
+ * none of this account's business (rule 8).
  */
 export default async function GuildPage({
   params,
@@ -33,30 +38,24 @@ export default async function GuildPage({
 
   return (
     <div className={`container ${styles.page}`}>
-      <header className={styles.pageHead}>
+      <div>
         <Link className={styles.crumb} href="/guilds">
           {guildCopy.PAGE.backToList}
         </Link>
         <PageHeader
-          title={guildCopy.PAGE.detailTitle}
-          meta={config ? <span className="mono">{config.guildId}</span> : null}
-          about={<p>{guildCopy.PAGE.detailIntro}</p>}
+          title={config?.guildName ?? guildCopy.PAGE.unnamed}
+          meta={
+            config ? (
+              <span>{isGuildReady(config) ? guildCopy.PAGE.watching : guildCopy.PAGE.notWatching}</span>
+            ) : null
+          }
         />
-      </header>
+      </div>
 
       {config ? (
-        <div className={styles.sections}>
-          <GuildEditor
-            config={toGuildView(config)}
-            save={saveGuildSettings.bind(null, config.guildId)}
-          />
-          <BotBoundaries />
-        </div>
+        <GuildEditor config={toGuildView(config)} save={saveGuildSettings.bind(null, config.guildId)} />
       ) : (
-        <EmptyState
-          title={guildCopy.STATES.notFoundTitle}
-          detail={guildCopy.STATES.notFoundDetail}
-        />
+        <EmptyState title={guildCopy.STATES.notFoundTitle} detail={guildCopy.STATES.notFoundDetail} />
       )}
     </div>
   );
