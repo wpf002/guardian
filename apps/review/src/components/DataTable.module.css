@@ -30,6 +30,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * A numeric header sits over its numbers.
+ *
+ * `.head th` sets text-align: start and outranks `.numeric` on specificity, a
+ * class plus an element against a class alone, so on a numeric column the
+ * header stayed at the left edge while every value under it went to the right
+ * edge. On a wide column the two ended up a cell apart and the numbers read as
+ * belonging to nothing.
+ */
+.head th.numeric {
+  text-align: end;
+}
+
 .row {
   border-block-end: 1px solid var(--divider);
 }
