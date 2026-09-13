@@ -7,7 +7,10 @@
  * minimum fails the build.
  *
  * Direction: a reviewer reads text timelines about children for hours. The
- * palette has to be calm. One muted blue accent for the action, a warm neutral
+ * palette has to be calm, and it is dark only. There was a light theme and a
+ * picker for it in Settings; Guardian does not need one, and a second palette
+ * is a second set of contrast pairs to keep passing for a screen nobody asked
+ * for. One muted blue accent for the action, a warm neutral
  * ramp with a hint of that blue, and tier colours that inform without alarming.
  * Nothing is saturated red. T3 is a plum, not a siren.
  *
@@ -107,59 +110,36 @@ const primitives = {
 
 const P = (name, step) => (step === undefined ? primitives[name].hex : primitives[name][step].hex);
 
+/** The palette. Dark only. */
 const semantic = {
-  light: {
-    bg: P("neutral", 50),
-    surface: P("white"),
-    "surface-raised": P("white"),
-    "surface-sunken": P("neutral", 100),
-    // border is the resting boundary of a control (input, outlined button, chip,
-    // card that is a button) and must read at 3:1 on every surface it can sit
-    // on, because this app spends nothing on shadows and the 1px rule is the
-    // whole affordance. border-strong is the same boundary under the pointer or
-    // in a pending state, so hover still reads as a change. divider is a
-    // hairline between rows inside one surface and only needs to be visible.
-    border: P("neutral", 500),
-    "border-strong": P("neutral", 600),
-    divider: P("neutral", 300),
-    // Three text tiers, all of them body copy somewhere, so all three clear
-    // 4.5:1 on bg, surface and surface-sunken.
-    text: P("neutral", 900),
-    "text-muted": P("neutral", 700),
-    "text-subtle": P("neutral", 600),
-    accent: P("accent", 600),
-    "accent-hover": P("accent", 700),
-    "accent-fg": P("white"),
-    "accent-soft": P("accent", 100),
-    "focus-ring": P("accent", 500),
-    "info": P("info", 700), "info-soft": P("info", 100),
-    "warning": P("warning", 700), "warning-soft": P("warning", 100),
-    "danger": P("danger", 700), "danger-soft": P("danger", 100),
-    "success": P("success", 700), "success-soft": P("success", 100),
-    "grave": P("plum", 700), "grave-soft": P("plum", 100),
-  },
-  dark: {
-    bg: P("neutral", 950),
-    surface: P("neutral", 900),
-    "surface-raised": P("neutral", 800),
-    "surface-sunken": P("neutral", 950),
-    border: P("neutral", 600),
-    "border-strong": P("neutral", 500),
-    divider: P("neutral", 800),
-    text: P("neutral", 50),
-    "text-muted": P("neutral", 300),
-    "text-subtle": P("neutral", 400),
-    accent: P("accent", 400),
-    "accent-hover": P("accent", 300),
-    "accent-fg": P("neutral", 950),
-    "accent-soft": P("accent", 900),
-    "focus-ring": P("accent", 300),
-    "info": P("info", 300), "info-soft": P("info", 900),
-    "warning": P("warning", 300), "warning-soft": P("warning", 900),
-    "danger": P("danger", 300), "danger-soft": P("danger", 900),
-    "success": P("success", 300), "success-soft": P("success", 900),
-    "grave": P("plum", 300), "grave-soft": P("plum", 900),
-  },
+  bg: P("neutral", 950),
+  surface: P("neutral", 900),
+  "surface-raised": P("neutral", 800),
+  "surface-sunken": P("neutral", 950),
+  // border is the resting boundary of a control (input, outlined button, chip,
+  // card that is a button) and must read at 3:1 on every surface it can sit
+  // on, because this app spends nothing on shadows and the 1px rule is the
+  // whole affordance. border-strong is the same boundary under the pointer or
+  // in a pending state, so hover still reads as a change. divider is a
+  // hairline between rows inside one surface and only needs to be visible.
+  border: P("neutral", 600),
+  "border-strong": P("neutral", 500),
+  divider: P("neutral", 800),
+  // Three text tiers, all of them body copy somewhere, so all three clear
+  // 4.5:1 on bg, surface and surface-sunken.
+  text: P("neutral", 50),
+  "text-muted": P("neutral", 300),
+  "text-subtle": P("neutral", 400),
+  accent: P("accent", 400),
+  "accent-hover": P("accent", 300),
+  "accent-fg": P("neutral", 950),
+  "accent-soft": P("accent", 900),
+  "focus-ring": P("accent", 300),
+  "info": P("info", 300), "info-soft": P("info", 900),
+  "warning": P("warning", 300), "warning-soft": P("warning", 900),
+  "danger": P("danger", 300), "danger-soft": P("danger", 900),
+  "success": P("success", 300), "success-soft": P("success", 900),
+  "grave": P("plum", 300), "grave-soft": P("plum", 900),
 };
 
 /**
@@ -167,10 +147,7 @@ const semantic = {
  * validator reasons over opaque hex. The scrim dims the page behind a dialog
  * rather than replacing it, which is what makes a dialog read as a layer.
  */
-const overlays = {
-  light: { scrim: "rgb(20 22 34 / 0.45)" },
-  dark: { scrim: "rgb(4 5 6 / 0.62)" },
-};
+const overlays = { scrim: "rgb(4 5 6 / 0.62)" };
 
 /** Component layer: only where a component genuinely diverges from semantic. */
 const component = {
@@ -237,13 +214,11 @@ const REQUIRED = [
 
 const rows = [];
 let failed = 0;
-for (const theme of ["light", "dark"]) {
-  for (const [fg, bg, min] of REQUIRED) {
-    const ratio = contrast(semantic[theme][fg], semantic[theme][bg]);
-    const ok = ratio >= min;
-    if (!ok) failed++;
-    rows.push({ theme, pair: `${fg} on ${bg}`, ratio: ratio.toFixed(2), min, ok: ok ? "ok" : "FAIL" });
-  }
+for (const [fg, bg, min] of REQUIRED) {
+  const ratio = contrast(semantic[fg], semantic[bg]);
+  const ok = ratio >= min;
+  if (!ok) failed++;
+  rows.push({ pair: `${fg} on ${bg}`, ratio: ratio.toFixed(2), min, ok: ok ? "ok" : "FAIL" });
 }
 
 // ------------------------------------------------------------------- emit
@@ -267,34 +242,20 @@ const nonColorVars = [
   `  --measure: ${nonColor.measure};`,
 ].join("\n");
 
-// Takes no theme: the component tokens are aliases and are identical in both.
+// The component tokens are aliases of the palette.
 const componentVars = () =>
   Object.entries(component)
     .flatMap(([name, roles]) => Object.entries(roles).map(([role, token]) => `  --${name}-${role}: var(--${token});`))
     .join("\n");
 
 const css = `/* Generated by scripts/theme/build-theme.mjs. Do not edit by hand. */
-/* Light is the base on :root. Dark overrides token values only. */
+/* One palette, dark. */
 :root {
-  color-scheme: light;
-${cssVars(semantic.light)}
-${cssVars(overlays.light)}
+  color-scheme: dark;
+${cssVars(semantic)}
+${cssVars(overlays)}
 ${nonColorVars}
 ${componentVars()}
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-${cssVars(semantic.dark)}
-${cssVars(overlays.dark)}
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-${cssVars(semantic.dark).replace(/^/gm, "  ")}
-${cssVars(overlays.dark).replace(/^/gm, "  ")}
-  }
 }
 `;
 
@@ -302,7 +263,7 @@ mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(join(OUT_DIR, "tokens.json"), JSON.stringify({ primitives, semantic, component, overlays, ...nonColor }, null, 2));
 writeFileSync(join(OUT_DIR, "theme.css"), css);
 
-console.log("theme  pair                         ratio  min");
-for (const r of rows) console.log(`${r.theme.padEnd(6)} ${r.pair.padEnd(28)} ${r.ratio.padStart(5)}  ${String(r.min).padStart(3)}  ${r.ok}`);
+console.log("pair                         ratio  min");
+for (const r of rows) console.log(`${r.pair.padEnd(28)} ${r.ratio.padStart(5)}  ${String(r.min).padStart(3)}  ${r.ok}`);
 console.log(failed === 0 ? `\nall ${rows.length} pairs pass` : `\n${failed} pair(s) FAIL`);
 process.exit(failed === 0 ? 0 : 1);

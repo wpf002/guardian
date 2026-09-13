@@ -7,8 +7,14 @@
   border-block-end: 1px solid var(--divider);
 }
 
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .back {
-  justify-self: start;
   font-size: var(--text-sm);
 }
 

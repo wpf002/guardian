@@ -4,6 +4,4 @@ export { LexiconEditor, type LexiconEditorProps } from "./LexiconEditor";
 export { ReportingDetailsForm, type ReportingDetailsFormProps } from "./ReportingDetailsForm";
 export { RetentionTable } from "./RetentionTable";
 export { SubmitButton } from "./SubmitButton";
-export { ThemePicker } from "./ThemePicker";
-export type { ThemeChoice } from "@/lib/theme";
 export { WebhookPanel, type WebhookPanelProps } from "./WebhookPanel";

@@ -96,7 +96,8 @@ describe("Timeline", () => {
 
   it("shows a hidden message as what kind it is, never its content", () => {
     render(<Timeline timeline={ready} />);
-    expect(screen.getByRole("button", { name: "Hidden: a threat. Show it" })).toBeTruthy();
+    expect(screen.getByText("Hidden: a threat")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show a threat" }).textContent).toBe("Show");
     expect(screen.queryByText("this is the verbatim excerpt")).toBeNull();
   });
 
@@ -116,7 +117,7 @@ describe("Timeline", () => {
         <Timeline timeline={ready} />
       </>,
     );
-    const reveal = screen.getByRole("button", { name: "Hidden: a threat. Show it" });
+    const reveal = screen.getByRole("button", { name: "Show a threat" });
     reveal.focus();
     fireEvent.click(reveal);
 
@@ -130,7 +131,7 @@ describe("Timeline", () => {
     const onReveal = vi.fn();
     render(<Timeline timeline={ready} onReveal={onReveal} />);
     expect(onReveal).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Hidden: a threat. Show it" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show a threat" }));
     expect(onReveal).toHaveBeenCalledWith("r2");
     expect(screen.getByText("this is the verbatim excerpt")).toBeTruthy();
   });

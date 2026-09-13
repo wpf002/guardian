@@ -64,8 +64,9 @@ export default async function AuditEntryPage({
           {pairId ? (
             <div className={styles.fact}>
               <dt className={styles.key}>Conversation</dt>
-              <dd className={styles.value}>
-                <Link href={`/cases/${pairId}`}>Open the conversation</Link>
+              <dd className={`${styles.value} ${styles.links}`}>
+                <Link href={`/cases/${pairId}`}>Open the Conversation</Link>
+                <Link href={`/audit?conversation=${encodeURIComponent(pairId)}`}>See Its History</Link>
               </dd>
             </div>
           ) : null}

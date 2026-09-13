@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Field } from "@/components/Field";
+import formStyles from "@/components/Form.module.css";
 import type { TestDeliveryState, WebhookState, WebhookView } from "@/app/settings/types";
 import { SubmitButton } from "./SubmitButton";
 import styles from "./settings.module.css";
@@ -37,98 +37,86 @@ export function WebhookPanel({ view, saveAction, testAction }: WebhookPanelProps
   const [urlState, urlFormAction] = useActionState(saveAction, URL_INITIAL);
   const [testState, testFormAction] = useActionState(testAction, TEST_INITIAL);
 
+  /*
+   * One row: the address, Save, and a test once there is something to test.
+   *
+   * It was a labelled field marked optional, a help line about https and query
+   * strings, a Save button on its own line, a note about signing, a
+   * disclosure, and a test button with "Set an endpoint first." printed under
+   * it. The rules about the address are what the save refuses, and it says so
+   * when it does. The test button is not shown until an address is saved,
+   * rather than shown disabled with a sentence explaining why.
+   */
   return (
-    <div className={styles.form}>
-      <form action={urlFormAction} className={styles.form}>
-        <Field
-          id="url"
-          name="url"
-          type="url"
-          label="Webhook endpoint"
-          defaultValue={view.url ?? ""}
-          placeholder="https://example.com/guardian-alerts"
-          optional
-          help="https only, and no query string. Leave it empty to stop delivery."
-          error={urlState.error ?? undefined}
-        />
-        {urlState.message ? (
-          <p className={`${styles.banner} ${styles.bannerOk}`} role="status">
-            {urlState.message}
-          </p>
+    <div className={styles.webhook}>
+      <p className={styles.cardIntro}>Guardian sends each alert to this web address, signed, without messages or images</p>
+
+      <div className={styles.hookRow}>
+        <form action={urlFormAction} className={styles.hookForm}>
+          <input
+            name="url"
+            type="url"
+            aria-label="Web address"
+            defaultValue={view.url ?? ""}
+            placeholder="https://example.com/guardian-alerts"
+            className={`${formStyles.control} ${styles.hookUrl}`}
+            aria-invalid={urlState.error ? true : undefined}
+          />
+          <SubmitButton variant="primary">Save</SubmitButton>
+        </form>
+        {view.url ? (
+          <form action={testFormAction}>
+            <SubmitButton>Send Test</SubmitButton>
+          </form>
         ) : null}
-        <div className={styles.actions}>
-          <SubmitButton variant="primary">Save endpoint</SubmitButton>
-        </div>
-      </form>
+      </div>
 
-      {/*
-        How a request is signed and what is in it.
-        
-        Two rows, each with a paragraph, sitting open between the endpoint field
-        and the test button. Both are reference: somebody implementing the
-        receiving end reads them once and never again, and everybody else
-        scrolled past four lines of HMAC to reach a button. The one fact worth
-        keeping in the open is whether a secret is set at all, because that is a
-        state of this deployment rather than documentation.
-      */}
-      <p className={styles.blockNote}>
-        {view.secretConfigured
-          ? "Requests are signed. Messages and images are never sent."
-          : "There's no shared secret yet, so requests can't be signed. Messages and images are never sent."}
-      </p>
+      {urlState.error ? (
+        <p className={`${styles.banner} ${styles.bannerBad}`} role="alert">
+          {urlState.error}
+        </p>
+      ) : null}
+      {urlState.message ? (
+        <p className={`${styles.banner} ${styles.bannerOk}`} role="status">
+          {urlState.message}
+        </p>
+      ) : null}
+      {testState.error ? (
+        <p className={`${styles.banner} ${styles.bannerBad}`} role="alert">
+          {testState.error}
+        </p>
+      ) : null}
+      {testState.message ? (
+        <p className={`${styles.banner} ${styles.bannerOk}`} role="status">
+          {testState.message}
+        </p>
+      ) : null}
+      {!view.secretConfigured ? (
+        <p className={styles.quiet}>No signing secret is set yet, so requests can&apos;t be signed</p>
+      ) : null}
 
-      <details className={styles.shortcuts}>
+      <details className={styles.developer}>
         <summary className={styles.shortcutsSummary}>For Your Developer</summary>
-        <div className={styles.rows}>
-          <div className={styles.row}>
-            <span className={styles.rowLabel}>Checking a request</span>
-            <span className={styles.rowValue}>
-              Each request has x-guardian-timestamp and x-guardian-signature headers.
-            </span>
-            <p className={styles.rowNote}>
-              verifySignature in @guardian/sdk-ts checks them against your shared secret. The secret
-              is never shown here.
-            </p>
+        <dl className={styles.devList}>
+          <div>
+            <dt>Headers</dt>
+            <dd>
+              <code>x-guardian-timestamp</code> and <code>x-guardian-signature</code>
+            </dd>
           </div>
-          <div className={styles.row}>
-            <span className={styles.rowLabel}>What is sent</span>
-            <span className={styles.rowValue}>Which conversation, how serious it is, and why.</span>
-            <p className={styles.rowNote}>
-              Never the messages, never an image, and never a report. Reports only go out after two
-              people on your team agree.
-            </p>
+          <div>
+            <dt>Checking a request</dt>
+            <dd>
+              <code>verifySignature</code> in <code>@guardian/sdk-ts</code>, with your shared secret
+            </dd>
           </div>
-        </div>
+          <div>
+            <dt>What is sent</dt>
+            <dd>Which conversation, how serious it is, and why. Never messages, images or reports</dd>
+          </div>
+        </dl>
+        {testState.sample ? <pre className={styles.sample}>{testState.sample}</pre> : null}
       </details>
-
-      <form action={testFormAction} className={styles.form}>
-        <div className={styles.actions}>
-          <SubmitButton
-            disabledReason={view.url ? undefined : "Set an endpoint first."}
-          >
-            Send a test delivery
-          </SubmitButton>
-        </div>
-        {testState.error ? (
-          <p className={`${styles.banner} ${styles.bannerBad}`} role="alert">
-            {testState.error}
-          </p>
-        ) : null}
-        {testState.message ? (
-          <p className={`${styles.banner} ${styles.bannerOk}`} role="status">
-            {testState.message}
-          </p>
-        ) : null}
-        {testState.sample ? (
-          <>
-            <p className={styles.rowNote}>
-              The body that was signed. Everything in it is an example and nothing in it came from
-              your traffic.
-            </p>
-            <pre className={styles.sample}>{testState.sample}</pre>
-          </>
-        ) : null}
-      </form>
     </div>
   );
 }

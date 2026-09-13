@@ -14,6 +14,6 @@ describe("KeyboardHelp", () => {
 
   it("renders in a dialog when the caller opens it as a sheet", () => {
     render(<KeyboardHelp open onClose={() => {}} />);
-    expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Keyboard Shortcuts" })).toBeTruthy();
   });
 });

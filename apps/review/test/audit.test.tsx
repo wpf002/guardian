@@ -45,7 +45,10 @@ describe("the audit view", () => {
     expect(screen.queryAllByRole("link", { name: "Details" })).toHaveLength(0);
     const log = within(screen.getByRole("region", { name: /Everything recorded/ }));
     const rows = log.getAllByRole("listitem");
-    expect(within(rows[0]!).getByRole("link").getAttribute("href")).toBe("/audit/40");
+    // The time opens the record, like a message timestamp. The names beside it
+    // open that conversation's history.
+    const recordLink = within(rows[0]!).getByRole("link", { name: /\d\d:\d\d UTC/ });
+    expect(recordLink.getAttribute("href")).toBe("/audit/40");
 
     // The payload dump is gone from the list. It printed pairId and
     // lexiconVersion beside a note on every row, which is a debugging view of
@@ -85,10 +88,43 @@ describe("the audit view", () => {
 
   // Three rows saying "Guardian scored a conversation" are the same row until
   // something says which conversation.
-  it("names the conversation a scored row is about", async () => {
+  /*
+   * Every row said "Conversation 4f2a" and nothing linked a conversation to the
+   * rest of its record. The names now link to that conversation's history.
+   */
+  it("names the conversation a row is about, linking to its history", async () => {
     await renderAuditPage({ kind: "score.assigned" });
     const log = within(screen.getByRole("region", { name: /Guardian scored a conversation/ }));
-    expect(log.getAllByText(/^Conversation [0-9a-z]{4}/).length).toBeGreaterThan(0);
+    const link = log.getAllByRole("link", { name: /^\S+ to \S+$/ })[0]!;
+    expect(link.getAttribute("href")).toMatch(/^\/audit\?conversation=pair_/);
+    expect(log.queryByText(/^Conversation [0-9a-z]{4}/)).toBeNull();
+  });
+
+  /*
+   * One conversation's whole history, oldest first: scored, read, decided,
+   * downloaded. Entries written by the bot name the two accounts and no pair
+   * id, and they belong to the conversation too.
+   */
+  it("shows one conversation's history in order when one is picked", async () => {
+    const { resetMockData, getMockData } = await import("@/lib/mock/fixtures");
+    resetMockData();
+    const data = await getMockData();
+    const pair = data.pairs.find((p) => p.queue.pairId === "pair_91c7")!.queue;
+    // An entry shaped like the bot's: accounts, no pair id.
+    await data.auditLog.append({
+      kind: "score.assigned",
+      customerId: pair.customerId,
+      payload: { actorUid: pair.actorUid, targetUid: pair.targetUid, tier: "T2" },
+    });
+
+    await renderAuditPage({ conversation: "pair_91c7" });
+    expect(screen.getByRole("heading", { level: 1, name: "History of jayden_k to mia_03" })).toBeTruthy();
+    const rows = screen.getAllByRole("listitem");
+    expect(rows.length).toBeGreaterThan(1);
+    const seqs = rows.map((row) => Number(within(row).getByRole("link", { name: /UTC/ }).getAttribute("href")!.split("/").pop()));
+    expect([...seqs].sort((a, b) => a - b)).toEqual(seqs);
+    expect(screen.getByRole("link", { name: "Show Everything" }).getAttribute("href")).toBe("/audit");
+    expect(screen.getByRole("link", { name: "Open the Conversation" }).getAttribute("href")).toBe("/cases/pair_91c7");
   });
 
   it("filters by kind, and says so in the caption", async () => {
@@ -111,8 +147,8 @@ describe("the audit view", () => {
   it("names the empty state and keeps the way back when a page runs past the chain", async () => {
     await renderAuditPage({ page: "9" });
 
-    expect(screen.getByText("This page is past the end of the chain.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Back to the newest entries" })).toBeTruthy();
+    expect(screen.getByText("There's nothing on this page")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Back to the Newest Entries" })).toBeTruthy();
   });
 
   it("verifies the range on the page and names the result", async () => {

@@ -1,6 +1,6 @@
 /** The component inventory from DESIGN-UI section 4, as this foundation builds it. */
 
-export { AppShell, type AppShellProps, type AppShellSession, type NavItem, type ThemeChoice } from "./AppShell";
+export { AppShell, type AppShellProps, type AppShellSession, type NavItem } from "./AppShell";
 export { Button, type ButtonProps, type ButtonVariant } from "./Button";
 export { Card, type CardProps } from "./Card";
 export { DataTable, type Column, type DataTableProps } from "./DataTable";

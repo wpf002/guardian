@@ -18,13 +18,11 @@
 }
 
 .lede {
-  max-width: var(--measure);
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
 
 .scope {
-  max-width: var(--measure);
   color: var(--text-subtle);
   font-size: var(--text-xs);
 }

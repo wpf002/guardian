@@ -15,16 +15,15 @@ export function SignInForm() {
       <Field
         id="token"
         name="token"
-        label="Seat token"
+        label="Sign-in code"
         type="password"
         autoComplete="off"
         required
-        help="Pre-SSO. Your operator issues one token per seat. Single sign-on replaces this."
         error={state.error ?? undefined}
       />
       <p style={{ marginBlockStart: "var(--space-4)" }}>
         <Button type="submit" variant="primary" loading={pending}>
-          Sign in
+          Sign In
         </Button>
       </p>
     </form>

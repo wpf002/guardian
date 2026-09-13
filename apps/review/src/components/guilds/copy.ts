@@ -21,13 +21,13 @@ function c(where: string, text: string): string {
 
 export const PAGE = {
   listTitle: c("listTitle", "Servers"),
-  listIntro: c("listIntro", "Every Discord server Guardian has been added to."),
+  listIntro: c("listIntro", "Every Discord server Guardian has been added to"),
   seesTitle: c("seesTitle", "What Guardian Can See"),
-  seesCan: c("seesCan", "Messages in the channels you haven't told it to skip."),
-  seesCannot: c("seesCannot", "Direct messages, voice, video or images."),
+  seesCan: c("seesCan", "Messages in the channels you haven't told it to skip"),
+  seesCannot: c("seesCannot", "Direct messages, voice, video or images"),
   listCaption: c("listCaption", "Servers Guardian is in"),
   backToList: c("backToList", "All Servers"),
-  unnamed: c("unnamed", "New server"),
+  unnamed: c("unnamed", "New Server"),
   watching: c("watching", "Watching"),
   notWatching: c("notWatching", "Not watching yet"),
   notLoaded: c(
@@ -52,7 +52,7 @@ export const STATUS = {
   watching: c("statusWatching", "Guardian is watching."),
   alertsGoTo: c("statusAlertsGoTo", "Alerts go to"),
   notWatching: c("statusNotWatching", "Guardian isn't watching this server yet."),
-  needsChannel: c("statusNeedsChannel", "Pick where alerts go, then start watching."),
+  needsChannel: c("statusNeedsChannel", "Pick where alerts go, then start watching"),
   setup: c("statusSetup", "Setup"),
 } as const;
 
@@ -60,7 +60,7 @@ export const ALERTS = {
   title: c("alertsTitle", "Alerts"),
   label: c("alertsLabel", "Send alerts to"),
   placeholder: c("alertsPlaceholder", "Pick a channel"),
-  help: c("alertsHelp", "Pick a channel only your moderators can see."),
+  help: c("alertsHelp", "Pick a channel only your moderators can see"),
   start: c("alertsStart", "Start Watching"),
   stop: c("alertsStop", "Stop Watching"),
   needsChannel: c("alertsNeedsChannel", "Pick a channel first."),
@@ -70,9 +70,9 @@ export const ALERTS = {
 
 export const AGES = {
   title: c("agesTitle", "Ages"),
-  intro: c("agesIntro", "Which roles are for kids and which are for adults."),
+  intro: c("agesIntro", "Which roles are for kids and which are for adults"),
   everyoneElse: c("agesEveryoneElse", "Everyone else"),
-  everyoneElseHelp: c("agesEveryoneElseHelp", "Discord treats most accounts as 13 to 15."),
+  everyoneElseHelp: c("agesEveryoneElseHelp", "Discord treats most accounts as 13 to 15"),
   add: c("agesAdd", "Add a role"),
   remove: c("agesRemove", "Remove"),
   deletedRole: c("agesDeletedRole", "Deleted role"),
@@ -80,23 +80,23 @@ export const AGES = {
 
 export const MODERATORS = {
   title: c("modsTitle", "Moderators"),
-  intro: c("modsIntro", "Guardian expects these roles to talk to lots of members."),
+  intro: c("modsIntro", "Guardian expects these roles to talk to lots of members"),
   add: c("modsAdd", "Add a role"),
-  none: c("modsNone", "None yet."),
+  none: c("modsNone", "None yet"),
 } as const;
 
 export const SKIP = {
   title: c("skipTitle", "Channels to Skip"),
-  intro: c("skipIntro", "Guardian won't read these."),
+  intro: c("skipIntro", "Guardian won't read these"),
   add: c("skipAdd", "Add a channel"),
-  none: c("skipNone", "None. Guardian reads every channel it can see."),
+  none: c("skipNone", "None, so Guardian reads every channel it can see"),
   deletedChannel: c("skipDeletedChannel", "Deleted channel"),
 } as const;
 
 export const TIMEOUT = {
   title: c("timeoutTitle", "Automatic Timeout"),
   checkbox: c("timeoutCheckbox", "Time out an account when Guardian sends an alert"),
-  help: c("timeoutHelp", "Any moderator can lift a timeout."),
+  help: c("timeoutHelp", "Any moderator can lift a timeout"),
   lengthLabel: c("timeoutLength", "For"),
   confirmTitle: c("timeoutConfirmTitle", "Turn on automatic timeouts?"),
   confirmBody: c(
@@ -132,7 +132,7 @@ export const TABLE = {
   on: c("tableOn", "Yes"),
   off: c("tableOff", "Not yet"),
   notSet: c("tableNotSet", "No channel picked"),
-  openLabel: c("tableOpen", "Open setup"),
+  openLabel: c("tableOpen", "Open Setup"),
 } as const;
 
 export const SAVE = {

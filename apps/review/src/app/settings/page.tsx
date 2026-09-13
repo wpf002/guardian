@@ -9,7 +9,6 @@ import {
   LexiconEditor,
   ReportingDetailsForm,
   RetentionTable,
-  ThemePicker,
   WebhookPanel,
 } from "@/components/settings";
 import { requireSession, roleAllows } from "@/lib/auth";
@@ -89,7 +88,7 @@ export default async function SettingsPage() {
       <PageHeader title="Settings" />
 
       <div className={styles.groups}>
-        <Group title="You" note="Your account, and how Guardian looks for you.">
+        <Group title="You" note="Your account and your keyboard shortcuts">
           <Card title="Your Account">
             <div className={styles.rows}>
               <div className={styles.row}>
@@ -116,17 +115,18 @@ export default async function SettingsPage() {
             </div>
           </Card>
 
-          <Card title="How You Work">
-            <ThemePicker />
-            <details className={styles.shortcuts}>
-              <summary className={styles.shortcutsSummary}>Keyboard Shortcuts</summary>
-              <KeyboardHelp />
-            </details>
+          {/*
+            Open, in its own card. It shared one with a Dark and Light picker
+            and sat folded behind a disclosure; Guardian is dark only now, and
+            the sheet is short enough to read at a glance.
+          */}
+          <Card title="Keyboard Shortcuts">
+            <KeyboardHelp />
           </Card>
         </Group>
 
         {isOwner ? (
-          <Group title="Reporting" note="Who you are when you send a report.">
+          <Group title="Reporting" note="Who you are when you send a report">
             <Card title="Reporting Details">
               {reporting ? (
                 <ReportingDetailsForm
@@ -146,7 +146,7 @@ export default async function SettingsPage() {
         ) : null}
 
         {isOperator ? (
-          <Group title="What Guardian Reads" note="These apply to every server on your account.">
+          <Group title="What Guardian Reads" note="These apply to every server on your account">
             <Card title="Custom Phrases">
               {lexiconFailed || !lexicon ? (
                 <ErrorState
@@ -179,11 +179,10 @@ export default async function SettingsPage() {
           </Group>
         ) : null}
 
-        <Group title="Records" note="What Guardian keeps, and for how long.">
+        <Group title="Records" note="What Guardian keeps, and for how long">
           <Card title="Evidence Log">
-            <p className={`${styles.rowNote} ${styles.introNote}`}>
-              A permanent record of everything Guardian and your team did. Nobody can change it
-              afterwards.
+            <p className={styles.cardIntro}>
+              A permanent record of everything Guardian and your team did, that nobody can change
             </p>
             <Link className={styles.settingsLink} href="/audit">
               Open the Evidence Log

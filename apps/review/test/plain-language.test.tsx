@@ -34,6 +34,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const { resetMockData } = await import("@/lib/mock/fixtures");
+const { isTitleCase } = await import("@/lib/title-case");
 
 const DISCORD_ID = /\b\d{17,20}\b/g;
 const INTERNAL =
@@ -47,6 +48,9 @@ async function pages(): Promise<Array<{ path: string; element: () => Promise<Rea
   const { default: SettingsPage } = await import("@/app/settings/page");
   const { default: AuditPage } = await import("@/app/audit/page");
   const { default: AuditEntryPage } = await import("@/app/audit/[seq]/page");
+  const { SignInForm } = await import("@/app/login/SignInForm");
+  const { default: CaseNotFound } = await import("@/app/cases/[id]/not-found");
+  const { default: EntryNotFound } = await import("@/app/audit/[seq]/not-found");
   const none = Promise.resolve({});
   return [
     { path: "/queue", element: () => QueuePage({ searchParams: none }) },
@@ -63,6 +67,9 @@ async function pages(): Promise<Array<{ path: string; element: () => Promise<Rea
     { path: "/settings", element: () => SettingsPage() },
     { path: "/audit", element: () => AuditPage({ searchParams: none }) },
     { path: "/audit/40", element: () => AuditEntryPage({ params: Promise.resolve({ seq: "40" }) }) },
+    { path: "/login (form)", element: async () => <SignInForm /> },
+    { path: "/cases/missing", element: async () => <CaseNotFound /> },
+    { path: "/audit/missing", element: async () => <EntryNotFound /> },
   ];
 }
 
@@ -92,5 +99,27 @@ describe("plain language, on every page", () => {
       unmount();
     }
     expect(found, `\n${found.join("\n")}\n`).toEqual([]);
+  });
+
+  /*
+   * Every button, link and disclosure a person clicks, in title case. Will asked
+   * for it on buttons and links. Long clickable content, like a whole case card
+   * that is a button, is a sentence rather than a label and is not checked.
+   */
+  it("labels every button, link and disclosure in title case", async () => {
+    const found: string[] = [];
+    for (const page of await pages()) {
+      const { container, unmount } = render(await page.element());
+      for (const el of container.querySelectorAll("button, a, summary")) {
+        const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+        if (!text || text.split(" ").length > 7 || !/[a-z]/i.test(text)) continue;
+        // A whole row that is a link, like an Evidence Log entry, holds its own
+        // sentences in separate blocks. It is content, not a label.
+        if (el.querySelectorAll(":scope > span").length >= 2) continue;
+        if (!isTitleCase(text)) found.push(`${page.path}: ${el.tagName.toLowerCase()} "${text}"`);
+      }
+      unmount();
+    }
+    expect([...new Set(found)], `\n${[...new Set(found)].join("\n")}\n`).toEqual([]);
   });
 });

@@ -168,7 +168,6 @@
 }
 
 .why {
-  max-width: var(--measure);
   font-size: var(--text-md);
 }
 
@@ -317,7 +316,6 @@
 }
 
 .note {
-  max-width: var(--measure);
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
@@ -348,7 +346,6 @@
 }
 
 .annotation {
-  max-width: var(--measure);
   margin-block-start: var(--space-3);
   padding: var(--space-3);
   border: 1px solid var(--divider);
@@ -424,7 +421,6 @@
   gap: var(--space-2);
   margin-block: var(--space-3) 0;
   padding-inline-start: var(--space-5);
-  max-width: var(--measure);
   font-size: var(--text-sm);
 }
 
@@ -449,7 +445,6 @@
   display: grid;
   gap: var(--space-1);
   margin-block-end: var(--space-3);
-  max-width: var(--measure);
 }
 
 .incident label {
@@ -482,7 +477,6 @@
   border: 1px solid var(--divider);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
-  max-width: var(--measure);
 }
 
 .readinessHeadline {
@@ -535,7 +529,6 @@
   list-style: none;
   display: grid;
   gap: var(--space-2);
-  max-width: var(--measure);
 }
 
 .trail li {
@@ -581,7 +574,6 @@
   padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  max-width: var(--measure);
 }
 
 .subject legend {

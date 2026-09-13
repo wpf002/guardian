@@ -2,10 +2,8 @@ import type { RetentionRow } from "@/app/settings/types";
 import styles from "./settings.module.css";
 
 /**
- * How long each kind of record is kept, read straight from RETENTION_MS.
- *
- * A four-line list. It was a table whose first column was the internal class
- * name and whose second was the tiers each class covered.
+ * How long each kind of record is kept, read straight from RETENTION_MS: what
+ * it applies to on the left, the duration on the right.
  */
 export function RetentionTable({ rows }: { rows: RetentionRow[] }) {
   return (
@@ -13,7 +11,7 @@ export function RetentionTable({ rows }: { rows: RetentionRow[] }) {
       {rows.map((row) => (
         <div key={row.retentionClass} className={styles.retentionRow}>
           <dt>{row.tiers}</dt>
-          <dd>{row.meaning}</dd>
+          <dd>{row.duration}</dd>
         </div>
       ))}
     </dl>

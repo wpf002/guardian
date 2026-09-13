@@ -35,8 +35,12 @@ function tokensIn(selector: string): Record<string, string> {
   return out;
 }
 
-const light = tokensIn(":root {");
-const dark = tokensIn(':root[data-theme="dark"]');
+/*
+ * One palette. Guardian is dark only: the light theme, its picker in Settings,
+ * and the script that stamped a stored choice on the root before first paint
+ * are gone, so there is one :root block and nothing that can override it.
+ */
+const palette = tokensIn(":root {");
 
 function luminance(hex: string): number {
   const value = hex.trim();
@@ -58,66 +62,59 @@ function contrast(fg: string, bg: string): number {
 /** Every ground a card, a panel or a page can paint text or a boundary on. */
 const GROUNDS = ["bg", "surface", "surface-sunken"] as const;
 
+describe("the palette is dark and there is only one", () => {
+  it("declares a dark colour scheme on :root", () => {
+    expect(themeCss).toMatch(/:root \{\s*color-scheme: dark;/);
+  });
+
+  it("has no light theme, no theme attribute and no system-preference override", () => {
+    expect(themeCss).not.toMatch(/data-theme|prefers-color-scheme|color-scheme: light/);
+  });
+});
+
 describe("text tokens clear body contrast on every surface they sit on", () => {
-  for (const [themeName, tokens] of [
-    ["light", light],
-    ["dark", dark],
-  ] as const) {
-    for (const token of ["text", "text-muted", "text-subtle"] as const) {
-      for (const ground of GROUNDS) {
-        it(`${themeName}: --${token} on --${ground}`, () => {
-          expect(contrast(tokens[token], tokens[ground])).toBeGreaterThanOrEqual(4.5);
-        });
-      }
+  for (const token of ["text", "text-muted", "text-subtle"] as const) {
+    for (const ground of GROUNDS) {
+      it(`--${token} on --${ground}`, () => {
+        expect(contrast(palette[token], palette[ground])).toBeGreaterThanOrEqual(4.5);
+      });
     }
   }
 });
 
 describe("boundary tokens clear the 3:1 non-text minimum", () => {
-  for (const [themeName, tokens] of [
-    ["light", light],
-    ["dark", dark],
-  ] as const) {
-    for (const ground of GROUNDS) {
-      it(`${themeName}: --border on --${ground}`, () => {
-        expect(contrast(tokens.border, tokens[ground])).toBeGreaterThanOrEqual(3);
-      });
-    }
-    it(`${themeName}: --border-strong stays above --border, so hover still reads`, () => {
-      expect(contrast(tokens["border-strong"], tokens.surface)).toBeGreaterThan(
-        contrast(tokens.border, tokens.surface),
-      );
+  for (const ground of GROUNDS) {
+    it(`--border on --${ground}`, () => {
+      expect(contrast(palette.border, palette[ground])).toBeGreaterThanOrEqual(3);
     });
   }
+  it("--border-strong stays above --border, so hover still reads", () => {
+    expect(contrast(palette["border-strong"], palette.surface)).toBeGreaterThan(
+      contrast(palette.border, palette.surface),
+    );
+  });
 
   it("the T0 tier bar is as perceivable as the other three", () => {
     // --tier-t0-border used to alias --divider, so a T0 card carried a tier bar
     // with no visible edge while T1, T2 and T3 were strongly marked. The
-    // component layer is declared once, on :root, and both themes resolve it.
-    expect(light["tier-t0-border"]).toBe("var(--border)");
+    // component layer is declared once, on :root.
+    expect(palette["tier-t0-border"]).toBe("var(--border)");
   });
 });
 
 describe("the accent is a link colour and an active-state colour, so it is body text", () => {
-  for (const [themeName, tokens] of [
-    ["light", light],
-    ["dark", dark],
-  ] as const) {
-    for (const ground of [...GROUNDS, "accent-soft"] as const) {
-      it(`${themeName}: --accent on --${ground}`, () => {
-        expect(contrast(tokens.accent, tokens[ground])).toBeGreaterThanOrEqual(4.5);
-      });
-    }
+  for (const ground of [...GROUNDS, "accent-soft"] as const) {
+    it(`--accent on --${ground}`, () => {
+      expect(contrast(palette.accent, palette[ground])).toBeGreaterThanOrEqual(4.5);
+    });
   }
 });
 
-describe("the scrim is translucent in both themes", () => {
+describe("the scrim is translucent", () => {
   it("dims the page behind a dialog rather than replacing it", () => {
-    for (const tokens of [light, dark]) {
-      expect(tokens.scrim).toMatch(/\/\s*0?\.\d+\s*\)$/);
-    }
+    expect(palette.scrim).toMatch(/\/\s*0?\.\d+\s*\)$/);
     // A backdrop the same colour as the page is not a layer change at all.
-    expect(dark.scrim).not.toBe(dark.bg);
+    expect(palette.scrim).not.toBe(palette.bg);
   });
 });
 

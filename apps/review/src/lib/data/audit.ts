@@ -118,10 +118,34 @@ export async function appendAuditInTransaction(
   return { seq: entry.seq, hash: entry.hash };
 }
 
+/** One conversation, by its pair id and the two accounts in it. */
+export interface ConversationRef {
+  pairId: string;
+  actorUid: string;
+  targetUid: string;
+}
+
 export interface AuditListOptions {
   fromSeq?: number;
   limit?: number;
   kind?: string;
+  /**
+   * Only the entries about one conversation, so its whole history reads in one
+   * place: when Guardian scored it, who read it, what they decided, when the
+   * evidence left.
+   *
+   * Reviewer-side entries name the pair id. The bot's score entries name the two
+   * hashed accounts and no pair id, because the bot writes them before any pair
+   * row exists. So an entry belongs to the conversation if it names the pair, or
+   * if it names both of its accounts.
+   */
+  conversation?: ConversationRef;
+}
+
+/** Whether an entry's payload is about this conversation. */
+export function entryBelongsTo(payload: Record<string, unknown>, ref: ConversationRef): boolean {
+  if (payload.pairId === ref.pairId) return true;
+  return payload.actorUid === ref.actorUid && payload.targetUid === ref.targetUid;
 }
 
 export async function listAuditEntries(
@@ -136,6 +160,7 @@ export async function listAuditEntries(
     return entries
       .filter((e) => e.customerId === session.customerId)
       .filter((e) => (opts.kind ? e.kind === opts.kind : true))
+      .filter((e) => (opts.conversation ? entryBelongsTo(e.payload, opts.conversation) : true))
       .sort((a, b) => b.seq - a.seq)
       .slice(0, limit)
       .map((e) => ({ ...e, ts: new Date(e.ts) }));
@@ -147,6 +172,19 @@ export async function listAuditEntries(
       customerId: session.customerId,
       ...(opts.fromSeq ? { seq: { gte: opts.fromSeq } } : {}),
       ...(opts.kind ? { kind: opts.kind } : {}),
+      ...(opts.conversation
+        ? {
+            OR: [
+              { payload: { path: ["pairId"], equals: opts.conversation.pairId } },
+              {
+                AND: [
+                  { payload: { path: ["actorUid"], equals: opts.conversation.actorUid } },
+                  { payload: { path: ["targetUid"], equals: opts.conversation.targetUid } },
+                ],
+              },
+            ],
+          }
+        : {}),
     },
     orderBy: { seq: "desc" },
     take: limit,

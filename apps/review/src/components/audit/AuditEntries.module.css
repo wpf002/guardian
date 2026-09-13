@@ -34,7 +34,9 @@
 
 /*
  * The spine. One 1px rule behind every row of a day, drawn by the row itself
- * so it starts and ends with the events rather than running past them.
+ * so it starts and ends with the events rather than running past them. The row
+ * is not a link: what happened links to the record, and the conversation links
+ * to its history.
  */
 .row {
   position: relative;
@@ -43,8 +45,6 @@
   column-gap: var(--space-5);
   align-items: start;
   padding-block: var(--space-3);
-  color: inherit;
-  text-decoration: none;
 }
 
 .row::before {
@@ -85,20 +85,10 @@
   background: var(--text);
 }
 
-.row:hover .kind {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.row:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-}
-
 /* Right-aligned against the spine, so the times form one edge to read down. */
 .time {
   color: var(--text-muted);
+  text-decoration: none;
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
   text-align: end;
@@ -113,8 +103,30 @@
 }
 
 .kind {
+  justify-self: start;
   color: var(--text);
   font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.time:hover,
+.conversation:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.time:focus-visible,
+.conversation:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* The two accounts, linking to every entry about their conversation. */
+.conversation {
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
 }
 
 /* Which conversation, and what came of it. Without this line, three rows

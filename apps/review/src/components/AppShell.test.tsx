@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/queue" }));
 vi.mock("next/link", () => ({
@@ -11,7 +11,6 @@ vi.mock("next/link", () => ({
 }));
 
 const { AppShell } = await import("./AppShell");
-const { resetThemeCache, THEME_BOOT_SCRIPT } = await import("@/lib/theme");
 
 const nav = [
   { href: "/queue", label: "Queue", count: 14 },
@@ -19,19 +18,13 @@ const nav = [
 ];
 
 describe("AppShell", () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-    resetThemeCache();
-    document.documentElement.removeAttribute("data-theme");
-  });
-
   it("renders the rail, the skip link and a polite live region", () => {
     render(
       <AppShell session={{ displayName: "A. Rivera", role: "reviewer" }} nav={nav}>
         <p>case</p>
       </AppShell>,
     );
-    expect(screen.getByRole("link", { name: "Skip to the main content" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Skip to the Main Content" })).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Main" })).toBeTruthy();
     expect(screen.getByRole("main")).toBeTruthy();
     // Without this the skip link scrolls and focus stays where it was.
@@ -54,19 +47,6 @@ describe("AppShell", () => {
     expect(screen.getByText(/Running on fixtures/)).toBeTruthy();
   });
 
-  /**
-   * The theme has to be on the root element before the first paint. Applying it
-   * in an effect gives a reviewer whose choice disagrees with their operating
-   * system a full screen of the wrong theme on every load, over a surface
-   * carrying threat and coercion excerpts.
-   */
-  it("has a pre-paint script that stamps the stored theme", () => {
-    window.localStorage.setItem("guardian.theme", "dark");
-    // The script the layout inlines, run the way the browser runs it.
-    new Function(THEME_BOOT_SCRIPT)();
-    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
-  });
-
   it("marks the current destination and keeps counts off oversight items", () => {
     render(
       <AppShell session={{ displayName: "A. Rivera", role: "reviewer" }} nav={nav}>
@@ -80,18 +60,17 @@ describe("AppShell", () => {
   });
 
   /*
-   * The shell has no theme control. There was one in the top-right corner of
-   * every page, cycling system, light and dark, and the word it showed most of
-   * the time was "system theme", which says nothing about the case in front of
-   * the reviewer. The choice lives in settings now and defaults to dark.
+   * Guardian is dark only. There was a theme control in the chrome, then a
+   * picker in Settings and a script that stamped the choice on the root element
+   * before first paint. None of it exists now, so nothing sets a theme at all.
    */
-  it("puts no theme control in the chrome, and applies the stored choice", () => {
+  it("carries no theme control and sets no theme attribute", () => {
     render(
       <AppShell session={{ displayName: "A. Rivera", role: "reviewer" }} nav={nav}>
         <p>case</p>
       </AppShell>,
     );
     expect(screen.queryByRole("button", { name: /theme/i })).toBeNull();
-    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
   });
 });

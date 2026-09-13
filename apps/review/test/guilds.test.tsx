@@ -87,7 +87,7 @@ describe("/guilds", () => {
     ]);
     expect(table.getByRole("link", { name: /Northwood Gaming/ })).toBeTruthy();
     expect(table.getByText("#mod-alerts")).toBeTruthy();
-    expect(table.getByRole("link", { name: /New server/ })).toBeTruthy();
+    expect(table.getByRole("link", { name: /New Server/ })).toBeTruthy();
     expect(visibleText(container)).not.toMatch(DISCORD_ID);
   });
 
@@ -152,7 +152,7 @@ describe("/guilds/[guildId]", () => {
 
   it("says so, in one line, when the bot has not loaded the server yet", async () => {
     await renderServer(UNLOADED_GUILD);
-    expect(screen.getByRole("heading", { level: 1, name: "New server" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "New Server" })).toBeTruthy();
     expect(screen.getByText(guildCopy.PAGE.notLoaded)).toBeTruthy();
     expect(screen.getByText("Guardian isn't watching this server yet.")).toBeTruthy();
   });
@@ -181,7 +181,7 @@ describe("GuildEditor", () => {
     );
     const start = screen.getByRole("button", { name: "Start Watching" });
     expect(start).toHaveProperty("disabled", true);
-    expect(screen.getByText("Pick where alerts go, then start watching.")).toBeTruthy();
+    expect(screen.getByText("Pick where alerts go, then start watching")).toBeTruthy();
     // The reason is wired to the button, not just printed near it.
     expect(document.getElementById(start.getAttribute("aria-describedby") ?? "")?.textContent).toContain(
       "Pick where alerts go",

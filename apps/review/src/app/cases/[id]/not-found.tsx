@@ -10,11 +10,11 @@ export default function CaseNotFound() {
   return (
     <div className={`container ${styles.routeState}`}>
       <EmptyState
-        title="This case is not in your queue."
-        detail="It may have been decided, released or expired, or it may belong to another partition. Possession of a case link is never the thing that grants access."
+        title="This conversation isn't available"
+        detail="It may have been deleted on schedule, or it belongs to another organization"
         action={
           <Link className={styles.linkAction} href="/queue">
-            Back to the Queue
+            Back to Dashboard
           </Link>
         }
       />

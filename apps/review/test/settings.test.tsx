@@ -56,7 +56,7 @@ describe("the settings page", () => {
     }
     for (const title of [
       "Your Account",
-      "How You Work",
+      "Keyboard Shortcuts",
       "Custom Phrases",
       "Send Alerts to Your Own System",
       "Reporting Details",
@@ -68,8 +68,13 @@ describe("the settings page", () => {
 
     // Retention is read only and comes from RETENTION_MS, in words. The table
     // printed EPHEMERAL_24H and the tiers each class covered.
-    expect(screen.getByText("Messages are deleted after 24 hours.")).toBeDefined();
-    expect(screen.getByText("Kept for 1 year, as the law requires.")).toBeDefined();
+    // Two short values a row: what it applies to, and how long.
+    expect(screen.getByText("Nothing stood out")).toBeDefined();
+    expect(screen.getByText("24 hours")).toBeDefined();
+    expect(screen.getByText("1 year")).toBeDefined();
+    expect(screen.getByText("Until released")).toBeDefined();
+    // No theme picker: Guardian is dark only.
+    expect(screen.queryByRole("radio", { name: /Dark|Light/ })).toBeNull();
     expect(screen.queryByText("EPHEMERAL_24H")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Wording Guard" })).toBeNull();
 
@@ -117,7 +122,9 @@ describe("the lexicon editor", () => {
     ],
   };
 
-  it("sends the phrases the operator typed, with the attestation", async () => {
+  // One row: kind, phrase, add. It was a picker, a five-row textarea, a help
+  // line and a button behind a disclosure.
+  it("adds a phrase from one row, with the attestation", async () => {
     const addAction = vi.fn(
       async (_previous: LexiconState, formData: FormData): Promise<LexiconState> => ({
         ...EMPTY,
@@ -133,20 +140,20 @@ describe("the lexicon editor", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/Phrases to add/), {
-      target: { value: "wanna go on vc\nsend it on the other app" },
+    fireEvent.change(screen.getByLabelText("Phrase to add"), {
+      target: { value: "wanna go on vc" },
     });
     fireEvent.click(screen.getByLabelText(/No police or government agency/));
-    fireEvent.click(screen.getByRole("button", { name: /Add phrases/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Phrase" }));
 
     await waitFor(() => expect(addAction).toHaveBeenCalledTimes(1));
 
     const formData = addAction.mock.calls[0]![1];
     expect(formData.get("field")).toBe("migration_ask");
-    expect(formData.get("phrases")).toBe("wanna go on vc\nsend it on the other app");
+    expect(formData.get("phrases")).toBe("wanna go on vc");
     expect(formData.get("attestation")).toBe("on");
 
-    await waitFor(() => expect(screen.getByText("Added 2 phrases.")).toBeDefined());
+    await waitFor(() => expect(screen.getByText("Added 1 phrases.")).toBeDefined());
   });
 
   // One sentence, not a bordered panel with a title, a detail and a meta line.
@@ -160,7 +167,7 @@ describe("the lexicon editor", () => {
         removeAction={async () => EMPTY}
       />,
     );
-    expect(screen.getByText("Nothing added yet.")).toBeDefined();
+    expect(screen.getByText("None added yet. Guardian is using its built-in list")).toBeDefined();
     expect(screen.queryByRole("heading", { name: "Phrases this customer added" })).toBeNull();
   });
 });

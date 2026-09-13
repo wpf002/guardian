@@ -1,29 +1,29 @@
 import Link from "next/link";
+import type { Conversation } from "@/lib/data/conversations";
+import { conversationFor } from "@/lib/data/conversations";
 import type { AuditEntryView } from "@/lib/data/types";
 import { clockUtc, dayKeyUtc, dayLabelUtc } from "./format";
 import { entryDetail, kindWords } from "./kinds";
 import styles from "./AuditEntries.module.css";
 
 /**
- * The log, as a dated list.
+ * The log, as a timeline, with each entry tied to the conversation it is about.
  *
- * It was a table. Three columns wide, twenty-five rows deep, and the third
- * column was the word "Details" printed twenty-five times. The first column
- * repeated the same date on every row because a page holds about three hours.
- * The second was one of eleven sentences with nothing to tell two of them
- * apart. A table is the right shape when a reader compares rows against each
- * other; here they read down it looking for one thing, which is a list.
- *
- * So: a heading per day, the clock on each row, what happened in words, and
- * underneath it which conversation and what came of it. The row is the link.
- * Nothing here prints a sequence number or a hash. Both are on the entry page,
- * where somebody who needs them is already going.
+ * Every row carried "Conversation 4f2a", which is a database key, and the whole
+ * row was one link to the record. There was no way to follow one conversation:
+ * to see that Guardian scored it at 18:23, a reviewer read it at 19:40, a report
+ * was proposed at 19:52 and the evidence left at 20:05. Now the two account names link to that conversation's own
+ * history, where every entry about it reads in order. The time opens the record.
  */
 
 export interface AuditEntriesProps {
   entries: AuditEntryView[];
   /** Named for the screen reader, which cannot see the day headings. */
   caption: string;
+  /** Flagged conversations, to name the one each entry is about. */
+  conversations: Conversation[];
+  /** Set when the log is already showing one conversation, so rows do not repeat it. */
+  within?: Conversation | null;
 }
 
 interface Day {
@@ -32,7 +32,7 @@ interface Day {
   entries: AuditEntryView[];
 }
 
-/** Entries arrive newest first, so days come out newest first too. */
+/** Consecutive entries on the same day, in whatever order they arrive. */
 function byDay(entries: AuditEntryView[]): Day[] {
   const days: Day[] = [];
   for (const entry of entries) {
@@ -47,7 +47,7 @@ function byDay(entries: AuditEntryView[]): Day[] {
   return days;
 }
 
-export function AuditEntries({ entries, caption }: AuditEntriesProps) {
+export function AuditEntries({ entries, caption, conversations, within = null }: AuditEntriesProps) {
   const days = byDay(entries);
 
   return (
@@ -57,16 +57,32 @@ export function AuditEntries({ entries, caption }: AuditEntriesProps) {
           <h2 className={styles.dayLabel}>{day.label}</h2>
           <ol className={styles.rows}>
             {day.entries.map((entry) => {
-              const detail = entryDetail(entry.payload);
+              const about = within ? null : conversationFor(entry.payload, conversations);
+              const detail = entryDetail(entry.payload, { withConversation: false });
               return (
-                <li key={entry.seq}>
-                  <Link className={styles.row} href={`/audit/${entry.seq}`}>
-                    <span className={styles.time}>{clockUtc(entry.ts)}</span>
-                    <span className={styles.what}>
-                      <span className={styles.kind}>{kindWords(entry.kind)}</span>
-                      {detail ? <span className={styles.detail}>{detail}</span> : null}
-                    </span>
+                <li key={entry.seq} className={styles.row}>
+                  {/* The time opens the record, the way a message timestamp does. */}
+                  <Link className={styles.time} href={`/audit/${entry.seq}`} title="Open this record">
+                    {clockUtc(entry.ts)}
                   </Link>
+                  <span className={styles.what}>
+                    <span className={styles.kind}>{kindWords(entry.kind)}</span>
+                    {about || detail ? (
+                      <span className={styles.detail}>
+                        {about ? (
+                          <Link
+                            className={styles.conversation}
+                            href={`/audit?conversation=${encodeURIComponent(about.ref.pairId)}`}
+                            title="See this conversation's history"
+                          >
+                            {about.label}
+                          </Link>
+                        ) : null}
+                        {about && detail ? <span aria-hidden="true"> · </span> : null}
+                        {detail ? <span>{detail}</span> : null}
+                      </span>
+                    ) : null}
+                  </span>
                 </li>
               );
             })}

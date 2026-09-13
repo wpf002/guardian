@@ -92,7 +92,7 @@ describe("the case detail at /cases/[id]", () => {
     expect(screen.getByRole("button", { name: /This Is a Concern/ })).toHaveProperty("disabled", true);
 
     // Showing a hidden message is the write path for "a person read this".
-    fireEvent.click(screen.getByRole("button", { name: "Hidden: a threat. Show it" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show a threat" }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /This Is a Concern/ })).toHaveProperty("disabled", false);
@@ -196,7 +196,7 @@ describe("the case detail at /cases/[id]", () => {
 
   it("opens the report dialog, and holds the send until each step is done", async () => {
     await renderCase("pair_4f2a");
-    fireEvent.click(screen.getByRole("button", { name: "Hidden: a threat. Show it" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show a threat" }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Report It/ })).toHaveProperty("disabled", false);
     });
@@ -231,7 +231,7 @@ describe("the case detail at /cases/[id]", () => {
     );
     await renderCase("pair_4f2a");
 
-    fireEvent.click(screen.getByRole("button", { name: "Hidden: a threat. Show it" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show a threat" }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /This Is a Concern/ })).toHaveProperty("disabled", false);
     });
@@ -240,7 +240,7 @@ describe("the case detail at /cases/[id]", () => {
       target: { value: "Asked who checks the phone, then asked to move to Snapchat." },
     });
     fireEvent.click(screen.getByRole("button", { name: /This Is a Concern/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Record this decision" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Decision" }));
 
     const recorded = await screen.findByRole("region", { name: "Decision recorded" });
     expect(document.activeElement).toBe(recorded);

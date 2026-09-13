@@ -35,7 +35,7 @@ export function ErrorState({ title, unaffected, lastSuccessAt, onRetry }: ErrorS
       {onRetry ? (
         <div className={styles.action}>
           <Button variant="secondary" loading={retrying} onClick={() => void retry()}>
-            Try again
+            Try Again
           </Button>
         </div>
       ) : null}

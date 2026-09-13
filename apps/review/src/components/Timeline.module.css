@@ -76,7 +76,6 @@
 
 .text {
   margin-block-start: var(--space-1);
-  max-width: var(--measure);
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
 }
@@ -179,4 +178,11 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+/* What a hidden message is, in words, beside the button that shows it. */
+.hiddenKind {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-style: italic;
 }

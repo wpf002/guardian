@@ -43,7 +43,7 @@ describe("ErrorState", () => {
     );
     expect(screen.getByRole("alert")).toBeTruthy();
     expect(screen.getByText(/Cases are not lost/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Try again/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Try Again/ }));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

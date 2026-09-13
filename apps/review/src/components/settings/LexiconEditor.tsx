@@ -1,8 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Select } from "@/components/Select";
-import { Textarea } from "@/components/Textarea";
+import formStyles from "@/components/Form.module.css";
 import { SubmitButton } from "./SubmitButton";
 import type { LexiconState, LexiconView } from "@/app/settings/types";
 import styles from "./settings.module.css";
@@ -34,50 +33,46 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
 
   const withPhrases = view.fields.filter((field) => field.added.length > 0);
 
+  /*
+   * One line to add a phrase, and the phrases already added as tags.
+   *
+   * It was a status line, a disclosure, a labelled list picker, a five-row
+   * textarea with a help line, the attestation, a button, and "Nothing added
+   * yet" at the bottom. Somebody adding a slang word needs to pick what kind it
+   * is, type it and press add. The attestation stays, because the change log
+   * records it, directly under the row it applies to.
+   */
   return (
-    <div className={styles.form}>
-      {/*
-        The state, then the editor behind a disclosure.
+    <div className={styles.lexicon}>
+      <p className={styles.cardIntro}>Slang or code words your members use that Guardian might miss</p>
 
-        The form was 621px of a settings page: a list picker, a five-row
-        textarea, a law-enforcement attestation and a button, open by default.
-        Adding platform slang to the lexicon is something a server does once
-        and then not again for months, and until somebody does it the only
-        thing worth saying is which version is scoring and whether anything has
-        been added to it.
-      */}
-      <p className={styles.blockNote}>
-        {view.addedTotal === 0
-          ? "Guardian is using its built-in list of words and phrases."
-          : `Guardian is using its built-in list, plus ${view.addedTotal} ${view.addedTotal === 1 ? "phrase" : "phrases"} your team added.`}
-      </p>
-
-      <details className={styles.shortcuts}>
-        <summary className={styles.shortcutsSummary}>Add Phrases</summary>
-        <form action={addFormAction} className={styles.form}>
-        <Select
-          id="field"
-          name="field"
-          label="Kind of phrase"
-          options={view.fields.map((field) => ({
-            value: field.field,
-            label: field.added.length > 0 ? `${field.label} (${field.added.length} added)` : field.label,
-          }))}
-
-        />
-        <Textarea
-          id="phrases"
-          name="phrases"
-          label="Phrases to add, one on each line"
-          rows={5}
-          help="Slang or code words your members use that Guardian might miss. Short phrases, plain spelling."
-        />
-        <div className={styles.check}>
-          <input type="checkbox" id="attestation" name="attestation" />
-          <label className={styles.checkLabel} htmlFor="attestation">
-            This is our own decision. No police or government agency asked us to make it.
-          </label>
+      <form action={addFormAction} className={styles.addForm}>
+        <div className={styles.addRow}>
+          <select
+            name="field"
+            aria-label="Kind of phrase"
+            className={`${formStyles.control} ${formStyles.select} ${styles.addKind}`}
+            defaultValue={view.fields[0]?.field}
+          >
+            {view.fields.map((field) => (
+              <option key={field.field} value={field.field}>
+                {field.label}
+              </option>
+            ))}
+          </select>
+          <input
+            name="phrases"
+            aria-label="Phrase to add"
+            placeholder="Type a phrase"
+            autoComplete="off"
+            className={`${formStyles.control} ${styles.addPhrase}`}
+          />
+          <SubmitButton variant="primary">Add Phrase</SubmitButton>
         </div>
+        <label className={styles.attest}>
+          <input type="checkbox" name="attestation" />
+          <span>This is our own decision. No police or government agency asked us to make it</span>
+        </label>
 
         {addState.error ? (
           <p className={`${styles.banner} ${styles.bannerBad}`} role="alert">
@@ -95,12 +90,7 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
             {addState.message}
           </p>
         ) : null}
-
-        <div className={styles.actions}>
-          <SubmitButton variant="primary">Add phrases</SubmitButton>
-          </div>
-        </form>
-      </details>
+      </form>
 
       {removeState.error ? (
         <p className={`${styles.banner} ${styles.bannerBad}`} role="alert">
@@ -113,42 +103,29 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
         </p>
       ) : null}
 
-      {/*
-        Nothing added yet is one sentence, not a bordered panel with a title, a
-        detail line and a meta line. An EmptyState earns its box when it is the
-        whole page; here it sat under a form as a third of the card.
-      */}
-      {withPhrases.length > 0 ? (
-        <h3 className={styles.subheading}>Phrases this customer added</h3>
-      ) : null}
-
       {withPhrases.length === 0 ? (
-        <p className={styles.blockNote}>
-          Nothing added yet.
-        </p>
+        <p className={styles.quiet}>None added yet. Guardian is using its built-in list</p>
       ) : (
-        <div className={styles.phraseGroups}>
+        <div className={styles.addedGroups}>
+          <h3 className={styles.subheading}>Phrases this customer added</h3>
           {withPhrases.map((field) => (
-            <section key={field.field} className={styles.phraseGroup}>
-              <h4 className={styles.phraseHead}>
-                <span>{field.label}</span>
-                <span className={styles.phraseCount}>
-                  {field.added.length} yours, {field.baseCount} in the base
-                </span>
-              </h4>
-              <ul className={styles.phraseList}>
+            <div key={field.field} className={styles.addedGroup}>
+              <span className={styles.addedKind}>{field.label}</span>
+              <ul className={styles.phraseTags}>
                 {field.added.map((phrase) => (
-                  <li key={`${field.field}:${phrase}`} className={styles.phraseItem}>
-                    <span className={styles.phraseText}>{phrase}</span>
+                  <li key={`${field.field}:${phrase}`} className={styles.phraseTag}>
+                    <span>{phrase}</span>
                     <form action={removeFormAction}>
                       <input type="hidden" name="field" value={field.field} />
                       <input type="hidden" name="phrase" value={phrase} />
-                      <SubmitButton variant="ghost">Remove</SubmitButton>
+                      <SubmitButton variant="ghost" className={styles.phraseRemove} aria-label={`Remove ${phrase}`}>
+                        ×
+                      </SubmitButton>
                     </form>
                   </li>
                 ))}
               </ul>
-            </section>
+            </div>
           ))}
         </div>
       )}

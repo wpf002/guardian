@@ -10,9 +10,9 @@ import { EmptyState } from "@/components";
 export default function AuditEntryNotFound() {
   return (
     <EmptyState
-      title="No chain entry at that sequence number."
-      detail="Sequence numbers are assigned across every customer, so a number can exist in the chain and still not be readable from this seat."
-      action={<Link href="/audit">Back to the chain</Link>}
+      title="That record isn't available"
+      detail="It may belong to another organization"
+      action={<Link href="/audit">Back to the Evidence Log</Link>}
     />
   );
 }

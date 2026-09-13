@@ -98,7 +98,6 @@
 .reason {
   display: block;
   margin-block-start: var(--space-1);
-  max-width: var(--measure);
   color: var(--text-muted);
   font-size: var(--text-xs);
   font-weight: var(--weight-regular);

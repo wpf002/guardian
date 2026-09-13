@@ -10,10 +10,11 @@
  */
 
 export interface KeyBinding {
-  keys: string;
+  /** Each key as it is printed on a keycap. */
+  keys: string[];
+  /** How several keys relate: either one works, or one after the other. */
+  joiner?: "or" | "then";
   action: string;
-  /** Modified alias that always works, where one exists. */
-  alias?: string;
 }
 
 export interface KeyGroup {
@@ -35,30 +36,30 @@ export const KEY_GROUPS: KeyGroup[] = [
   {
     name: "On the Dashboard",
     bindings: [
-      { keys: "j / k", action: "Move to the next or previous card" },
-      { keys: "Tab, then Enter", action: "Open a conversation" },
-      { keys: "?", action: "Show these shortcuts" },
+      { keys: ["J", "K"], joiner: "or", action: "Move to the next or previous card" },
+      { keys: ["Tab", "Enter"], joiner: "then", action: "Open a conversation" },
+      { keys: ["?"], action: "Show these shortcuts" },
     ],
   },
   {
     name: "In a Conversation",
     bindings: [
-      { keys: "1", action: "Not a concern" },
-      { keys: "2", action: "Keep an eye on it" },
-      { keys: "3", action: "This is a concern" },
-      { keys: "4", action: "Report it" },
-      { keys: "Up / Down", action: "Move through the reasons" },
-      { keys: "Enter", action: "Save with the highlighted reason" },
-      { keys: "Escape", action: "Close without deciding" },
+      { keys: ["1"], action: "Not a concern" },
+      { keys: ["2"], action: "Keep an eye on it" },
+      { keys: ["3"], action: "This is a concern" },
+      { keys: ["4"], action: "Report it" },
+      { keys: ["↑", "↓"], joiner: "or", action: "Move through the reasons" },
+      { keys: ["Enter"], action: "Save with the highlighted reason" },
+      { keys: ["Esc"], action: "Close without deciding" },
     ],
   },
   {
     name: "When a Teammate Wants to Report",
     bindings: [
-      { keys: "1", action: "Agree, report it" },
-      { keys: "2", action: "Don't report" },
-      { keys: "Enter", action: "Save your answer" },
-      { keys: "Escape", action: "Close without answering" },
+      { keys: ["1"], action: "Agree, report it" },
+      { keys: ["2"], action: "Don't report" },
+      { keys: ["Enter"], action: "Save your answer" },
+      { keys: ["Esc"], action: "Close without answering" },
     ],
   },
 ];

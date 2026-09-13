@@ -21,7 +21,6 @@
 }
 
 .lede {
-  max-width: var(--measure);
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
@@ -82,4 +81,10 @@
 
 .technicalSummary:hover {
   color: var(--text);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
 }

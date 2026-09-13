@@ -12,11 +12,8 @@ export default async function LoginPage() {
   return (
     <div className={styles.page}>
       <div className={styles.panel}>
-        <h1 className={styles.title}>Guardian review console</h1>
-        <p className={styles.note}>
-          Guardian emits risk tiers and evidence bundles for human review. Sign in with the token
-          your operator issued for your seat.
-        </p>
+        <h1 className={styles.title}>Sign In to Guardian</h1>
+        <p className={styles.note}>Use the sign-in code your team gave you</p>
         <SignInForm />
       </div>
     </div>

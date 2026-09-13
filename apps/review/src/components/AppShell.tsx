@@ -2,17 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { LIVE_REGION_ID } from "@/lib/announce";
-import {
-  applyTheme,
-  subscribeToTheme,
-  themeServerSnapshot,
-  themeSnapshot,
-} from "@/lib/theme";
 import styles from "./AppShell.module.css";
-
-export type { ThemeChoice } from "@/lib/theme";
 
 /** The seat's role, as a word rather than the value the roster stores. */
 const ROLE_WORD: Record<string, string> = {
@@ -53,16 +45,11 @@ export interface AppShellProps {
 
 export function AppShell({ session, nav, railFoot, mock = false, children }: AppShellProps) {
   const pathname = usePathname();
-  const theme = useSyncExternalStore(subscribeToTheme, themeSnapshot, themeServerSnapshot);
-
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
 
   return (
     <div className={styles.shell}>
       <a className={styles.skip} href="#main">
-        Skip to the main content
+        Skip to the Main Content
       </a>
       <nav className={styles.rail} aria-label="Main">
         <ul className={styles.navList}>

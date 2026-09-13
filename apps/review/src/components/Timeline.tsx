@@ -128,7 +128,7 @@ export function Timeline({ timeline, onReveal, onRetry, error, speakerNames = {}
         <p>{error}</p>
         {onRetry ? (
           <Button variant="secondary" onClick={onRetry}>
-            Try again
+            Try Again
           </Button>
         ) : null}
       </div>
@@ -244,8 +244,14 @@ function TimelineRowView({
 
           {row.collapsed && !revealed ? (
             <p className={styles.text}>
-              <button type="button" className={styles.collapsed} onClick={onReveal}>
-                {`Hidden: ${SPAN_WORDS[row.collapsed.spanClass] ?? "a message"}. Show it`}
+              <span className={styles.hiddenKind}>{`Hidden: ${SPAN_WORDS[row.collapsed.spanClass] ?? "a message"}`}</span>{" "}
+              <button
+                type="button"
+                className={styles.collapsed}
+                aria-label={`Show ${SPAN_WORDS[row.collapsed.spanClass] ?? "the hidden message"}`}
+                onClick={onReveal}
+              >
+                Show
               </button>
             </p>
           ) : null}

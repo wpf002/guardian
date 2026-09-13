@@ -5,6 +5,7 @@ import { AuditEntries, ChainTools, KIND_OPTIONS, KIND_WORDS, MAX_RANGE, dayLabel
 import { requireSession, roleAllows } from "@/lib/auth";
 import { compose } from "@/lib/compose";
 import { getAuditHead, listAuditEntries } from "@/lib/data/audit";
+import { listConversations } from "@/lib/data/conversations";
 import { getCustomerSettings } from "@/lib/data/settings";
 import { exportRangeAction, verifyRangeAction } from "./actions";
 import styles from "./page.module.css";
@@ -35,9 +36,10 @@ function spanWords(entries: { ts: Date }[]): string {
   return from === to ? `${entries.length} entries on ${to}` : `${entries.length} entries, ${from} to ${to}`;
 }
 
-function pageHref(page: number, kind?: string): string {
+function pageHref(page: number, kind?: string, conversation?: string): string {
   const params = new URLSearchParams();
   if (kind) params.set("kind", kind);
+  if (conversation) params.set("conversation", conversation);
   if (page > 0) params.set("page", String(page));
   const query = params.toString();
   return query ? `/audit?${query}` : "/audit";
@@ -70,48 +72,67 @@ export default async function AuditPage({
   const customer = await getCustomerSettings(session);
   const customerName = customer?.name ?? session.customerId;
 
+  /*
+   * One conversation's history, when one is picked. Only a conversation on this
+   * customer's own list resolves, so a pair id from anywhere else shows the
+   * whole log rather than an empty one that says something about it.
+   */
+  const conversations = await listConversations(session);
+  const within = conversations.find((c) => c.ref.pairId === one(params.conversation)) ?? null;
+
   // The data layer reads newest first from a starting sequence, so a later page
   // is reached by over-reading and slicing. See the handover note: a toSeq or a
   // cursor on listAuditEntries would make this one read per page.
   const fetched = await listAuditEntries(session, {
     limit: PAGE_SIZE * (page + 1) + 1,
     ...(kind ? { kind } : {}),
+    ...(within ? { conversation: within.ref } : {}),
   });
-  const entries = fetched.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const newestFirst = fetched.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  // One conversation reads as a story, first thing first. The whole log stays
+  // newest first, because there somebody is looking for what just happened.
+  const entries = within ? [...newestFirst].reverse() : newestFirst;
   const hasNext = fetched.length > (page + 1) * PAGE_SIZE;
 
-  const newestOnPage = entries[0]?.seq ?? head?.seq ?? 1;
-  const oldestOnPage = entries[entries.length - 1]?.seq ?? 1;
+  const newestOnPage = newestFirst[0]?.seq ?? head?.seq ?? 1;
+  const oldestOnPage = newestFirst[newestFirst.length - 1]?.seq ?? 1;
   const defaultFrom = Math.max(1, Math.max(oldestOnPage, newestOnPage - MAX_RANGE + 1));
 
   // Not printed. The list carries day headings a sighted reader groups by, and
   // this names the same thing for a screen reader, which cannot see them.
   const caption = compose(
     "audit.caption",
-    kind
-      ? `${KIND_WORDS[kind as AuditKind]}, newest first.`
-      : "Everything recorded, newest first.",
+    within
+      ? `The history of ${within.label}, oldest first.`
+      : kind
+        ? `${KIND_WORDS[kind as AuditKind]}, newest first.`
+        : "Everything recorded, newest first.",
   );
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <PageHeader
-          title="Evidence Log"
-          meta={<span>{customerName}</span>}
+          title={within ? `History of ${within.label}` : "Evidence Log"}
+          meta={
+            within ? (
+              <>
+                <Link href={`/cases/${encodeURIComponent(within.ref.pairId)}`}>Open the Conversation</Link>
+                <Link href="/audit">Show Everything</Link>
+              </>
+            ) : (
+              <span>{customerName}</span>
+            )
+          }
           about={
-            <>
+            within ? (
+              <p>Everything Guardian and your team did about this conversation, in order</p>
+            ) : (
               <p>
-                Every score Guardian gave, every decision a reviewer made and every download is
-                written here, locked to the record before it. Change one and the rest stop
-                matching, which is what makes this hold up when somebody asks whether the
-                evidence was tampered with.
+                Every score, reviewer decision and download, each locked to the one before it so
+                nobody can change the record without it showing
               </p>
-              <p>
-                It holds decisions and identifiers, never what anyone said. Records belonging to
-                other organizations are invisible to you, so the numbering has gaps.
-              </p>
-            </>
+            )
           }
         />
       </header>
@@ -136,23 +157,35 @@ export default async function AuditPage({
         onExport={exportRangeAction}
       />
 
+      {/*
+        Pick a conversation to see its whole history, or narrow the log to one
+        kind of event. Both at once is a conversation's decisions, say, or its
+        downloads.
+      */}
       <form className={styles.filters} action="/audit" method="get">
+        <Select
+          id="audit-conversation"
+          name="conversation"
+          label="Conversation"
+          defaultValue={within?.ref.pairId ?? ""}
+          options={[
+            { value: "", label: "Every Conversation" },
+            ...conversations.map((c) => ({ value: c.ref.pairId, label: c.label })),
+          ]}
+        />
         <Select
           id="audit-kind"
           name="kind"
           label="Show Only"
           defaultValue={kind ?? ""}
-          options={[
-            { value: "", label: "Everything" },
-            ...KIND_OPTIONS,
-          ]}
+          options={[{ value: "", label: "Everything" }, ...KIND_OPTIONS]}
         />
         <Button type="submit" variant="secondary">
           Apply
         </Button>
-        {kind ? (
+        {kind || within ? (
           <Link className={styles.clear} href="/audit">
-            Clear the filter
+            Clear the Filters
           </Link>
         ) : null}
       </form>
@@ -160,30 +193,29 @@ export default async function AuditPage({
       {entries.length === 0 ? (
         <EmptyState
           title={
-            kind
-              ? "No entries of that kind on this page."
+            kind || within
+              ? "Nothing matches those filters"
               : page > 0
-                ? "This page is past the end of the chain."
-                : "Nothing has been recorded yet."
+                ? "There's nothing on this page"
+                : "Nothing has been recorded yet"
           }
           detail={
-            kind
-              ? "The chain is readable and the filter matched none of it. Clearing the filter shows every kind."
+            kind || within
+              ? "Try another conversation or kind of event"
               : page > 0
-                ? "The chain is readable. There are fewer entries than this page needs."
-                : "The chain is live. It appends its first entry when a score, a reviewer decision or an export happens."
+                ? "There are fewer records than this page needs"
+                : "Records appear here when Guardian scores a conversation or your team acts on one"
           }
-          meta={undefined}
           action={
-            kind || page > 0 ? (
-              <Link href={kind ? "/audit" : pageHref(0)}>
-                {kind ? "Clear the filter" : "Back to the newest entries"}
+            kind || within || page > 0 ? (
+              <Link href={kind || within ? "/audit" : pageHref(0)}>
+                {kind || within ? "Clear the Filters" : "Back to the Newest Entries"}
               </Link>
             ) : undefined
           }
         />
       ) : (
-        <AuditEntries entries={entries} caption={caption} />
+        <AuditEntries entries={entries} caption={caption} conversations={conversations} within={within} />
       )}
 
       {/*
@@ -197,18 +229,18 @@ export default async function AuditPage({
         </span>
         <span className={styles.pagerLinks}>
           {page > 0 ? (
-            <Link className={styles.pageLink} href={pageHref(page - 1, kind)}>
-              Newer entries
+            <Link className={styles.pageLink} href={pageHref(page - 1, kind, within?.ref.pairId)}>
+              Newer Entries
             </Link>
           ) : (
-            <span className={styles.pageEnd}>You are on the newest entries.</span>
+            <span className={styles.pageEnd}>{within ? "The start of this history" : "You're on the newest entries"}</span>
           )}
           {hasNext ? (
-            <Link className={styles.pageLink} href={pageHref(page + 1, kind)}>
-              Older entries
+            <Link className={styles.pageLink} href={pageHref(page + 1, kind, within?.ref.pairId)}>
+              Older Entries
             </Link>
           ) : (
-            <span className={styles.pageEnd}>This is the oldest page.</span>
+            <span className={styles.pageEnd}>{within ? "The end of this history" : "This is the oldest page"}</span>
           )}
         </span>
       </nav>

@@ -58,10 +58,15 @@ export const KIND_OPTIONS: { value: AuditKind; label: string }[] = AUDIT_KINDS.m
  * until somebody clicks each one. The payload already carries the pair and the
  * tier; this reads them and says nothing when they are absent.
  */
-export function entryDetail(payload: Record<string, unknown>): string | null {
+export function entryDetail(
+  payload: Record<string, unknown>,
+  opts: { withConversation?: boolean } = {},
+): string | null {
   const parts: string[] = [];
   const pairId = payload.pairId;
-  if (typeof pairId === "string" && pairId.length > 0) {
+  // The Evidence Log names the conversation itself, as a link to its history,
+  // so it asks for the rest of the line without it.
+  if (opts.withConversation !== false && typeof pairId === "string" && pairId.length > 0) {
     parts.push(`Conversation ${pairId.slice(-4)}`);
   }
   const tier = payload.tier;

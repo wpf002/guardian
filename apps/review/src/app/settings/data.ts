@@ -323,34 +323,29 @@ export function assertExtensionMerges(
  * and "preserved under the 18 USC 2258A duty". A person checking how long
  * their members' messages are kept needs the four answers and nothing else.
  */
-const CLASS_MEANING: Record<string, { label: string; meaning: (duration: string) => string }> = {
-  EPHEMERAL_24H: {
-    label: "Nothing stood out",
-    meaning: (duration) => `Messages are deleted after ${duration}.`,
-  },
-  WATCH_30D: {
-    label: "Being watched, or waiting for a look",
-    meaning: (duration) => `Kept for ${duration}.`,
-  },
-  CASE_1Y: {
-    label: "Reported",
-    meaning: (duration) => `Kept for ${duration}, as the law requires.`,
-  },
-  LEGAL_HOLD: {
-    label: "Put on hold by your team",
-    meaning: () => "Kept until someone releases it.",
-  },
+/*
+ * Each kind of record and how long it stays, as two short values.
+ *
+ * It printed EPHEMERAL_24H and the tiers each class covered, then became a
+ * sentence per class ("Messages are deleted after 24 hours."). A person
+ * checking retention is reading a duration off a list, so the duration is the
+ * value and the label says what it applies to.
+ */
+const CLASS_LABEL: Record<string, string> = {
+  EPHEMERAL_24H: "Nothing stood out",
+  WATCH_30D: "Being watched or waiting for a look",
+  CASE_1Y: "Reported",
+  LEGAL_HOLD: "Put on hold by your team",
 };
 
 export function retentionRows(retentionMs: Record<string, number | null>): RetentionRow[] {
   return Object.entries(retentionMs).map(([retentionClass, ms]) => {
-    const duration = durationWords(ms);
-    const words = CLASS_MEANING[retentionClass];
+    const duration = ms === null ? "Until released" : durationWords(ms);
     return {
       retentionClass,
-      tiers: words?.label ?? retentionClass,
+      tiers: CLASS_LABEL[retentionClass] ?? retentionClass,
       duration,
-      meaning: words ? words.meaning(duration) : duration,
+      meaning: duration,
     };
   });
 }

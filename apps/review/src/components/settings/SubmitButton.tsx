@@ -14,14 +14,25 @@ export function SubmitButton({
   children,
   variant = "secondary",
   disabledReason,
+  className,
+  "aria-label": ariaLabel,
 }: {
   children: string;
   variant?: ButtonVariant;
   disabledReason?: string;
+  className?: string;
+  "aria-label"?: string;
 }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant={variant} loading={pending} disabledReason={disabledReason}>
+    <Button
+      type="submit"
+      variant={variant}
+      loading={pending}
+      disabledReason={disabledReason}
+      className={className}
+      aria-label={ariaLabel}
+    >
       {children}
     </Button>
   );

@@ -80,9 +80,19 @@ export function CaseSummary({ detail }: { detail: CaseDetail }) {
 
   return (
     <section className={styles.summary} aria-label="What happened">
-      <Link className={styles.back} href="/queue">
-        Back to Dashboard
-      </Link>
+      {/*
+        The way back, and the way to everything recorded about this conversation:
+        when Guardian scored it, who read it, what was decided and when the
+        evidence left, in order, in the Evidence Log.
+      */}
+      <nav className={styles.links} aria-label="Conversation links">
+        <Link className={styles.back} href="/queue">
+          Back to Dashboard
+        </Link>
+        <Link className={styles.back} href={`/audit?conversation=${encodeURIComponent(queue.pairId)}`}>
+          See Its History
+        </Link>
+      </nav>
 
       <h1 className={styles.headline}>{queue.patternClause}</h1>
 

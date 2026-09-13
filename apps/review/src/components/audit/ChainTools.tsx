@@ -114,7 +114,7 @@ export function ChainTools({
       setVerdict(await onVerify(range.from, range.to));
     } catch {
       setVerdict(null);
-      setFailure("The chain could not be read just now. Nothing was written. Try again.");
+      setFailure("The records couldn't be checked just now. Try again.");
     } finally {
       setVerifying(false);
     }
@@ -137,7 +137,7 @@ export function ChainTools({
         );
       }
     } catch {
-      setFailure("The export did not run. Nothing was written to the chain. Try again.");
+      setFailure("The download didn't work. Try again.");
     } finally {
       setExporting(false);
     }
@@ -146,9 +146,7 @@ export function ChainTools({
   return (
     <Card title="Check the Record" density="padded">
       <p className={styles.lede}>
-        This re-reads every record on this page and confirms nobody changed it after it was
-        written. Do it before you hand anything to police, a lawyer or NCMEC, and download the
-        result so they can confirm it themselves without your help.
+        Confirms nobody changed these records before you share them with police, a lawyer or NCMEC
       </p>
 
       {/*
@@ -159,7 +157,7 @@ export function ChainTools({
         now. The boxes are still here for the rare narrowed run, folded away.
       */}
       <details className={styles.narrow}>
-        <summary className={styles.narrowSummary}>Check a smaller range</summary>
+        <summary className={styles.narrowSummary}>Check a Smaller Range</summary>
         <div className={styles.range}>
           <Field
             id="audit-from"

@@ -127,7 +127,7 @@ export function ReasonList({
 
       {matches.length === 0 ? (
         <p className={styles.emptyFilter}>
-          No reason matches that. Clear the filter to see the whole set.
+          No reason matches that. Clear the search to see them all.
         </p>
       ) : (
         <ul className={styles.options} role="listbox" id={listId} aria-labelledby={`${listId}-title`}>
@@ -160,10 +160,10 @@ export function ReasonList({
             if (active) onCommit(active);
           }}
         >
-          Record this decision
+          Save Decision
         </Button>
         <Button variant="ghost" onClick={onCancel}>
-          Close, decide nothing
+          Cancel
         </Button>
       </div>
     </div>
