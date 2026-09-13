@@ -379,3 +379,70 @@ export async function persistEvidenceBundle(
     update: columns,
   });
 }
+
+/* ------------------------------------------------------------ account names */
+
+/** The slice of the Prisma client that name writes need. */
+export interface AccountNamePersistClient {
+  accountName: {
+    findUnique(args: {
+      where: { customerId_hashedUid: { customerId: string; hashedUid: string } };
+      select: { retention: true; expiresAt: true };
+    }): Promise<{ retention: RetentionClass; expiresAt: Date | null } | null>;
+    upsert(args: {
+      where: { customerId_hashedUid: { customerId: string; hashedUid: string } };
+      create: {
+        customerId: string;
+        hashedUid: string;
+        name: string;
+        retention: RetentionClass;
+        expiresAt: Date | null;
+      };
+      update: { name: string; retention: RetentionClass; expiresAt: Date | null };
+    }): Promise<unknown>;
+  };
+}
+
+/** Longest a stored name can be. Discord caps display names at 32 characters. */
+const NAME_MAX = 64;
+
+/**
+ * Keep the name Discord shows for an account in a conversation Guardian flagged.
+ *
+ * Refuses a T0 tier outright: a name is kept only while the account is in a
+ * flagged conversation, and a T0 pair is not one. The retention follows the
+ * pair's tier and only ever ratchets up, the same rule every other row follows,
+ * so a later T1 on another pair cannot shorten a name held for a T3 case. The
+ * sweep deletes the row when it expires, or earlier when no flagged pair names
+ * the account any more.
+ *
+ * The hashed uid is the id. The name is stored beside it and nothing joins on it.
+ */
+export async function persistAccountName(
+  db: AccountNamePersistClient,
+  input: { customerId: string; hashedUid: string; name: string; tier: Tier },
+  opts: { now?: () => Date } = {},
+): Promise<boolean> {
+  if (input.tier === "T0") return false;
+  const name = input.name.trim().slice(0, NAME_MAX);
+  if (name.length === 0) return false;
+
+  const now = opts.now?.() ?? new Date();
+  const key = { customerId: input.customerId, hashedUid: input.hashedUid };
+  const existing = await db.accountName.findUnique({
+    where: { customerId_hashedUid: key },
+    select: { retention: true, expiresAt: true },
+  });
+  const retention = escalateRetention(existing?.retention ?? "EPHEMERAL_24H", retentionForTier(input.tier));
+  const computed = expiryFor(retention, now);
+  const current = existing?.expiresAt ?? null;
+  const expiresAt =
+    computed === null ? current : current && current.getTime() > computed.getTime() ? current : computed;
+
+  await db.accountName.upsert({
+    where: { customerId_hashedUid: key },
+    create: { ...key, name, retention, expiresAt },
+    update: { name, retention, expiresAt },
+  });
+  return true;
+}

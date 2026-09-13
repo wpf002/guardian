@@ -4,7 +4,7 @@ import { getCase, getTimeline } from "@/lib/data/cases";
 import { getReportTrail } from "@/lib/data/reports";
 import { getCustomerSettings, hasSecondSeat } from "@/lib/data/settings";
 import { bandWord } from "@/lib/mock/fixtures";
-import { accountLabel } from "@/components/queue/words";
+import { accountName } from "@/components/queue/words";
 import type { CustomerSettings, TimelineState } from "@/lib/data/types";
 import {
   buildReportDraft,
@@ -173,7 +173,10 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
         incidentTypeDerived={incident.source === "signals"}
         readiness={readiness}
         accounts={detail.accounts}
-        names={{ actor: accountLabel(detail.queue.actorUid), target: accountLabel(detail.queue.targetUid) }}
+        names={{
+          actor: accountName(detail.queue.actorUid, detail.queue.actorName),
+          target: accountName(detail.queue.targetUid, detail.queue.targetName),
+        }}
         actorBandLabel={bandWord(detail.queue.actorBand.band)}
         targetBandLabel={bandWord(detail.queue.targetBand.band)}
         reportedSubjectUid={detail.reportedSubjectUid}

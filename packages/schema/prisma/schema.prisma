@@ -228,6 +228,7 @@ model Customer {
   createdAt DateTime @default(now())
 
   actors  Actor[]
+  accountNames AccountName[]
   events  Event[]
   pairs   Pair[]
   bundles EvidenceBundle[]
@@ -268,6 +269,33 @@ model Actor {
   @@unique([customerId, hashedUid])
   @@index([customerId, expiresAt])
   @@map("actors")
+}
+
+/// The name Discord shows for an account, held only while that account is in a
+/// conversation Guardian flagged (tier T1 or above).
+///
+/// Account ids stay per-customer salted hashes (rule 8), and this is not an id:
+/// nothing joins on it, and it never leaves the customer's own console. It
+/// exists because a moderator reading a case saw a code like c090f8b7 for an
+/// account they know by name in their own server. The bot writes it when a pair
+/// reaches T1 with the pair's retention class and expiry, and the retention
+/// sweep deletes it when it expires or when no flagged pair names the account.
+model AccountName {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  hashedUid  String
+  /// GuildMember.displayName: the server nickname, else the Discord display
+  /// name, else the username. What a moderator sees in that server.
+  name       String
+  retention  RetentionClass @default(WATCH_30D)
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([customerId, hashedUid])
+  @@index([customerId, expiresAt])
+  @@map("account_names")
 }
 
 model Event {

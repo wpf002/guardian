@@ -5,7 +5,7 @@ is checked against the code and cited to the file that enforces it, so a lawyer
 reading it can verify rather than take it on trust. The wording is theirs to
 change; the facts are not.
 
-Last checked against the code: 2026-09-09.
+Last checked against the code: 2026-09-13.
 
 ## What Guardian is
 
@@ -24,13 +24,14 @@ owner, or a platform using the API.
 |---|---|
 | Message text | Only where a conversation scored above nothing, and only for as long as its retention class allows. Text on a conversation that scored nothing is deleted within 24 hours. |
 | Account identifiers | A salted hash, never the platform's own id. The salt is per operator, so the same person on two services produces two unrelated hashes and nothing joins them. |
+| Account names | The name Discord shows for an account in that server: its server nickname, or its Discord display name, or its username. Kept only while the account is in a conversation Guardian flagged, and deleted on that conversation's schedule. A person can choose to use their real name on Discord, and if they have, that is what is stored. The name is shown only to the operator's own reviewers, is never used as an id, and is never shared between operators. |
 | Ages | A band, one of six, never a birthdate. Recorded with where the band came from, because a band read off a Discord role is a different claim from one from a document. |
 | Images and video | A SHA-256 fingerprint and the operator's own scanner verdict. Never the file. There is no code path in Guardian that can accept, fetch, store or log image or video data, and the ingest edge refuses any request carrying it. |
 | Decisions | Every score and every reviewer decision, written to an append-only log that cannot be edited afterwards. |
 
 ## What it never holds
 
-- Birthdates, legal names, addresses, phone numbers or payment details.
+- Birthdates, addresses, phone numbers or payment details. Guardian never asks for a legal name and never checks one.
 - Image or video files, thumbnails, or URLs pointing at them.
 - Direct messages. Guardian reads guild channels an operator installed it into
   and nothing else, and Discord does not grant it DM access.
@@ -40,6 +41,9 @@ owner, or a platform using the API.
 
 Deletion is a scheduled job, not a promise. Every stored row carries the class
 it was written under and the date it expires.
+
+An account name follows the conversation that flagged it. It is deleted when it
+expires, and sooner if no flagged conversation includes that account any more.
 
 | Class | Applies to | Kept |
 |---|---|---|
@@ -78,9 +82,9 @@ reviewer, can produce the level that leads to a report.
 ## Requests
 
 An operator can ask for what Guardian holds about their service, and can ask for
-it to be deleted. Because identifiers are salted per operator and Guardian holds
-no names, a request about one person has to come through the operator, who is
-the only party able to say which hash is whose.
+it to be deleted. Identifiers are salted per operator, and Guardian keeps a name
+only for an account in a flagged conversation, so a request about one person
+has to come through the operator, who can say which account is theirs.
 
 ## Where this is enforced
 
@@ -88,6 +92,8 @@ the only party able to say which hash is whose.
 |---|---|
 | No media bytes | `apps/ingest/src/media-guard.ts`, `packages/schema/src/media-text.ts` |
 | Salted per-operator identifiers | `packages/schema/src/ids.ts` |
+| Names kept only for flagged conversations | `persistAccountName` in `apps/scorer/src/persist.ts`, which refuses a conversation that scored nothing |
+| Names deleted with their conversation | `deleteExpiredNames` in `apps/ingest/src/retention-job.ts` |
 | Bands, not birthdates | `packages/schema/src/agebands.ts` |
 | Scheduled deletion, including the queue | `apps/ingest/src/retention-job.ts` |
 | Two humans before a report | `apps/review/src/lib/decisions.ts` |

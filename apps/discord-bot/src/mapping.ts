@@ -34,6 +34,12 @@ export interface DiscordMessageLike {
   webhookId?: string | null;
   /** The relayed display name. One webhook carries many players. */
   authorName?: string | null;
+  /**
+   * Discord id to the name Discord shows in this server, for the author, the
+   * account replied to, and anyone mentioned. Held in memory for the message
+   * only. The pipeline stores a name only when a conversation is flagged.
+   */
+  displayNames?: Record<string, string>;
   authorRoleIds: string[];
   /** Account creation time from the snowflake, for the new-account feature. */
   authorCreatedAt: Date | null;
@@ -282,6 +288,13 @@ export function relayActorUid(msg: DiscordMessageLike): string {
   if (!msg.webhookId) return msg.authorId;
   const name = msg.authorName?.trim();
   return name ? `webhook:${msg.webhookId}:${name}` : `webhook:${msg.webhookId}`;
+}
+
+/** The display name inside a relay uid, or null when the relay carried none. */
+export function relayName(uid: string): string | null {
+  if (!isRelayUid(uid)) return null;
+  const parts = uid.split(":");
+  return parts.length >= 3 ? parts.slice(2).join(":") : null;
 }
 
 /** True for a uid this module minted for a relayed speaker. */

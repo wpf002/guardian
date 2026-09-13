@@ -514,6 +514,10 @@ describe("retention sweep", () => {
         calls.push("actors");
         return 1;
       },
+      async deleteExpiredNames() {
+        calls.push("names");
+        return 4;
+      },
       async deleteExpiredBundles() {
         calls.push("bundles");
         return 0;
@@ -530,7 +534,10 @@ describe("retention sweep", () => {
     expect(result.textCleared).toBe(12);
     expect(result.eventsDeleted).toBe(5);
     expect(result.deliveriesDeleted).toBe(3);
+    expect(result.namesDeleted).toBe(4);
     expect(calls[0]).toBe("text:2026-09-01T12:00:00.000Z");
+    // Names run after pairs, so a name whose last flagged pair just went goes too.
+    expect(calls.indexOf("names")).toBeGreaterThan(calls.indexOf("pairs"));
 
     const entries = await store.read();
     const swept = entries.find((e) => e.kind === "retention.deleted");
@@ -562,6 +569,7 @@ describe("retention sweep", () => {
       deleteExpiredEvents: async () => 0,
       deleteExpiredPairs: async () => 0,
       deleteExpiredActors: async () => 0,
+      deleteExpiredNames: async () => 0,
       deleteExpiredBundles: async () => 0,
       deleteExpiredDeliveries: async () => 0,
     };
@@ -615,6 +623,7 @@ describe("retention sweep", () => {
         deleteExpiredEvents: async () => 0,
         deleteExpiredPairs: async () => 0,
         deleteExpiredActors: async () => 0,
+        deleteExpiredNames: async () => 0,
         deleteExpiredBundles: async () => 0,
         deleteExpiredDeliveries: async () => 0,
       },
@@ -634,6 +643,7 @@ describe("retention sweep", () => {
       deleteExpiredEvents: async () => 0,
       deleteExpiredPairs: async () => 0,
       deleteExpiredActors: async () => 0,
+      deleteExpiredNames: async () => 0,
       deleteExpiredBundles: async () => 0,
       deleteExpiredDeliveries: async () => 0,
     };
@@ -659,6 +669,10 @@ describe("retention sweep", () => {
         calls.push("actors");
         return 2;
       },
+      async deleteExpiredNames() {
+        calls.push("names");
+        return 0;
+      },
       async deleteExpiredBundles() {
         calls.push("bundles");
         return 1;
@@ -669,7 +683,7 @@ describe("retention sweep", () => {
       },
     };
     const result = await runRetentionSweep(delegate, audit, new Date("2026-09-02T12:00:00Z"));
-    expect(calls).toEqual(["actors", "bundles", "deliveries"]);
+    expect(calls).toEqual(["actors", "names", "bundles", "deliveries"]);
     expect(result.actorsDeleted).toBe(2);
     expect(result.bundlesDeleted).toBe(1);
     expect(result.deliveriesDeleted).toBe(4);
@@ -711,6 +725,7 @@ describe("retention sweep", () => {
       review: { deleteMany: deleteMany("review") },
       $transaction: async <T,>(ops: Array<Promise<T>>) => Promise.all(ops),
       actor: capture,
+      accountName: { ...capture, findMany: async () => [] },
       evidenceBundle: capture,
       webhookDelivery: capture,
     });
@@ -752,6 +767,7 @@ describe("retention sweep", () => {
       },
       $transaction: async <T,>(ops: Array<Promise<T>>) => Promise.all(ops),
       actor: capture,
+      accountName: { ...capture, findMany: async () => [] },
       evidenceBundle: capture,
       webhookDelivery: capture,
     });
@@ -779,6 +795,7 @@ describe("retention sweep", () => {
       review: capture,
       $transaction: async <T,>(ops: Array<Promise<T>>) => Promise.all(ops),
       actor: capture,
+      accountName: { ...capture, findMany: async () => [] },
       evidenceBundle: capture,
       webhookDelivery: capture,
     });
@@ -810,6 +827,7 @@ describe("retention sweep", () => {
       review: capture,
       $transaction: async <T,>(ops: Array<Promise<T>>) => Promise.all(ops),
       actor: capture,
+      accountName: { ...capture, findMany: async () => [] },
       evidenceBundle: capture,
       webhookDelivery: capture,
     });

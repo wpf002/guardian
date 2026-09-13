@@ -17,6 +17,8 @@ function band(value: QueueCase["actorBand"]["band"]): QueueCase["actorBand"] {
 function pair(over: Partial<QueueCase> & { actorUid: string; targetUid: string }): QueueCase {
   return {
     pairId: `pair_${over.actorUid}_${over.targetUid}`,
+    actorName: null,
+    targetName: null,
     shortId: "0000",
     customerId: "cus_1",
     customerName: "Northwood Gaming",
@@ -171,5 +173,26 @@ describe("grouping by the account doing the contacting", () => {
       pair({ actorUid: "one", targetUid: "kid_b" }),
     ]);
     expect(rows[0]!.contacts.map((c) => c.uid).sort()).toEqual(["kid_a", "kid_b"]);
+  });
+});
+
+describe("names on the grouped cards", () => {
+  /*
+   * Real account ids are 64-character salted hashes (rule 8). The name Discord
+   * shows is kept beside the hash for a flagged conversation, and it has to
+   * travel with the account through the grouping, or a card names the child
+   * and then lists the account contacting them by a code.
+   */
+  const hashA = "6d2936f0a7c4f8b47ab8b8e85ffcffe1d0a9f1f7f8a49109084961d1c090f8b7";
+  const hashK = "2c51270e6f600c8622f4974d58699154bed42150b22a16a8c7c60092574976f2";
+
+  it("carries each account's kept name onto both sides of the grouping", () => {
+    const rows = [pair({ actorUid: hashA, targetUid: hashK, actorName: "ryan_xx99", targetName: "kai_b" })];
+    const targeted = groupByTargetedAccount(rows);
+    expect(targeted[0]!.name).toBe("kai_b");
+    expect(targeted[0]!.contacts[0]!.name).toBe("ryan_xx99");
+    const contacting = groupByContactingAccount(rows);
+    expect(contacting[0]!.name).toBe("ryan_xx99");
+    expect(contacting[0]!.contacts[0]!.name).toBe("kai_b");
   });
 });

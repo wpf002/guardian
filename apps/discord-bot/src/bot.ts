@@ -75,7 +75,33 @@ export function toDiscordMessageLike(message: Message): DiscordMessageLike {
     // A thread has its own channel id, so an exclusion naming the parent has to
     // be able to see the parent. Null on anything that is not a thread.
     parentChannelId: message.channel.isThread() ? (message.channel.parentId ?? null) : null,
+    displayNames: displayNamesOf(message),
   };
+}
+
+/**
+ * The name Discord shows in this server for each person the message involves:
+ * GuildMember.displayName, which is the server nickname, else the Discord
+ * display name, else the username. Falls back to the user's own display name
+ * when the member is not cached. A webhook author is left out, because the
+ * relay's own name is already on authorName.
+ */
+function displayNamesOf(message: Message): Record<string, string> {
+  const names: Record<string, string> = {};
+  const nameFor = (user: { id: string; displayName?: string; username?: string } | null | undefined) => {
+    if (!user) return;
+    const member = message.guild?.members?.cache?.get(user.id);
+    const name = member?.displayName ?? user.displayName ?? user.username;
+    if (typeof name === "string" && name.length > 0) names[user.id] = name;
+  };
+  if (!message.webhookId) {
+    const member = message.member;
+    const name = member?.displayName ?? message.author.displayName ?? message.author.username;
+    if (name) names[message.author.id] = name;
+  }
+  for (const user of message.mentions?.users?.values?.() ?? []) nameFor(user);
+  nameFor(message.mentions?.repliedUser);
+  return names;
 }
 
 function channelTypeOf(message: Message): DiscordMessageLike["channelType"] {

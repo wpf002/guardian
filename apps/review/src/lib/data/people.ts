@@ -25,6 +25,8 @@ export interface Contact {
   pairId: string;
   /** The account at the other end. */
   uid: string;
+  /** Its name, when Guardian kept one. */
+  name: string | null;
   band: QueueCase["actorBand"];
   tier: QueueCase["tier"];
   patternClause: string;
@@ -48,6 +50,7 @@ export interface Contact {
 /** An account being contacted, and everyone contacting it. */
 export interface TargetedAccount {
   uid: string;
+  name: string | null;
   band: QueueCase["targetBand"];
   /** Newest first. More than one is the fact this whole grouping exists for. */
   contacts: Contact[];
@@ -64,6 +67,7 @@ export interface TargetedAccount {
 /** An account contacting others, and every account it has contacted. */
 export interface ContactingAccount {
   uid: string;
+  name: string | null;
   band: QueueCase["actorBand"];
   contacts: Contact[];
   /** How many of the accounts it contacted are in a minor band. */
@@ -94,17 +98,18 @@ function younger(item: QueueCase): { child: Side; other: Side } | null {
   if (a === null || t === null || a === t) return null;
   const actorIsYounger = a < t;
   const child = actorIsYounger
-    ? { uid: item.actorUid, band: item.actorBand }
-    : { uid: item.targetUid, band: item.targetBand };
+    ? { uid: item.actorUid, name: item.actorName, band: item.actorBand }
+    : { uid: item.targetUid, name: item.targetName, band: item.targetBand };
   if (!isMinorBand(child.band.band)) return null;
   const other = actorIsYounger
-    ? { uid: item.targetUid, band: item.targetBand }
-    : { uid: item.actorUid, band: item.actorBand };
+    ? { uid: item.targetUid, name: item.targetName, band: item.targetBand }
+    : { uid: item.actorUid, name: item.actorName, band: item.actorBand };
   return { child, other };
 }
 
 interface Side {
   uid: string;
+  name: string | null;
   band: QueueCase["actorBand"];
 }
 
@@ -112,6 +117,7 @@ function contactFrom(item: QueueCase, other: Side): Contact {
   return {
     pairId: item.pairId,
     uid: other.uid,
+    name: other.name,
     band: other.band,
     tier: item.tier,
     patternClause: item.patternClause,
@@ -143,6 +149,7 @@ export function groupByTargetedAccount(cases: QueueCase[]): TargetedAccount[] {
     if (!existing) {
       byUid.set(sides.child.uid, {
         uid: sides.child.uid,
+        name: sides.child.name,
         band: sides.child.band,
         contacts: [contact],
         channels: item.channel ? [item.channel] : [],
@@ -192,6 +199,7 @@ export function groupByContactingAccount(cases: QueueCase[]): ContactingAccount[
     if (!existing) {
       byUid.set(sides.other.uid, {
         uid: sides.other.uid,
+        name: sides.other.name,
         band: sides.other.band,
         contacts: [contact],
         minorCount: 1,

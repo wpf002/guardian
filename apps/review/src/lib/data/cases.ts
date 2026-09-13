@@ -225,6 +225,7 @@ function toQueueCase(
   actors: Map<string, ActorRow>,
   now: Date,
   proposal: OpenProposal | null = null,
+  names: Map<string, string> = new Map(),
 ): QueueCase {
   const stages = stagesInOrder(row.firstStageAt).map((s) => s.stage);
   const actor = actors.get(row.actorUid);
@@ -256,6 +257,8 @@ function toQueueCase(
     shortId: row.id.slice(-4),
     actorUid: row.actorUid,
     targetUid: row.targetUid,
+    actorName: names.get(row.actorUid) ?? null,
+    targetName: names.get(row.targetUid) ?? null,
     customerId: row.customerId,
     customerName,
     channel: null,
@@ -341,6 +344,23 @@ function toOpenProposal(session: Session, row: ProposalRow): OpenProposal {
 /* Reads                                                                       */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The names Guardian kept for these accounts, by hashed uid.
+ *
+ * Scoped to the session's customer in the where clause, like every read here,
+ * so the same hash under another customer returns nothing (rule 8). Only
+ * accounts in a flagged conversation have a row at all.
+ */
+async function namesFor(session: Session, uids: string[]): Promise<Map<string, string>> {
+  if (uids.length === 0) return new Map();
+  const prisma = await getPrisma();
+  const rows = await prisma.accountName.findMany({
+    where: { customerId: session.customerId, hashedUid: { in: uids } },
+    select: { hashedUid: true, name: true },
+  });
+  return new Map(rows.map((row) => [row.hashedUid, row.name]));
+}
+
 export async function listQueue(
   session: Session,
   filters: QueueFilters = {},
@@ -383,6 +403,7 @@ export async function listQueue(
     where: { customerId: session.customerId, hashedUid: { in: uids } },
   });
   const actors = new Map<string, ActorRow>(actorRows.map((a) => [a.hashedUid, a as ActorRow]));
+  const names = await namesFor(session, uids);
 
   const proposals = await openProposalsFor(session, rows.map((row) => row.id));
   const now = new Date();
@@ -393,6 +414,7 @@ export async function listQueue(
       actors,
       now,
       proposals.get(row.id) ?? null,
+      names,
     ),
   );
   const summary = summarise(customer?.name ?? session.customerId, all);
@@ -435,6 +457,7 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
 
   const actors = new Map<string, ActorRow>(actorRows.map((a) => [a.hashedUid, a as ActorRow]));
   const proposal = (await openProposalsFor(session, [row.id])).get(row.id) ?? null;
+  const names = await namesFor(session, [row.actorUid, row.targetUid]);
   const now = new Date();
   const queue = toQueueCase(
     row,
@@ -442,6 +465,7 @@ export async function getCase(session: Session, pairId: string): Promise<CaseDet
     actors,
     now,
     proposal,
+    names,
   );
   const stages = stagesInOrder(row.firstStageAt);
   const actorRow = actors.get(row.actorUid);

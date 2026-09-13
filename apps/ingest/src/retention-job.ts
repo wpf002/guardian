@@ -32,6 +32,12 @@ export interface RetentionDelegate {
   deleteExpiredEvents(now: Date): Promise<number>;
   deleteExpiredPairs(now: Date): Promise<number>;
   deleteExpiredActors(now: Date): Promise<number>;
+  /**
+   * Account names that expired, or that no flagged pair names any more. A name
+   * is kept only while its account is in a conversation Guardian flagged, so a
+   * pair deleted earlier in this same sweep takes its names with it.
+   */
+  deleteExpiredNames(now: Date): Promise<number>;
   deleteExpiredBundles(now: Date): Promise<number>;
   /**
    * Webhook delivery rows past expiry. A delivery carrying a reviewer-confirmed
@@ -46,6 +52,7 @@ export type SweepStep =
   | "events"
   | "pairs"
   | "actors"
+  | "names"
   | "bundles"
   | "deliveries"
   | "streams";
@@ -55,6 +62,7 @@ export interface SweepResult {
   eventsDeleted: number;
   pairsDeleted: number;
   actorsDeleted: number;
+  namesDeleted: number;
   bundlesDeleted: number;
   deliveriesDeleted: number;
   /**
@@ -99,6 +107,9 @@ export async function runRetentionSweep(
   const eventsDeleted = await step("events", () => delegate.deleteExpiredEvents(now));
   const pairsDeleted = await step("pairs", () => delegate.deleteExpiredPairs(now));
   const actorsDeleted = await step("actors", () => delegate.deleteExpiredActors(now));
+  // After pairs, so a name whose last flagged conversation went a moment ago
+  // goes in the same run rather than waiting an hour.
+  const namesDeleted = await step("names", () => delegate.deleteExpiredNames(now));
   const bundlesDeleted = await step("bundles", () => delegate.deleteExpiredBundles(now));
   const deliveriesDeleted = await step("deliveries", () =>
     delegate.deleteExpiredDeliveries(now),
@@ -113,6 +124,7 @@ export async function runRetentionSweep(
     eventsDeleted,
     pairsDeleted,
     actorsDeleted,
+    namesDeleted,
     bundlesDeleted,
     deliveriesDeleted,
     streamEntriesTrimmed,
@@ -214,6 +226,76 @@ export function prismaRetentionDelegate(prisma: PrismaLike): RetentionDelegate {
       });
       return result.count;
     },
+    /*
+     * Names go on two conditions. Past their own expiry, like every row. And
+     * the moment no flagged pair names the account, whatever the expiry says,
+     * because the promise to the operator is that a name is kept only while the
+     * account is in a conversation Guardian flagged. A pair under legal hold
+     * still names its accounts, so their names stay with it; a name under legal
+     * hold is never touched.
+     */
+    async deleteExpiredNames(now) {
+      const expired = await prisma.accountName.deleteMany({
+        where: { expiresAt: { lt: now }, retention: { not: "LEGAL_HOLD" } },
+      });
+
+      // Paged by id through the whole table, so every name is checked on every
+      // run. A single capped read would check the same first rows forever and
+      // never reach the rest.
+      const orphaned: string[] = [];
+      let after = "";
+      for (let page = 0; page < NAME_MAX_PAGES; page += 1) {
+        const names = await prisma.accountName.findMany({
+          where: { retention: { not: "LEGAL_HOLD" }, id: { gt: after } },
+          select: { id: true, customerId: true, hashedUid: true },
+          orderBy: { id: "asc" },
+          take: NAME_CHECK_BATCH,
+        });
+        if (names.length === 0) break;
+        after = String(names[names.length - 1]!.id);
+
+        const byCustomer = new Map<string, Array<{ id: string; hashedUid: string }>>();
+        for (const row of names) {
+          const list = byCustomer.get(String(row.customerId)) ?? [];
+          list.push({ id: String(row.id), hashedUid: String(row.hashedUid) });
+          byCustomer.set(String(row.customerId), list);
+        }
+        for (const [customerId, rows] of byCustomer) {
+          const uids = rows.map((row) => row.hashedUid);
+          /*
+           * One distinct read per side of the pair. A single read capped at a
+           * row count let one account in many flagged conversations fill the
+           * cap, and every other account in the page then looked unnamed and
+           * lost its name. Distinct on the uid bounds each read by the page
+           * size, so no cap is needed and none can crowd anything out.
+           */
+          const flagged = { customerId, tier: { in: ["T1", "T2", "T3"] } };
+          const asActor = await prisma.pair.findMany({
+            where: { ...flagged, actorUid: { in: uids } },
+            select: { actorUid: true },
+            distinct: ["actorUid"],
+            take: uids.length,
+          });
+          const asTarget = await prisma.pair.findMany({
+            where: { ...flagged, targetUid: { in: uids } },
+            select: { targetUid: true },
+            distinct: ["targetUid"],
+            take: uids.length,
+          });
+          const named = new Set<string>();
+          for (const pair of asActor) named.add(String(pair.actorUid));
+          for (const pair of asTarget) named.add(String(pair.targetUid));
+          for (const row of rows) if (!named.has(row.hashedUid)) orphaned.push(row.id);
+        }
+        // No short-page exit. Stopping when a page came back smaller than the
+        // batch assumed the driver always fills a page it can, and a page that
+        // came back short for any other reason would have ended the check with
+        // names left unread. It stops on an empty page, one extra read a run.
+      }
+      if (orphaned.length === 0) return expired.count;
+      const gone = await prisma.accountName.deleteMany({ where: { id: { in: orphaned } } });
+      return expired.count + gone.count;
+    },
     async deleteExpiredBundles(now) {
       // A bundle with a CyberTipline report is under the one year preservation
       // duty whatever its own expiry says, and the foreign key would refuse
@@ -242,6 +324,11 @@ export function prismaRetentionDelegate(prisma: PrismaLike): RetentionDelegate {
  * a lock nobody wants. The sweep runs hourly, so a backlog drains.
  */
 const PAIR_DELETE_BATCH = 500;
+/** Names read per page when checking each one still has a flagged pair. */
+const NAME_CHECK_BATCH = 1000;
+/** A ceiling on pages per run, so a runaway table cannot hold the sweep open. */
+const NAME_MAX_PAGES = 1000;
+
 
 interface Deletable {
   deleteMany(args: { where: Record<string, unknown> }): Promise<{ count: number }>;
@@ -257,6 +344,7 @@ export interface PrismaLike {
     findMany(args: {
       where: Record<string, unknown>;
       select: Record<string, boolean>;
+      distinct?: Array<"actorUid" | "targetUid">;
       take: number;
     }): Promise<Array<Record<string, unknown>>>;
   };
@@ -269,6 +357,14 @@ export interface PrismaLike {
     }): Promise<{ count: number }>;
   };
   actor: Deletable;
+  accountName: Deletable & {
+    findMany(args: {
+      where: Record<string, unknown>;
+      select: Record<string, boolean>;
+      orderBy: { id: "asc" };
+      take: number;
+    }): Promise<Array<Record<string, unknown>>>;
+  };
   evidenceBundle: Deletable;
   webhookDelivery: Deletable;
 }

@@ -3,8 +3,10 @@ import {
   buildEvidenceBundle,
   bundleInputsFor,
   Kernel,
+  persistAccountName,
   persistEvidenceBundle,
   persistScoredEvent,
+  type AccountNamePersistClient,
   type BundlePersistClient,
   type EventPersistClient,
   type ScoredEvent,
@@ -29,6 +31,7 @@ import type { GuildConfig } from "./config.js";
 import {
   ADJACENCY_WINDOW_MS,
   relayActorUid,
+  relayName,
   toEvent,
   type DiscordMessageLike,
   type MemberBand,
@@ -77,7 +80,7 @@ export interface PipelineDeps {
 }
 
 export interface Persistence {
-  db: EventPersistClient & BundlePersistClient;
+  db: EventPersistClient & BundlePersistClient & AccountNamePersistClient;
   store: TierRecorder;
 }
 
@@ -124,7 +127,7 @@ export class BotPipeline {
    * adjacency window on every read. No text: this is a list of who was in the
    * room, not what was said in it.
    */
-  private readonly recentByChannel = new Map<string, Array<{ uid: string; at: number }>>();
+  private readonly recentByChannel = new Map<string, Array<{ uid: string; at: number; name?: string }>>();
 
   constructor(private readonly deps: PipelineDeps) {}
 
@@ -148,7 +151,12 @@ export class BotPipeline {
     const mapped = toEvent(msg, config, memberBands, now, others);
     // Recorded whether or not the message maps: a refused message still tells
     // the next one who was in the channel.
-    this.rememberSpeaker(msg.channelId, speaker, msg.createdAt);
+    this.rememberSpeaker(
+      msg.channelId,
+      speaker,
+      msg.createdAt,
+      relayName(speaker) ?? msg.displayNames?.[msg.authorId],
+    );
     if (!mapped.ok) {
       return { scored: null, tier: "T0", action: { kind: "none" }, alert: null, refusal: mapped.refusal };
     }
@@ -263,6 +271,10 @@ export class BotPipeline {
      */
     if (this.deps.persistence && tier !== "T0") {
       await this.persistBundle(guildId, actorUid, targetUid, tier, scored.result.rationale);
+      await this.persistNames(msg, tier, [
+        { discordId: inbound.actorUid, hashedUid: actorUid },
+        { discordId: inbound.targetUid ?? null, hashedUid: targetUid },
+      ]);
     }
 
     return { scored, tier, action, alert, targetSource: mapped.targetSource };
@@ -283,12 +295,52 @@ export class BotPipeline {
     return live.filter((entry) => entry.uid !== authorId).map((entry) => entry.uid);
   }
 
-  private rememberSpeaker(channelId: string, authorId: string, at: Date): void {
+  private rememberSpeaker(channelId: string, authorId: string, at: Date, name?: string): void {
     const seen = this.recentByChannel.get(channelId) ?? [];
     const floor = at.getTime() - ADJACENCY_WINDOW_MS;
     const live = seen.filter((entry) => entry.at >= floor && entry.uid !== authorId);
-    live.push({ uid: authorId, at: at.getTime() });
+    live.push(name ? { uid: authorId, at: at.getTime(), name } : { uid: authorId, at: at.getTime() });
     this.recentByChannel.set(channelId, live);
+  }
+
+  /** The name a speaker had when they last spoke in this channel, inside the window. */
+  private rosterName(channelId: string, uid: string): string | null {
+    return this.recentByChannel.get(channelId)?.find((entry) => entry.uid === uid)?.name ?? null;
+  }
+
+  /**
+   * Keep the names of both accounts in a flagged conversation.
+   *
+   * The console showed a moderator a hashed code for accounts they know by name
+   * in their own server. persistAccountName refuses T0, so a conversation that
+   * scored nothing keeps no name. Guarded: a name is a label on a screen, and
+   * losing one must never cost the alert or the evidence.
+   */
+  private async persistNames(
+    msg: DiscordMessageLike,
+    tier: Tier,
+    pair: Array<{ discordId: string | null; hashedUid: string | null }>,
+  ): Promise<void> {
+    const persistence = this.deps.persistence;
+    if (!persistence || tier === "T0") return;
+    for (const account of pair) {
+      if (!account.discordId || !account.hashedUid) continue;
+      const name =
+        relayName(account.discordId) ??
+        msg.displayNames?.[account.discordId] ??
+        this.rosterName(msg.channelId, account.discordId);
+      if (!name) continue;
+      try {
+        await persistAccountName(persistence.db, {
+          customerId: this.deps.customerId,
+          hashedUid: account.hashedUid,
+          name,
+          tier,
+        });
+      } catch (err) {
+        console.error("guardian name persist failed:", describeError(err));
+      }
+    }
   }
 
   /** Build and store the bundle for a pair the model has put in scope. */

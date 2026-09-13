@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { CaseDetail, StagePoint } from "@/lib/data/types";
-import { accountLabel, SUPPORT_POSTURE_NOTE } from "@/components/queue/words";
+import { accountName, SUPPORT_POSTURE_NOTE } from "@/components/queue/words";
 import styles from "./CaseSummary.module.css";
 
 /**
@@ -71,8 +71,8 @@ function accountAge(hours: number | null): string | null {
 
 export function CaseSummary({ detail }: { detail: CaseDetail }) {
   const { queue, actor } = detail;
-  const older = accountLabel(queue.actorUid);
-  const younger = accountLabel(queue.targetUid);
+  const older = accountName(queue.actorUid, queue.actorName);
+  const younger = accountName(queue.targetUid, queue.targetName);
   const steps = reached(detail.stagePath);
   const age = accountAge(actor.accountAgeHours);
   const others = Math.max(0, actor.minorFanOut7d - 1);

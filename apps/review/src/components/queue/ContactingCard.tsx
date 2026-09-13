@@ -2,7 +2,7 @@
 
 import type { KeyboardEvent } from "react";
 import type { Contact, ContactingAccount } from "@/lib/data/people";
-import { accountLabel, bandWord, signalWord, whenWords } from "./words";
+import { accountName, bandWord, signalWord, whenWords } from "./words";
 import styles from "./TargetedCard.module.css";
 
 /**
@@ -48,7 +48,7 @@ export function ContactingCard({
         onFocus={onFocus}
       >
         <div className={styles.who}>
-          <span className={styles.uid}>{accountLabel(account.uid)}</span>
+          <span className={styles.uid}>{accountName(account.uid, account.name)}</span>
           <span className={styles.band}>{bandWord(account.band.band)}</span>
         </div>
 
@@ -104,7 +104,7 @@ function ContactedRow({
         onClick={(event) => onOpen(contact.pairId, event.shiftKey ? "read_only" : "claim")}
       >
         <span className={styles.contactHead}>
-          <span className={styles.contactUid}>{accountLabel(contact.uid)}</span>
+          <span className={styles.contactUid}>{accountName(contact.uid, contact.name)}</span>
           <span className={styles.contactBand}>{bandWord(contact.band.band)}</span>
           <span className={styles.contactWhen}>{whenWords(contact.at)}</span>
         </span>

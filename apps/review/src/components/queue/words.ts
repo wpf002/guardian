@@ -398,6 +398,17 @@ export function summaryLine(item: {
  * production a uid is a per-customer salted hash (rule 8) and the last eight
  * characters are what a reviewer matches against the case page and the bundle.
  */
+/**
+ * What to call an account on screen: the name Discord shows, when Guardian kept
+ * one for a flagged conversation, and a short form of the hashed id when it did
+ * not. Every place the console names an account goes through here, so one page
+ * never calls the same account two different things.
+ */
+export function accountName(uid: string, name: string | null | undefined): string {
+  const kept = name?.trim();
+  return kept ? kept : accountLabel(uid);
+}
+
 export function accountLabel(uid: string): string {
   const bare = uid.includes(":") ? uid.slice(uid.lastIndexOf(":") + 1) : uid;
   return bare.length > 20 ? bare.slice(-8) : bare;
@@ -448,10 +459,17 @@ const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
  * here says anything about who either account belongs to (rule 5).
  */
 export function whoAndWhen(
-  item: { actorUid: string; targetUid: string; channel: string | null; createdAt: Date },
+  item: {
+    actorUid: string;
+    targetUid: string;
+    actorName?: string | null;
+    targetName?: string | null;
+    channel: string | null;
+    createdAt: Date;
+  },
   now = new Date(),
 ): string {
-  const between = `${accountLabel(item.actorUid)} to ${accountLabel(item.targetUid)}`;
+  const between = `${accountName(item.actorUid, item.actorName)} to ${accountName(item.targetUid, item.targetName)}`;
   const where = item.channel ? ` in ${item.channel}` : "";
   return compose("queue.whoAndWhen", `${between}${where} · ${whenWords(item.createdAt, now)}`);
 }

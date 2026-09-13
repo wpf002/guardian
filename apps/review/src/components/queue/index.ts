@@ -8,6 +8,7 @@ export { QueueList, type QueueListProps } from "./QueueList";
 export { TargetedCard, type TargetedCardProps } from "./TargetedCard";
 export {
   accountLabel,
+  accountName,
   bandWord,
   bandsClause,
   claimClause,

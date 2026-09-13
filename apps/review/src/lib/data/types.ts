@@ -78,6 +78,14 @@ export interface QueueCase {
    */
   actorUid: string;
   targetUid: string;
+  /**
+   * The name Discord shows for each account, when Guardian kept one. Guardian
+   * keeps a name only while the account is in a flagged conversation, and
+   * deletes it on that conversation's schedule. Null means none was kept, and
+   * the screen falls back to a short form of the hashed id.
+   */
+  actorName: string | null;
+  targetName: string | null;
   customerId: string;
   customerName: string;
   channel: string | null;

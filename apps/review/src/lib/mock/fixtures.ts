@@ -676,6 +676,10 @@ function buildPair(spec: PairSpec, now: Date, auditSeq: number | null): MockPair
       shortId: spec.id.slice(-4),
       actorUid: spec.actorUid,
       targetUid: spec.targetUid,
+      // What the names table would hold for a flagged conversation: the name
+      // Discord shows. Every fixture pair is flagged, so every account has one.
+      actorName: fixtureName(spec.actorUid),
+      targetName: fixtureName(spec.targetUid),
       customerId: MOCK_CUSTOMER_ID,
       customerName: MOCK_CUSTOMER_NAME,
       channel: spec.channel,
@@ -918,6 +922,11 @@ function buildReviews(now: Date, seqByPair: Map<string, number>): ReviewRecord[]
       auditSeq: seqByPair.get("pair_7d40") ?? null,
     },
   ];
+}
+
+/** The Discord name inside a fixture uid, "northwood:jayden_k" to "jayden_k". */
+function fixtureName(uid: string): string {
+  return uid.includes(":") ? uid.slice(uid.lastIndexOf(":") + 1) : uid;
 }
 
 function buildGuilds(now: Date): GuildConfigView[] {
