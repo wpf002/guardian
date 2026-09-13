@@ -111,13 +111,19 @@ describe("/guilds/[guildId]", () => {
   it("titles the page with the server's name and says whether it is watching", async () => {
     await renderServer(CONFIGURED_GUILD);
     expect(screen.getByRole("heading", { level: 1, name: "Northwood Gaming" })).toBeTruthy();
-    expect(screen.getByText("Watching")).toBeTruthy();
+    // Once, in the status bar. It was also a line under the title.
+    expect(screen.getAllByText("Guardian is watching.")).toHaveLength(1);
   });
 
-  it("has five cards and nothing else", async () => {
+  it("leads with whether Guardian is watching, then five settings in order", async () => {
     await renderServer(CONFIGURED_GUILD);
-    const cards = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(cards).toEqual(["Alerts", "Ages", "Moderators", "Channels to Skip", "Automatic Timeout"]);
+    const status = within(screen.getByRole("region", { name: "Status" }));
+    expect(status.getByText("Guardian is watching.")).toBeTruthy();
+    expect(status.getByText("#mod-alerts")).toBeTruthy();
+    expect(status.getByRole("button", { name: "Stop Watching" })).toBeTruthy();
+
+    const settings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(settings).toEqual(["Send alerts to", "Ages", "Moderators", "Channels to Skip", "Automatic Timeout"]);
   });
 
   /*
@@ -136,11 +142,11 @@ describe("/guilds/[guildId]", () => {
   it("names every setting by the server's own channel and role names", async () => {
     await renderServer(CONFIGURED_GUILD);
     expect(screen.getByRole("option", { name: "#mod-alerts", selected: true })).toBeTruthy();
-    const ages = within(screen.getByRole("region", { name: "Ages" }));
+    const ages = within(screen.getByRole("list", { name: "Ages" }));
     expect(ages.getByText("@Teens")).toBeTruthy();
-    const mods = within(screen.getByRole("region", { name: "Moderators" }));
+    const mods = within(screen.getByRole("list", { name: "Moderators" }));
     expect(mods.getByText("@Moderators")).toBeTruthy();
-    const skip = within(screen.getByRole("region", { name: "Channels to Skip" }));
+    const skip = within(screen.getByRole("list", { name: "Channels to Skip" }));
     expect(skip.getByText("#staff-lounge")).toBeTruthy();
   });
 
@@ -148,7 +154,7 @@ describe("/guilds/[guildId]", () => {
     await renderServer(UNLOADED_GUILD);
     expect(screen.getByRole("heading", { level: 1, name: "New server" })).toBeTruthy();
     expect(screen.getByText(guildCopy.PAGE.notLoaded)).toBeTruthy();
-    expect(screen.getByText("Not watching yet")).toBeTruthy();
+    expect(screen.getByText("Guardian isn't watching this server yet.")).toBeTruthy();
   });
 
   it("shows the not-found state for a server this account is not set up for", async () => {
@@ -169,12 +175,17 @@ describe("GuildEditor", () => {
     expect(await screen.findByText("Saved.")).toBeTruthy();
   });
 
-  it("won't start watching until an alerts channel is picked, and says why", () => {
+  it("won't start watching until an alerts channel is picked, and says why beside the button", () => {
     render(
       <GuildEditor config={{ ...BASE, modChannelId: null, enabled: false }} save={vi.fn()} />,
     );
-    expect(screen.getByRole("button", { name: "Start Watching" })).toHaveProperty("disabled", true);
-    expect(screen.getByText("Pick a channel first.")).toBeTruthy();
+    const start = screen.getByRole("button", { name: "Start Watching" });
+    expect(start).toHaveProperty("disabled", true);
+    expect(screen.getByText("Pick where alerts go, then start watching.")).toBeTruthy();
+    // The reason is wired to the button, not just printed near it.
+    expect(document.getElementById(start.getAttribute("aria-describedby") ?? "")?.textContent).toContain(
+      "Pick where alerts go",
+    );
   });
 
   it("stops watching when the alerts channel is cleared, because there is nowhere to send one", async () => {
@@ -187,22 +198,24 @@ describe("GuildEditor", () => {
   it("adds a role to Ages by name, starting at Not sure", async () => {
     const save = vi.fn(async () => ({ ok: true as const, message: "Saved." }));
     render(<GuildEditor config={BASE} save={save} />);
-    const ages = within(screen.getByRole("region", { name: "Ages" }));
-    fireEvent.change(ages.getByLabelText("Add a role"), { target: { value: "742118990011224004" } });
+    // Two "Add a role" pickers on the page: Ages first, then Moderators.
+    const [addAge] = screen.getAllByRole("combobox", { name: "Add a role" });
+    fireEvent.change(addAge!, { target: { value: "742118990011224004" } });
     await waitFor(() =>
       expect(save).toHaveBeenCalledWith({
         roleBands: { "742118990011224001": "A13_15", "742118990011224004": "UNKNOWN" },
       }),
     );
-    expect(ages.getByText("@Adults")).toBeTruthy();
+    expect(within(screen.getByRole("list", { name: "Ages" })).getByText("@Adults")).toBeTruthy();
   });
 
   it("asks once before turning automatic timeouts on, and never before turning them off", async () => {
     const save = vi.fn(async () => ({ ok: true as const, message: "Saved." }));
     render(<GuildEditor config={BASE} save={save} />);
-    const box = screen.getByLabelText("Time out an account when Guardian sends an alert");
+    const toggle = screen.getByRole("switch", { name: "Time out an account when Guardian sends an alert" });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
 
-    fireEvent.click(box);
+    fireEvent.click(toggle);
     expect(screen.getByRole("dialog", { name: "Turn on automatic timeouts?" })).toBeTruthy();
     expect(save).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Turn On" }));

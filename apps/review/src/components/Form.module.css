@@ -56,10 +56,32 @@
   resize: vertical;
 }
 
+/*
+ * A dropdown that looks like one.
+ *
+ * appearance: none took the browser's arrow away and nothing replaced it, so
+ * every select in the console rendered as a plain box a person reads as a text
+ * field. The chevron is two gradients rather than an SVG, because a gradient
+ * can take a colour token and an inline SVG cannot follow the theme.
+ */
 .select {
   appearance: none;
-  padding-inline-end: var(--space-6);
-  background-image: none;
+  padding-inline-end: var(--space-7);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) calc(50% + 1px),
+    calc(100% - 15px) calc(50% + 1px);
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.select:disabled {
+  cursor: not-allowed;
 }
 
 .help {

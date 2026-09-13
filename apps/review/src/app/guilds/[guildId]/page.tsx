@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { EmptyState, PageHeader } from "@/components";
-import { GuildEditor, guildCopy, isGuildReady, toGuildView } from "@/components/guilds";
+import { GuildEditor, guildCopy, toGuildView } from "@/components/guilds";
 import { requireRole } from "@/lib/auth";
 import { getGuildConfig } from "@/lib/data/guilds";
 import { saveGuildSettings } from "../actions";
@@ -42,14 +42,8 @@ export default async function GuildPage({
         <Link className={styles.crumb} href="/guilds">
           {guildCopy.PAGE.backToList}
         </Link>
-        <PageHeader
-          title={config?.guildName ?? guildCopy.PAGE.unnamed}
-          meta={
-            config ? (
-              <span>{isGuildReady(config) ? guildCopy.PAGE.watching : guildCopy.PAGE.notWatching}</span>
-            ) : null
-          }
-        />
+        {/* No status line here. The status bar under the title says it, beside the action. */}
+        <PageHeader title={config?.guildName ?? guildCopy.PAGE.unnamed} />
       </div>
 
       {config ? (

@@ -48,6 +48,14 @@ export const STATES = {
   errorUnaffected: c("errorUnaffected", "Guardian is still watching. Only this page failed to load."),
 } as const;
 
+export const STATUS = {
+  watching: c("statusWatching", "Guardian is watching."),
+  alertsGoTo: c("statusAlertsGoTo", "Alerts go to"),
+  notWatching: c("statusNotWatching", "Guardian isn't watching this server yet."),
+  needsChannel: c("statusNeedsChannel", "Pick where alerts go, then start watching."),
+  setup: c("statusSetup", "Setup"),
+} as const;
+
 export const ALERTS = {
   title: c("alertsTitle", "Alerts"),
   label: c("alertsLabel", "Send alerts to"),
@@ -62,7 +70,7 @@ export const ALERTS = {
 
 export const AGES = {
   title: c("agesTitle", "Ages"),
-  intro: c("agesIntro", "Tell Guardian which roles are for kids and which are for adults."),
+  intro: c("agesIntro", "Which roles are for kids and which are for adults."),
   everyoneElse: c("agesEveryoneElse", "Everyone else"),
   everyoneElseHelp: c("agesEveryoneElseHelp", "Discord treats most accounts as 13 to 15."),
   add: c("agesAdd", "Add a role"),
@@ -88,6 +96,7 @@ export const SKIP = {
 export const TIMEOUT = {
   title: c("timeoutTitle", "Automatic Timeout"),
   checkbox: c("timeoutCheckbox", "Time out an account when Guardian sends an alert"),
+  help: c("timeoutHelp", "Any moderator can lift a timeout."),
   lengthLabel: c("timeoutLength", "For"),
   confirmTitle: c("timeoutConfirmTitle", "Turn on automatic timeouts?"),
   confirmBody: c(

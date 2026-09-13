@@ -1,8 +1,9 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { AGE_BANDS } from "@guardian/schema/agebands";
-import { Button, Card, Dialog, Select, Toast, type ToastTone } from "@/components";
+import { Button, Dialog, Toast, type ToastTone } from "@/components";
+import formStyles from "@/components/Form.module.css";
 import type { AgeBand, DirectoryEntry } from "@/lib/data/types";
 import {
   AGE_LABEL,
@@ -12,6 +13,7 @@ import {
   PAGE,
   SAVE,
   SKIP,
+  STATUS,
   TIMEOUT,
   TIMEOUT_LENGTHS,
 } from "./copy";
@@ -24,8 +26,6 @@ export interface GuildEditorProps {
   save: SaveGuild;
 }
 
-const AGE_OPTIONS = AGE_BANDS.map((band) => ({ value: band, label: AGE_LABEL[band] }));
-
 function isBand(value: string): value is AgeBand {
   return (AGE_BANDS as readonly string[]).includes(value);
 }
@@ -35,29 +35,31 @@ function nameOf(list: DirectoryEntry[], id: string): string | null {
   return list.find((entry) => entry.id === id)?.name ?? null;
 }
 
+const SELECT = `${formStyles.control} ${formStyles.select}`;
+
 /**
  * Setting up Guardian for one Discord server.
  *
- * Five cards, and every control picks from the server's own channels and roles
- * by name. This screen used to be 5,957 pixels tall: a readiness checklist
- * repeating the controls under it, seven paragraphs on what each age means to
- * the scorer, a table of T0 to T3, a list of what the bot will and will not do,
- * and a text box per setting for an 18-digit id copied with Developer Mode on.
- * A server admin could not use it without a developer next to them.
+ * A status bar, then one settings panel with a row per setting: what it is on
+ * the left, the control on the right. It was five cards, each with its own
+ * title, accent underline and full-width rule, and the controls inside were
+ * bare selects of three different sizes, a grey "Remove" box and a checkbox
+ * with its duration a screen-width away. Whether Guardian is watching at all
+ * was a button at the bottom of the first card. It is the first thing on the
+ * page now, beside the one action that changes it.
  *
- * Every change saves as it is made, and says so. There is no save button per
- * card, because a setting that looks changed and is not saved is the worst
- * thing a settings screen can do.
+ * Every change saves as it is made, puts itself back if the save fails, and
+ * says which.
  */
 export function GuildEditor({ config, save }: GuildEditorProps) {
   const ids = {
-    channel: useId(),
-    everyone: useId(),
-    addAge: useId(),
-    addMod: useId(),
-    addSkip: useId(),
-    timeoutCheck: useId(),
-    timeoutLength: useId(),
+    alerts: useId(),
+    ages: useId(),
+    mods: useId(),
+    skip: useId(),
+    timeout: useId(),
+    length: useId(),
+    statusText: useId(),
   };
 
   const [current, setCurrent] = useState<GuildView>(config);
@@ -66,11 +68,11 @@ export function GuildEditor({ config, save }: GuildEditorProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const loaded = current.channels.length > 0 || current.roles.length > 0;
+  const watching = current.enabled && current.modChannelId !== null;
+  const alertsName = current.modChannelId ? nameOf(current.channels, current.modChannelId) : null;
 
   async function apply(patch: GuildPatch, message: string = SAVE.ok) {
     const before = current;
-    // Shown at once, and put back if the save fails, so the screen never claims
-    // a setting the server does not have.
     setCurrent((view) => ({ ...view, ...patch }));
     setBusy(true);
     setStatus(null);
@@ -100,192 +102,225 @@ export function GuildEditor({ config, save }: GuildEditorProps) {
     : [...TIMEOUT_LENGTHS, { minutes: current.autoTimeoutMinutes, label: `${current.autoTimeoutMinutes} minutes` }];
 
   return (
-    <div className={styles.sections}>
+    <div className={styles.editor}>
       {status ? (
         <div className={styles.status}>
           <Toast message={status.message} tone={status.tone} onDismiss={() => setStatus(null)} />
         </div>
       ) : null}
 
+      {/* Whether Guardian is watching, and the one action that changes it. */}
+      <section className={styles.statusBar} data-watching={watching ? "true" : undefined} aria-label="Status">
+        <span className={styles.statusDot} aria-hidden="true" />
+        <p className={styles.statusText} id={ids.statusText}>
+          {watching ? (
+            <>
+              <strong>{STATUS.watching}</strong>{" "}
+              {alertsName ? (
+                <span className={styles.statusDetail}>
+                  {STATUS.alertsGoTo} <span className={styles.channel}>#{alertsName}</span>.
+                </span>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <strong>{STATUS.notWatching}</strong>{" "}
+              {current.modChannelId === null ? <span className={styles.statusDetail}>{STATUS.needsChannel}</span> : null}
+            </>
+          )}
+        </p>
+        {/* The sentence beside it is the reason it is disabled, so it describes the button. */}
+        <Button
+          variant={current.enabled ? "secondary" : "primary"}
+          aria-describedby={ids.statusText}
+          disabled={busy || (!current.enabled && current.modChannelId === null)}
+          onClick={() =>
+            void apply({ enabled: !current.enabled }, current.enabled ? ALERTS.stopped : ALERTS.started)
+          }
+        >
+          {current.enabled ? ALERTS.stop : ALERTS.start}
+        </Button>
+      </section>
+
       {!loaded ? <p className={styles.notice}>{PAGE.notLoaded}</p> : null}
 
-      <Card title={ALERTS.title} as="section">
-        <div className={styles.inline}>
-          <Select
-            id={ids.channel}
-            label={ALERTS.label}
-            help={ALERTS.help}
+      <section className={styles.panel} aria-label={STATUS.setup}>
+        <Row id={ids.alerts} label={ALERTS.label} help={ALERTS.help}>
+          <select
+            aria-labelledby={ids.alerts}
+            className={`${SELECT} ${styles.narrow}`}
             value={current.modChannelId ?? ""}
             disabled={busy || !loaded}
-            options={[
-              { value: "", label: ALERTS.placeholder },
-              ...current.channels.map((channel) => ({ value: channel.id, label: `#${channel.name}` })),
-            ]}
             onChange={(event) => {
               const id = event.target.value || null;
               // No alerts channel means nowhere to send one, so watching stops too.
               void apply(id ? { modChannelId: id } : { modChannelId: null, enabled: false });
             }}
-          />
-          <Button
-            variant={current.enabled ? "secondary" : "primary"}
-            disabled={busy || (!current.enabled && current.modChannelId === null)}
-            disabledReason={!current.enabled && current.modChannelId === null ? ALERTS.needsChannel : undefined}
-            onClick={() =>
-              void apply(
-                { enabled: !current.enabled },
-                current.enabled ? ALERTS.stopped : ALERTS.started,
-              )
-            }
           >
-            {current.enabled ? ALERTS.stop : ALERTS.start}
-          </Button>
-        </div>
-      </Card>
+            <option value="">{ALERTS.placeholder}</option>
+            {current.channels.map((channel) => (
+              <option key={channel.id} value={channel.id}>{`#${channel.name}`}</option>
+            ))}
+          </select>
+        </Row>
 
-      <Card title={AGES.title} as="section">
-        <p className={styles.intro}>{AGES.intro}</p>
-        <ul className={styles.pickList}>
-          {Object.entries(current.roleBands).map(([roleId, band]) => {
-            const name = nameOf(current.roles, roleId);
-            return (
-              <li key={roleId} className={styles.pickRow}>
-                <span className={styles.pickName} data-missing={name ? undefined : "true"}>
-                  {name ? `@${name}` : AGES.deletedRole}
-                </span>
-                <select
-                  className={styles.pickSelect}
-                  aria-label={`Age for ${name ?? AGES.deletedRole}`}
-                  value={band}
-                  disabled={busy}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    if (isBand(next)) void apply({ roleBands: { ...current.roleBands, [roleId]: next } });
-                  }}
-                >
-                  {AGE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className={styles.removeButton}
-                  disabled={busy}
-                  onClick={() => {
-                    const { [roleId]: _removed, ...rest } = current.roleBands;
-                    void apply({ roleBands: rest });
-                  }}
-                >
-                  {AGES.remove}
-                </button>
-              </li>
-            );
-          })}
-          <li className={styles.pickRow}>
-            <span className={styles.pickName}>{AGES.everyoneElse}</span>
-            <select
-              id={ids.everyone}
-              className={styles.pickSelect}
-              aria-label={AGES.everyoneElse}
-              value={current.defaultBand}
+        <Row id={ids.ages} label={AGES.title} help={AGES.intro}>
+          <ul className={styles.ageList} aria-labelledby={ids.ages}>
+            {Object.entries(current.roleBands).map(([roleId, band]) => {
+              const name = nameOf(current.roles, roleId);
+              const label = name ? `@${name}` : AGES.deletedRole;
+              return (
+                <li key={roleId} className={styles.ageRow}>
+                  <span className={styles.tag} data-missing={name ? undefined : "true"}>
+                    {label}
+                  </span>
+                  <select
+                    className={SELECT}
+                    aria-label={`Age for ${label}`}
+                    value={band}
+                    disabled={busy}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      if (isBand(next)) void apply({ roleBands: { ...current.roleBands, [roleId]: next } });
+                    }}
+                  >
+                    {AGE_BANDS.map((value) => (
+                      <option key={value} value={value}>
+                        {AGE_LABEL[value]}
+                      </option>
+                    ))}
+                  </select>
+                  <RemoveButton
+                    label={`Remove ${label}`}
+                    disabled={busy}
+                    onRemove={() => {
+                      const { [roleId]: _removed, ...rest } = current.roleBands;
+                      void apply({ roleBands: rest });
+                    }}
+                  />
+                </li>
+              );
+            })}
+            <li className={styles.ageRow}>
+              <span className={styles.everyone}>{AGES.everyoneElse}</span>
+              <select
+                className={SELECT}
+                aria-label={AGES.everyoneElse}
+                value={current.defaultBand}
+                disabled={busy}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  if (isBand(next)) void apply({ defaultBand: next });
+                }}
+              >
+                {AGE_BANDS.map((value) => (
+                  <option key={value} value={value}>
+                    {AGE_LABEL[value]}
+                  </option>
+                ))}
+              </select>
+              <span aria-hidden="true" />
+            </li>
+          </ul>
+          <p className={styles.fine}>{AGES.everyoneElseHelp}</p>
+          {unmappedRoles.length > 0 ? (
+            <AddPicker
+              label={AGES.add}
+              options={unmappedRoles.map((role) => ({ value: role.id, label: `@${role.name}` }))}
               disabled={busy}
-              onChange={(event) => {
-                const next = event.target.value;
-                if (isBand(next)) void apply({ defaultBand: next });
+              onPick={(id) => void apply({ roleBands: { ...current.roleBands, [id]: "UNKNOWN" } })}
+            />
+          ) : null}
+        </Row>
+
+        <Row id={ids.mods} label={MODERATORS.title} help={MODERATORS.intro}>
+          <Tags
+            labelledBy={ids.mods}
+            entries={current.trustedRoleIds.map((id) => {
+              const name = nameOf(current.roles, id);
+              return { id, label: name ? `@${name}` : AGES.deletedRole };
+            })}
+            empty={MODERATORS.none}
+            disabled={busy}
+            onRemove={(id) => void apply({ trustedRoleIds: current.trustedRoleIds.filter((r) => r !== id) })}
+          />
+          {unmodRoles.length > 0 ? (
+            <AddPicker
+              label={MODERATORS.add}
+              options={unmodRoles.map((role) => ({ value: role.id, label: `@${role.name}` }))}
+              disabled={busy}
+              onPick={(id) => void apply({ trustedRoleIds: [...current.trustedRoleIds, id] })}
+            />
+          ) : null}
+        </Row>
+
+        <Row id={ids.skip} label={SKIP.title} help={SKIP.intro}>
+          <Tags
+            labelledBy={ids.skip}
+            entries={current.excludedChannelIds.map((id) => {
+              const name = nameOf(current.channels, id);
+              return { id, label: name ? `#${name}` : SKIP.deletedChannel };
+            })}
+            empty={SKIP.none}
+            disabled={busy}
+            onRemove={(id) =>
+              void apply({ excludedChannelIds: current.excludedChannelIds.filter((c) => c !== id) })
+            }
+          />
+          {unskippedChannels.length > 0 ? (
+            <AddPicker
+              label={SKIP.add}
+              options={unskippedChannels.map((channel) => ({ value: channel.id, label: `#${channel.name}` }))}
+              disabled={busy}
+              onPick={(id) => void apply({ excludedChannelIds: [...current.excludedChannelIds, id] })}
+            />
+          ) : null}
+        </Row>
+
+        <Row id={ids.timeout} label={TIMEOUT.title} help={TIMEOUT.help}>
+          <div className={styles.timeout}>
+            {/*
+              A switch rather than a checkbox: this is a setting that is on or
+              off, and it sits beside its length rather than a screen-width
+              above it. Turning it on acts on an account before a person has read
+              anything, so it asks once. Turning it off never does.
+            */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={current.autoTimeoutOnT2}
+              aria-label={TIMEOUT.checkbox}
+              className={styles.switch}
+              disabled={busy}
+              onClick={() => {
+                if (current.autoTimeoutOnT2) void apply({ autoTimeoutOnT2: false });
+                else setConfirmOpen(true);
               }}
             >
-              {AGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+              <span className={styles.switchThumb} />
+            </button>
+            <span className={styles.switchLabel} data-on={current.autoTimeoutOnT2 ? "true" : undefined}>
+              {TIMEOUT.checkbox}
+            </span>
+            <label className={styles.lengthLabel} htmlFor={ids.length}>
+              {TIMEOUT.lengthLabel}
+            </label>
+            <select
+              id={ids.length}
+              className={`${SELECT} ${styles.length}`}
+              value={String(current.autoTimeoutMinutes)}
+              disabled={busy || !current.autoTimeoutOnT2}
+              onChange={(event) => void apply({ autoTimeoutMinutes: Number(event.target.value) })}
+            >
+              {lengths.map((length) => (
+                <option key={length.minutes} value={String(length.minutes)}>
+                  {length.label}
                 </option>
               ))}
             </select>
-            {/* An empty third cell, so this select lines up with the ones above it. */}
-            <span aria-hidden="true" />
-            <span className={styles.pickHelp}>{AGES.everyoneElseHelp}</span>
-          </li>
-        </ul>
-        {unmappedRoles.length > 0 ? (
-          <AddPicker
-            id={ids.addAge}
-            label={AGES.add}
-            options={unmappedRoles.map((role) => ({ value: role.id, label: `@${role.name}` }))}
-            disabled={busy}
-            onPick={(id) => void apply({ roleBands: { ...current.roleBands, [id]: "UNKNOWN" } })}
-          />
-        ) : null}
-      </Card>
-
-      <Card title={MODERATORS.title} as="section">
-        <p className={styles.intro}>{MODERATORS.intro}</p>
-        <Chips
-          entries={current.trustedRoleIds.map((id) => ({ id, label: nameOf(current.roles, id) ? `@${nameOf(current.roles, id)}` : AGES.deletedRole }))}
-          empty={MODERATORS.none}
-          disabled={busy}
-          onRemove={(id) => void apply({ trustedRoleIds: current.trustedRoleIds.filter((r) => r !== id) })}
-        />
-        {unmodRoles.length > 0 ? (
-          <AddPicker
-            id={ids.addMod}
-            label={MODERATORS.add}
-            options={unmodRoles.map((role) => ({ value: role.id, label: `@${role.name}` }))}
-            disabled={busy}
-            onPick={(id) => void apply({ trustedRoleIds: [...current.trustedRoleIds, id] })}
-          />
-        ) : null}
-      </Card>
-
-      <Card title={SKIP.title} as="section">
-        <p className={styles.intro}>{SKIP.intro}</p>
-        <Chips
-          entries={current.excludedChannelIds.map((id) => ({ id, label: nameOf(current.channels, id) ? `#${nameOf(current.channels, id)}` : SKIP.deletedChannel }))}
-          empty={SKIP.none}
-          disabled={busy}
-          onRemove={(id) => void apply({ excludedChannelIds: current.excludedChannelIds.filter((c) => c !== id) })}
-        />
-        {unskippedChannels.length > 0 ? (
-          <AddPicker
-            id={ids.addSkip}
-            label={SKIP.add}
-            options={unskippedChannels.map((channel) => ({ value: channel.id, label: `#${channel.name}` }))}
-            disabled={busy}
-            onPick={(id) => void apply({ excludedChannelIds: [...current.excludedChannelIds, id] })}
-          />
-        ) : null}
-      </Card>
-
-      <Card title={TIMEOUT.title} as="section">
-        <div className={styles.inline}>
-          <div className={styles.checkboxRow}>
-            <input
-              className={styles.checkbox}
-              id={ids.timeoutCheck}
-              type="checkbox"
-              checked={current.autoTimeoutOnT2}
-              disabled={busy}
-              onChange={(event) => {
-                // Turning it on acts on an account before a person has read
-                // anything, so it asks once. Turning it off never does.
-                if (event.target.checked) setConfirmOpen(true);
-                else void apply({ autoTimeoutOnT2: false });
-              }}
-            />
-            <label className={styles.checkboxLabel} htmlFor={ids.timeoutCheck}>
-              {TIMEOUT.checkbox}
-            </label>
           </div>
-          <Select
-            id={ids.timeoutLength}
-            label={TIMEOUT.lengthLabel}
-            value={String(current.autoTimeoutMinutes)}
-            disabled={busy || !current.autoTimeoutOnT2}
-            options={lengths.map((length) => ({ value: String(length.minutes), label: length.label }))}
-            onChange={(event) => void apply({ autoTimeoutMinutes: Number(event.target.value) })}
-          />
-        </div>
-      </Card>
+        </Row>
+      </section>
 
       <Dialog
         open={confirmOpen}
@@ -314,15 +349,36 @@ export function GuildEditor({ config, save }: GuildEditorProps) {
   );
 }
 
-/** A select that adds what you pick and then resets, so it reads as an action. */
+/** One setting: what it is on the left, the control on the right. */
+function Row({ id, label, help, children }: { id: string; label: string; help: string; children: ReactNode }) {
+  return (
+    <div className={styles.row}>
+      <div className={styles.rowText}>
+        <h2 className={styles.rowLabel} id={id}>
+          {label}
+        </h2>
+        <p className={styles.rowHelp}>{help}</p>
+      </div>
+      <div className={styles.rowControl}>{children}</div>
+    </div>
+  );
+}
+
+function RemoveButton({ label, disabled, onRemove }: { label: string; disabled: boolean; onRemove: () => void }) {
+  return (
+    <button type="button" className={styles.remove} aria-label={label} title={label} disabled={disabled} onClick={onRemove}>
+      <span aria-hidden="true">×</span>
+    </button>
+  );
+}
+
+/** A select that adds what you pick and resets, dressed as an action. */
 function AddPicker({
-  id,
   label,
   options,
   disabled,
   onPick,
 }: {
-  id: string;
   label: string;
   options: { value: string; label: string }[];
   disabled: boolean;
@@ -330,8 +386,7 @@ function AddPicker({
 }) {
   return (
     <select
-      id={id}
-      className={styles.addPicker}
+      className={`${SELECT} ${styles.add}`}
       aria-label={label}
       value=""
       disabled={disabled}
@@ -339,7 +394,7 @@ function AddPicker({
         if (event.target.value) onPick(event.target.value);
       }}
     >
-      <option value="">{`${label}…`}</option>
+      <option value="">{`+ ${label}`}</option>
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
@@ -349,13 +404,15 @@ function AddPicker({
   );
 }
 
-/** Picked roles or channels, each with a way to take it off. */
-function Chips({
+/** Picked roles or channels, each a tag with its own remove control. */
+function Tags({
+  labelledBy,
   entries,
   empty,
   disabled,
   onRemove,
 }: {
+  labelledBy: string;
   entries: { id: string; label: string }[];
   empty: string;
   disabled: boolean;
@@ -363,19 +420,11 @@ function Chips({
 }) {
   if (entries.length === 0) return <p className={styles.empty}>{empty}</p>;
   return (
-    <ul className={styles.chips}>
+    <ul className={styles.tags} aria-labelledby={labelledBy}>
       {entries.map((entry) => (
-        <li key={entry.id} className={styles.chip}>
-          <span>{entry.label}</span>
-          <button
-            type="button"
-            className={styles.chipRemove}
-            aria-label={`Remove ${entry.label}`}
-            disabled={disabled}
-            onClick={() => onRemove(entry.id)}
-          >
-            ×
-          </button>
+        <li key={entry.id} className={styles.tagItem}>
+          <span className={styles.tag}>{entry.label}</span>
+          <RemoveButton label={`Remove ${entry.label}`} disabled={disabled} onRemove={() => onRemove(entry.id)} />
         </li>
       ))}
     </ul>
