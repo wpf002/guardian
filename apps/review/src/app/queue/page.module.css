@@ -4,9 +4,6 @@
  */
 .page {
   inline-size: 100%;
-  max-inline-size: 1040px;
-  margin-inline: auto;
-  padding: var(--space-7) var(--space-6) var(--space-9);
 }
 
 .list {
@@ -42,10 +39,4 @@
   font-size: var(--text-xl);
   font-weight: var(--weight-medium);
   letter-spacing: var(--tracking-display);
-}
-
-@media (max-width: 640px) {
-  .page {
-    padding: var(--space-5) var(--space-4) var(--space-7);
-  }
 }

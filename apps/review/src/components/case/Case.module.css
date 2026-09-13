@@ -11,12 +11,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  padding-block: var(--space-5) var(--space-8);
 }
 
 /* Route-level loading, error and not-found all sit in the same well. */
 .routeState {
-  padding-block: var(--space-5) var(--space-8);
+  inline-size: 100%;
 }
 
 /* ---------------------------------------------------------------- header -- */

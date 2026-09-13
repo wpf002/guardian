@@ -32,7 +32,7 @@ import type {
  * reviewer id is ignored.
  */
 
-const ATTESTATION = "This is our own decision. No police or government agency asked us to make it.";
+const ATTESTATION = "Our own decision, not requested by police or any government agency";
 
 /* ----------------------------------------------------------------- lexicon */
 

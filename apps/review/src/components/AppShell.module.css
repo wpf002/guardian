@@ -1,24 +1,58 @@
 .shell {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 224px minmax(0, 1fr);
   min-height: 100dvh;
 }
 
 /*
- * The rail was 56px wide, which left room for a 12px label stacked in the dark
- * and nothing else. At 200px a destination is a row with a name and its count
- * on the far side, which is legible at a glance and stops the app opening on
- * something that looks like a debug toolbar.
+ * The rail sticks to the viewport while the page scrolls, so the way to another
+ * page never scrolls out of reach. It sits on the page background with a single
+ * divider: a second slab of card colour down the left beside cards of the same
+ * colour read as one more card.
  */
 .rail {
+  position: sticky;
+  inset-block-start: 0;
+  align-self: start;
   display: flex;
-  min-width: 0;
   flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-1);
-  padding: var(--space-5) var(--space-3) var(--space-4);
+  min-width: 0;
+  block-size: 100dvh;
+  overflow-y: auto;
+  padding: var(--space-6) var(--space-3) var(--space-4);
   border-inline-end: 1px solid var(--divider);
-  background: var(--surface);
+  background: var(--bg);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-2);
+  margin-block-end: var(--space-5);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brandMark {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.brandName {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-display);
+}
+
+.nav {
+  min-width: 0;
 }
 
 .navList {
@@ -31,13 +65,11 @@
 }
 
 .navItem {
+  position: relative;
   display: flex;
-  flex-direction: row;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
-  border: 1px solid transparent;
   border-radius: var(--radius-md);
   color: var(--text-muted);
   font-size: var(--text-sm);
@@ -49,29 +81,51 @@
 
 .navItem:hover {
   color: var(--text);
-  background: var(--surface-sunken);
+  background: var(--surface);
 }
 
-.navItem:active {
-  background: var(--surface-sunken);
+.navIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--text-subtle);
+  transition: color var(--motion-fast) var(--motion-out);
+}
+
+.navItem:hover .navIcon {
+  color: var(--text-muted);
 }
 
 /* The accent appears twice in this app: the primary action and here. */
-.current {
-  color: var(--accent);
+.current,
+.current:hover {
+  color: var(--text);
   font-weight: var(--weight-medium);
   background: var(--accent-soft);
 }
 
+.current .navIcon,
+.current:hover .navIcon {
+  color: var(--accent);
+}
+
 .navLabel {
+  flex: 1;
+  min-width: 0;
   line-height: var(--leading-tight);
-  text-align: start;
 }
 
 .count {
+  min-inline-size: 24px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: 20px;
+  text-align: center;
   font-variant-numeric: tabular-nums;
-  font-size: var(--text-sm);
-  color: var(--text-subtle);
 }
 
 /* Oversight destinations carry a state dot and never a count, so navigation
@@ -87,55 +141,90 @@
   margin-block-start: auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding-inline: var(--space-1);
-}
-
-.content {
-  min-width: 0;
-  padding: var(--space-5);
+  align-items: stretch;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--divider);
 }
 
 /*
- * Chrome, and it should read as chrome. Right aligned so the eye starts at the
- * page heading rather than at a status line about the session.
+ * Mock mode also signs everybody in as the same owner, so this is a safety
+ * statement rather than a developer convenience. A short tag, with the full
+ * sentence on hover and for a screen reader.
  */
-.topline {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-6) 0;
-  color: var(--text-subtle);
-  font-size: var(--text-sm);
-}
-
-.who {
-  font-variant-numeric: tabular-nums;
-}
-
-.themeButton {
-  padding: var(--space-1) var(--space-3);
+.fixtures {
+  align-self: flex-start;
+  margin-inline: var(--space-2);
+  padding: 2px var(--space-2);
   border: 1px solid var(--divider);
   border-radius: var(--radius-full);
-  background: transparent;
   color: var(--text-muted);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  cursor: default;
+}
+
+.seat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 0 var(--space-2);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+.seatText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.seatName,
+.seatRole {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seatName {
+  color: var(--text);
   font-size: var(--text-sm);
-  transition:
-    color var(--motion-fast) var(--motion-out),
-    border-color var(--motion-fast) var(--motion-out);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
 }
 
-.themeButton:hover {
-  color: var(--text);
-  border-color: var(--border);
+.seatRole {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
 }
 
-.themeButton:hover {
-  border-color: var(--border-strong);
-  color: var(--text);
+/*
+ * Every page's outer padding and width live here, so every page title starts
+ * at the same place beside the rail and level with the brand. Pages set
+ * neither: they had five different top paddings and three different widths,
+ * two of them centred, so the heading moved as you changed page.
+ */
+.content {
+  min-width: 0;
+  padding: var(--space-6) var(--space-7) var(--space-8);
+}
+
+.main {
+  max-inline-size: 1200px;
 }
 
 /*
@@ -162,6 +251,7 @@
   inset-inline-start: var(--space-2);
 }
 
+/* On a phone the rail is a tab bar pinned to the bottom of the screen. */
 @media (max-width: 640px) {
   .shell {
     grid-template-columns: 1fr;
@@ -170,36 +260,55 @@
 
   .rail {
     order: 2;
+    inset-block-start: auto;
+    inset-block-end: 0;
+    align-self: stretch;
     flex-direction: row;
     align-items: center;
-    justify-content: space-around;
     gap: var(--space-2);
-    padding: var(--space-2);
+    block-size: auto;
+    overflow: visible;
+    padding: var(--space-1) var(--space-2);
     border-inline-end: 0;
     border-block-start: 1px solid var(--divider);
-    position: sticky;
-    bottom: 0;
+    background: var(--surface);
+  }
+
+  .brand,
+  .seat {
+    display: none;
+  }
+
+  .nav {
+    flex: 1;
   }
 
   .navList {
-    flex: 1;
-    min-width: 0;
     flex-direction: row;
     justify-content: space-between;
     gap: var(--space-1);
   }
 
   /* Each item takes an equal share and truncates rather than pushing the row
-     past the viewport. At 320px six labels do not fit at their natural width. */
+     past the viewport. */
   .navList > li {
     flex: 1 1 0;
     min-width: 0;
   }
 
   .navItem {
+    flex-direction: column;
+    gap: var(--space-1);
     width: 100%;
     min-width: 0;
-    padding-inline: var(--space-1);
+    padding: var(--space-2) var(--space-1);
+    font-size: var(--text-xs);
+  }
+
+  .current,
+  .current:hover {
+    background: transparent;
+    color: var(--accent);
   }
 
   .navLabel {
@@ -207,38 +316,27 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: center;
+  }
+
+  /* The count rides on the icon's corner. */
+  .count {
+    position: absolute;
+    inset-block-start: 2px;
+    inset-inline-start: calc(50% + 4px);
+    min-inline-size: 20px;
+    padding: 0 var(--space-1);
+    line-height: 16px;
   }
 
   .railFoot {
     margin-block-start: 0;
-    flex-direction: row;
+    padding-block-start: 0;
+    border-block-start: 0;
   }
 
   .content {
     order: 1;
-    padding: var(--space-4);
+    padding: var(--space-5) var(--space-4) var(--space-7);
   }
-}
-
-/*
- * Said in words, on every page, whenever the deployment is serving fixtures.
- * Mock mode also disables the auth stack, so this is a safety statement rather
- * than a developer convenience.
- */
-/*
- * The fixtures notice was a full-width outlined bar across the top of every
- * screen, which is more prominence than a dev-mode note has earned. It is now a
- * short tag beside the session, with the full sentence on hover and for a
- * screen reader.
- */
-.fixtures {
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-full);
-  background: var(--surface-sunken);
-  border: 1px solid var(--divider);
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  cursor: default;
 }

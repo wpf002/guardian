@@ -1,0 +1,99 @@
+/*
+ * One settings layout for the whole console. Rows are a two-column grid, so
+ * every label shares a left edge and every control another, and they stack by
+ * the panel's own width through a container query.
+ */
+
+.group {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.groupHead {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.groupTitle {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-display);
+}
+
+.groupNote {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.panel {
+  container-type: inline-size;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
+  gap: var(--space-3) var(--space-6);
+  align-items: start;
+  padding: var(--space-4) var(--space-5);
+}
+
+.row + .row,
+.row + .block,
+.block + .row,
+.block + .block {
+  border-block-start: 1px solid var(--divider);
+}
+
+.rowText {
+  display: grid;
+  gap: 2px;
+  padding-block-start: 6px;
+}
+
+.rowLabel {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
+}
+
+.rowHelp {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.rowControl {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  min-block-size: 36px;
+  align-items: center;
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.block {
+  padding: var(--space-5);
+}
+
+@container (max-width: 46rem) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .rowText {
+    padding-block-start: 0;
+  }
+}

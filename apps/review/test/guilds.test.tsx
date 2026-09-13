@@ -123,7 +123,7 @@ describe("/guilds/[guildId]", () => {
     expect(status.getByRole("button", { name: "Stop Watching" })).toBeTruthy();
 
     const settings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(settings).toEqual(["Send alerts to", "Ages", "Moderators", "Channels to Skip", "Automatic Timeout"]);
+    expect(settings).toEqual(["Alerts Channel", "Ages", "Moderators", "Channels to Skip", "Automatic Timeout"]);
   });
 
   /*
@@ -168,7 +168,7 @@ describe("GuildEditor", () => {
     const save = vi.fn(async () => ({ ok: true as const, message: "Saved." }));
     render(<GuildEditor config={{ ...BASE, modChannelId: null, enabled: false }} save={save} />);
 
-    fireEvent.change(screen.getByLabelText("Send alerts to"), {
+    fireEvent.change(screen.getByLabelText("Alerts Channel"), {
       target: { value: "742118990011224200" },
     });
     await waitFor(() => expect(save).toHaveBeenCalledWith({ modChannelId: "742118990011224200" }));
@@ -191,7 +191,7 @@ describe("GuildEditor", () => {
   it("stops watching when the alerts channel is cleared, because there is nowhere to send one", async () => {
     const save = vi.fn(async () => ({ ok: true as const, message: "Saved." }));
     render(<GuildEditor config={BASE} save={save} />);
-    fireEvent.change(screen.getByLabelText("Send alerts to"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Alerts Channel"), { target: { value: "" } });
     await waitFor(() => expect(save).toHaveBeenCalledWith({ modChannelId: null, enabled: false }));
   });
 

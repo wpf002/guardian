@@ -49,21 +49,29 @@ describe("the settings page", () => {
     expect(screen.getByText("A. Rivera")).toBeDefined();
     expect(screen.getByText("Owner")).toBeDefined();
 
-    // Three groups, and every card an owner sees inside them. The page was one
+    // Groups of rows, and every row an owner sees inside them. The page was one
     // flat column of seven cards covering four unrelated subjects.
-    for (const group of ["You", "Reporting", "What Guardian Reads", "Records"]) {
-      expect(screen.getByRole("region", { name: group })).toBeDefined();
-    }
-    for (const title of [
+    for (const group of [
       "Your Account",
+      "Reporting",
+      "What Guardian Reads",
+      "Records",
       "Keyboard Shortcuts",
+    ]) {
+      expect(screen.getByRole("region", { name: group })).toBeDefined();
+      expect(screen.getByRole("heading", { level: 2, name: group })).toBeDefined();
+    }
+    for (const row of [
+      "Name",
+      "Role",
+      "Organization",
+      "People on Your Team",
       "Custom Phrases",
-      "Send Alerts to Your Own System",
-      "Reporting Details",
+      "Alerts to Your System",
       "Evidence Log",
       "How Long Data Is Kept",
     ]) {
-      expect(screen.getByRole("heading", { name: title })).toBeDefined();
+      expect(screen.getByRole("heading", { level: 3, name: row })).toBeDefined();
     }
 
     // Retention is read only and comes from RETENTION_MS, in words. The table
@@ -81,18 +89,18 @@ describe("the settings page", () => {
     // Two seats on the fixture roster, which is what the fixtures describe:
     // M. Osei holds a claim and proposes the report A. Rivera answers. The
     // one-seat wording is the other branch, and DecisionPanel covers it.
-    expect(screen.getByText("Two people have to agree before anything is reported.")).toBeDefined();
+    expect(screen.getByText("Two people have to agree before anything is reported")).toBeDefined();
   });
 
   // The version string is still what a score records, and the Evidence Log
-  // keeps it. The page says what it means instead of printing it.
-  it("keeps the merged lexicon version for the record, and says what it means on the page", async () => {
+  // keeps it. Nobody setting up a server needs to read it.
+  it("keeps the merged lexicon version for the record, off the page", async () => {
     const view = await getLexiconView(mockSession());
     expect(view.mergedVersion).toBe(`${view.baseVersion}+cus_northwood`);
 
     render(await SettingsPage());
     expect(screen.queryByText(view.mergedVersion)).toBeNull();
-    expect(screen.getByText(/Guardian is using its built-in list/)).toBeDefined();
+    expect(screen.queryByText(view.baseVersion)).toBeNull();
   });
 
   /*
@@ -143,7 +151,7 @@ describe("the lexicon editor", () => {
     fireEvent.change(screen.getByLabelText("Phrase to add"), {
       target: { value: "wanna go on vc" },
     });
-    fireEvent.click(screen.getByLabelText(/No police or government agency/));
+    fireEvent.click(screen.getByLabelText(/Our own decision, not requested by police/));
     fireEvent.click(screen.getByRole("button", { name: "Add Phrase" }));
 
     await waitFor(() => expect(addAction).toHaveBeenCalledTimes(1));
@@ -156,10 +164,9 @@ describe("the lexicon editor", () => {
     await waitFor(() => expect(screen.getByText("Added 1 phrases.")).toBeDefined());
   });
 
-  // One sentence, not a bordered panel with a title, a detail and a meta line.
-  // An EmptyState earns its box when it is the whole page; under a form it was
-  // a third of the card saying nothing had happened.
-  it("says so in one line when this customer has added nothing", () => {
+  // Nothing added means nothing under the row: no empty list, no sentence
+  // saying the list is empty.
+  it("shows nothing under the row when this customer has added nothing", () => {
     render(
       <LexiconEditor
         view={{ ...view, fields: [view.fields[0]!] }}
@@ -167,8 +174,18 @@ describe("the lexicon editor", () => {
         removeAction={async () => EMPTY}
       />,
     );
-    expect(screen.getByText("None added yet. Guardian is using its built-in list")).toBeDefined();
-    expect(screen.queryByRole("heading", { name: "Phrases this customer added" })).toBeNull();
+    expect(screen.queryByRole("list")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove / })).toBeNull();
+    expect(screen.queryByText(/None added/)).toBeNull();
+  });
+
+  it("lists added phrases as tags, each with its own remove button", () => {
+    render(
+      <LexiconEditor view={view} addAction={async () => EMPTY} removeAction={async () => EMPTY} />,
+    );
+    expect(screen.getByText("keep this between us")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Remove keep this between us" })).toBeDefined();
+    expect(screen.queryByRole("heading", { name: /Phrases this customer added/ })).toBeNull();
   });
 });
 
@@ -201,7 +218,7 @@ describe("the add-phrases action", () => {
     expect(String(after[0]!.payload.mergedVersion)).toMatch(/^v\d+\+cus_northwood$/);
     // The chain still records the merged version, and the attestation says the
     // same thing it always did, in plainer words.
-    expect(String(after[0]!.payload.changeOrigin)).toContain("No police or government agency");
+    expect(String(after[0]!.payload.changeOrigin)).toContain("not requested by police or any government agency");
   });
 
   it("refuses the save without the change-origin attestation", async () => {

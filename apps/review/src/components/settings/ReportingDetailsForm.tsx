@@ -34,7 +34,7 @@ export function ReportingDetailsForm({ details, countries, timezones, save }: Re
         id="organizationName"
         name="organizationName"
         label="Your organization's name"
-        help="Reports go out under this name."
+        help="Reports go out under this name"
         defaultValue={details.organizationName ?? ""}
         optional
       />
@@ -67,7 +67,7 @@ export function ReportingDetailsForm({ details, countries, timezones, save }: Re
           id="region"
           name="region"
           label="State or province"
-          help="For the US, the two-letter state, like TX."
+          help="For the US, the two-letter state, like TX"
           defaultValue={details.region ?? ""}
           optional
         />

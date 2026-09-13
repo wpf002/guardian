@@ -1,9 +1,10 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState } from "react";
 import { AGE_BANDS } from "@guardian/schema/agebands";
 import { Button, Dialog, Toast, type ToastTone } from "@/components";
 import formStyles from "@/components/Form.module.css";
+import { SettingsPanel, SettingsRow } from "@/components/SettingsPanel";
 import type { AgeBand, DirectoryEntry } from "@/lib/data/types";
 import {
   AGE_LABEL,
@@ -144,8 +145,8 @@ export function GuildEditor({ config, save }: GuildEditorProps) {
 
       {!loaded ? <p className={styles.notice}>{PAGE.notLoaded}</p> : null}
 
-      <section className={styles.panel} aria-label={STATUS.setup}>
-        <Row id={ids.alerts} label={ALERTS.label} help={ALERTS.help}>
+      <SettingsPanel label={STATUS.setup}>
+        <SettingsRow heading="h2" id={ids.alerts} label={ALERTS.label} help={ALERTS.help}>
           <select
             aria-labelledby={ids.alerts}
             className={`${SELECT} ${styles.narrow}`}
@@ -162,9 +163,9 @@ export function GuildEditor({ config, save }: GuildEditorProps) {
               <option key={channel.id} value={channel.id}>{`#${channel.name}`}</option>
             ))}
           </select>
-        </Row>
+        </SettingsRow>
 
-        <Row id={ids.ages} label={AGES.title} help={AGES.intro}>
+        <SettingsRow heading="h2" id={ids.ages} label={AGES.title} help={AGES.intro}>
           <ul className={styles.ageList} aria-labelledby={ids.ages}>
             {Object.entries(current.roleBands).map(([roleId, band]) => {
               const name = nameOf(current.roles, roleId);
@@ -231,9 +232,9 @@ export function GuildEditor({ config, save }: GuildEditorProps) {
               onPick={(id) => void apply({ roleBands: { ...current.roleBands, [id]: "UNKNOWN" } })}
             />
           ) : null}
-        </Row>
+        </SettingsRow>
 
-        <Row id={ids.mods} label={MODERATORS.title} help={MODERATORS.intro}>
+        <SettingsRow heading="h2" id={ids.mods} label={MODERATORS.title} help={MODERATORS.intro}>
           <Tags
             labelledBy={ids.mods}
             entries={current.trustedRoleIds.map((id) => {
@@ -252,9 +253,9 @@ export function GuildEditor({ config, save }: GuildEditorProps) {
               onPick={(id) => void apply({ trustedRoleIds: [...current.trustedRoleIds, id] })}
             />
           ) : null}
-        </Row>
+        </SettingsRow>
 
-        <Row id={ids.skip} label={SKIP.title} help={SKIP.intro}>
+        <SettingsRow heading="h2" id={ids.skip} label={SKIP.title} help={SKIP.intro}>
           <Tags
             labelledBy={ids.skip}
             entries={current.excludedChannelIds.map((id) => {
@@ -275,9 +276,9 @@ export function GuildEditor({ config, save }: GuildEditorProps) {
               onPick={(id) => void apply({ excludedChannelIds: [...current.excludedChannelIds, id] })}
             />
           ) : null}
-        </Row>
+        </SettingsRow>
 
-        <Row id={ids.timeout} label={TIMEOUT.title} help={TIMEOUT.help}>
+        <SettingsRow heading="h2" id={ids.timeout} label={TIMEOUT.title} help={TIMEOUT.help}>
           <div className={styles.timeout}>
             {/*
               A switch rather than a checkbox: this is a setting that is on or
@@ -319,8 +320,8 @@ export function GuildEditor({ config, save }: GuildEditorProps) {
               ))}
             </select>
           </div>
-        </Row>
-      </section>
+        </SettingsRow>
+      </SettingsPanel>
 
       <Dialog
         open={confirmOpen}
@@ -345,21 +346,6 @@ export function GuildEditor({ config, save }: GuildEditorProps) {
       >
         <p className={styles.body}>{TIMEOUT.confirmBody}</p>
       </Dialog>
-    </div>
-  );
-}
-
-/** One setting: what it is on the left, the control on the right. */
-function Row({ id, label, help, children }: { id: string; label: string; help: string; children: ReactNode }) {
-  return (
-    <div className={styles.row}>
-      <div className={styles.rowText}>
-        <h2 className={styles.rowLabel} id={id}>
-          {label}
-        </h2>
-        <p className={styles.rowHelp}>{help}</p>
-      </div>
-      <div className={styles.rowControl}>{children}</div>
     </div>
   );
 }

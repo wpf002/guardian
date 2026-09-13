@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RETENTION_MS } from "@guardian/schema";
-import { Card } from "@/components/Card";
+import { SettingsBlock, SettingsGroup, SettingsRow } from "@/components/SettingsPanel";
 import { ErrorState } from "@/components/ErrorState";
 import { KeyboardHelp } from "@/components/KeyboardHelp";
 import { PageHeader } from "@/components/PageHeader";
@@ -80,54 +80,33 @@ export default async function SettingsPage() {
 
   return (
     <div className={`container ${styles.page}`}>
-      {/*
-        No line under the title. It said "Every change here is recorded, with
-        who made it and when", and that was not true: the theme is kept in the
-        browser, and a webhook change writes no record anywhere.
-      */}
       <PageHeader title="Settings" />
 
+      {/*
+        Groups of rows, the same layout as a server's setup page. This was a
+        stack of cards, each with a title, an accent underline, a rule and an
+        intro sentence before its control.
+      */}
       <div className={styles.groups}>
-        <Group title="You" note="Your account and your keyboard shortcuts">
-          <Card title="Your Account">
-            <div className={styles.rows}>
-              <div className={styles.row}>
-                <span className={styles.rowLabel}>Name</span>
-                <span className={styles.rowValue}>{session.displayName}</span>
-              </div>
-              <div className={styles.row}>
-                <span className={styles.rowLabel}>Role</span>
-                <span className={styles.rowValue}>{ROLE_WORD[session.role] ?? session.role}</span>
-              </div>
-              <div className={styles.row}>
-                <span className={styles.rowLabel}>Organization</span>
-                <span className={styles.rowValue}>{customer?.name ?? PAGE_UNNAMED}</span>
-              </div>
-              <div className={styles.row}>
-                <span className={styles.rowLabel}>People on your team</span>
-                <span className={styles.rowValue}>{seats.length}</span>
-                <p className={styles.rowNote}>
-                  {secondSeat
-                    ? "Two people have to agree before anything is reported."
-                    : "Reporting needs two people. Until you add someone, send reports to NCMEC yourself."}
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          {/*
-            Open, in its own card. It shared one with a Dark and Light picker
-            and sat folded behind a disclosure; Guardian is dark only now, and
-            the sheet is short enough to read at a glance.
-          */}
-          <Card title="Keyboard Shortcuts">
-            <KeyboardHelp />
-          </Card>
-        </Group>
+        <SettingsGroup title="Your Account">
+          <SettingsRow label="Name">{session.displayName}</SettingsRow>
+          <SettingsRow label="Role">{ROLE_WORD[session.role] ?? session.role}</SettingsRow>
+          <SettingsRow label="Organization">{customer?.name ?? PAGE_UNNAMED}</SettingsRow>
+          <SettingsRow
+            label="People on Your Team"
+            help={
+              secondSeat
+                ? "Two people have to agree before anything is reported"
+                : "Reporting needs two people, so send reports to NCMEC yourself until you add someone"
+            }
+          >
+            {seats.length}
+          </SettingsRow>
+        </SettingsGroup>
 
         {isOwner ? (
-          <Group title="Reporting" note="Who you are when you send a report">
-            <Card title="Reporting Details">
+          <SettingsGroup title="Reporting" note="Used on every report you send">
+            <SettingsBlock>
               {reporting ? (
                 <ReportingDetailsForm
                   details={reporting}
@@ -137,21 +116,21 @@ export default async function SettingsPage() {
                 />
               ) : (
                 <ErrorState
-                  title="Your reporting details couldn't be loaded."
-                  unaffected="Guardian is still watching. Only this part of the page failed."
+                  title="Your reporting details couldn't be loaded"
+                  unaffected="Guardian is still watching. Only this part of the page failed"
                 />
               )}
-            </Card>
-          </Group>
+            </SettingsBlock>
+          </SettingsGroup>
         ) : null}
 
         {isOperator ? (
-          <Group title="What Guardian Reads" note="These apply to every server on your account">
-            <Card title="Custom Phrases">
+          <SettingsGroup title="What Guardian Reads" note="Applies to every server on your account">
+            <SettingsRow label="Custom Phrases" help="Words Guardian might miss">
               {lexiconFailed || !lexicon ? (
                 <ErrorState
-                  title="Your phrases couldn't be loaded."
-                  unaffected="Guardian is still watching with its built-in list. Only this part of the page failed."
+                  title="Your phrases couldn't be loaded"
+                  unaffected="Guardian is still watching with its built-in list"
                 />
               ) : (
                 <LexiconEditor
@@ -160,13 +139,13 @@ export default async function SettingsPage() {
                   removeAction={removeLexiconPhraseAction}
                 />
               )}
-            </Card>
+            </SettingsRow>
 
-            <Card title="Send Alerts to Your Own System">
+            <SettingsRow label="Alerts to Your System" help="Optional. Never includes messages">
               {webhookFailed || !webhook ? (
                 <ErrorState
-                  title="This couldn't be loaded."
-                  unaffected="Alerts are still being sent. Only this part of the page failed."
+                  title="This couldn't be loaded"
+                  unaffected="Alerts are still being sent"
                 />
               ) : (
                 <WebhookPanel
@@ -175,59 +154,29 @@ export default async function SettingsPage() {
                   testAction={sendTestDeliveryAction}
                 />
               )}
-            </Card>
-          </Group>
+            </SettingsRow>
+          </SettingsGroup>
         ) : null}
 
-        <Group title="Records" note="What Guardian keeps, and for how long">
-          <Card title="Evidence Log">
-            <p className={styles.cardIntro}>
-              A permanent record of everything Guardian and your team did, that nobody can change
-            </p>
+        <SettingsGroup title="Records">
+          <SettingsRow label="Evidence Log" help="A permanent record nobody can change">
             <Link className={styles.settingsLink} href="/audit">
               Open the Evidence Log
             </Link>
-          </Card>
-
-          {/*
-            Four short lines, open. The Wording Guard card that sat under this,
-            a count of strings withheld since the server started, was a
-            diagnostic for whoever runs the deployment. It still logs.
-          */}
-          <Card title="How Long Data Is Kept">
+          </SettingsRow>
+          <SettingsRow label="How Long Data Is Kept">
             <RetentionTable rows={retentionRows(RETENTION_MS)} />
-          </Card>
-        </Group>
+          </SettingsRow>
+        </SettingsGroup>
+
+        <SettingsGroup title="Keyboard Shortcuts">
+          <SettingsBlock>
+            <KeyboardHelp />
+          </SettingsBlock>
+        </SettingsGroup>
       </div>
     </div>
   );
 }
 
 const PAGE_UNNAMED = "Your organization";
-
-/**
- * A labelled run of cards.
- *
- * The heading is the point. Seven cards in one column with no breaks reads as
- * one long list of unrelated things, and the reader has to open each title to
- * work out whether it is theirs to change. A heading per group says it once.
- */
-function Group({
-  title,
-  note,
-  children,
-}: {
-  title: string;
-  note: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={styles.group} aria-label={title}>
-      <div className={styles.groupHead}>
-        <h2 className={styles.groupTitle}>{title}</h2>
-        <p className={styles.groupNote}>{note}</p>
-      </div>
-      <div className={styles.sections}>{children}</div>
-    </section>
-  );
-}

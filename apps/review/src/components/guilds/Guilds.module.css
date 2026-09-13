@@ -11,7 +11,6 @@
   display: grid;
   align-content: start;
   gap: var(--space-5);
-  padding-block: var(--space-6) var(--space-8);
 }
 
 .crumb {
@@ -93,65 +92,7 @@
   font-size: var(--text-sm);
 }
 
-/* ---------------------------------------------------------------- panel */
-
-/*
- * A container, so rows stack by the panel's own width rather than the
- * viewport's. The console has a sidebar, and a viewport query let two columns
- * squeeze into a panel far too narrow for them.
- */
-.panel {
-  container-type: inline-size;
-  border: 1px solid var(--divider);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-}
-
-.row {
-  display: grid;
-  grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
-  gap: var(--space-5) var(--space-6);
-  padding: var(--space-5);
-}
-
-.row + .row {
-  border-block-start: 1px solid var(--divider);
-}
-
-.rowText {
-  display: grid;
-  align-content: start;
-  gap: var(--space-1);
-}
-
-.rowLabel {
-  margin: 0;
-  color: var(--text);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  line-height: var(--leading-snug);
-}
-
-.rowHelp {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
-}
-
-.rowControl {
-  display: grid;
-  align-content: start;
-  justify-items: start;
-  gap: var(--space-3);
-  min-inline-size: 0;
-}
-
-/* A select that holds one short name does not need the whole column. */
-.narrow {
-  inline-size: 100%;
-  max-inline-size: 22rem;
-}
+/* The panel and its rows are the shared SettingsPanel. */
 
 /* ------------------------------------------------------------------ ages */
 
@@ -386,24 +327,6 @@
   display: grid;
   gap: var(--space-2);
   font-size: var(--text-sm);
-}
-
-/* --------------------------------------------------------------- narrow */
-
-@media (max-width: 48rem) {
-  .page {
-    padding-block: var(--space-5) var(--space-6);
-  }
-}
-
-/* Label above control once the panel has no room for two columns. */
-@container (max-width: 46rem) {
-  .row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-3);
-    padding: var(--space-4) var(--space-5);
-  }
-
 }
 
 @media (prefers-reduced-motion: reduce) {

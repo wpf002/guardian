@@ -44,8 +44,6 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
    */
   return (
     <div className={styles.lexicon}>
-      <p className={styles.cardIntro}>Slang or code words your members use that Guardian might miss</p>
-
       <form action={addFormAction} className={styles.addForm}>
         <div className={styles.addRow}>
           <select
@@ -60,18 +58,22 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
               </option>
             ))}
           </select>
-          <input
-            name="phrases"
-            aria-label="Phrase to add"
-            placeholder="Type a phrase"
-            autoComplete="off"
-            className={`${formStyles.control} ${styles.addPhrase}`}
-          />
-          <SubmitButton variant="primary">Add Phrase</SubmitButton>
+          {/* The box and its button wrap together, so the button never ends
+              up alone on a line under the list. */}
+          <div className={styles.addPhraseGroup}>
+            <input
+              name="phrases"
+              aria-label="Phrase to add"
+              placeholder="Type a phrase"
+              autoComplete="off"
+              className={`${formStyles.control} ${styles.addPhrase}`}
+            />
+            <SubmitButton variant="primary">Add Phrase</SubmitButton>
+          </div>
         </div>
         <label className={styles.attest}>
           <input type="checkbox" name="attestation" />
-          <span>This is our own decision. No police or government agency asked us to make it</span>
+          <span>Our own decision, not requested by police or any government agency</span>
         </label>
 
         {addState.error ? (
@@ -103,11 +105,8 @@ export function LexiconEditor({ view, addAction, removeAction }: LexiconEditorPr
         </p>
       ) : null}
 
-      {withPhrases.length === 0 ? (
-        <p className={styles.quiet}>None added yet. Guardian is using its built-in list</p>
-      ) : (
+      {withPhrases.length === 0 ? null : (
         <div className={styles.addedGroups}>
-          <h3 className={styles.subheading}>Phrases this customer added</h3>
           {withPhrases.map((field) => (
             <div key={field.field} className={styles.addedGroup}>
               <span className={styles.addedKind}>{field.label}</span>

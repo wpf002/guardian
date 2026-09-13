@@ -167,17 +167,9 @@ button:disabled {
   gap: var(--space-4);
 }
 
+/* The shell sets the page's padding and width. This only fills the column. */
 .container {
   width: 100%;
-  max-width: 1440px;
-  margin-inline: auto;
-  padding-inline: var(--space-6);
-}
-
-@media (max-width: 640px) {
-  .container {
-    padding-inline: var(--space-4);
-  }
 }
 
 .surface {

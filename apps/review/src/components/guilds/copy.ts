@@ -58,7 +58,7 @@ export const STATUS = {
 
 export const ALERTS = {
   title: c("alertsTitle", "Alerts"),
-  label: c("alertsLabel", "Send alerts to"),
+  label: c("alertsLabel", "Alerts Channel"),
   placeholder: c("alertsPlaceholder", "Pick a channel"),
   help: c("alertsHelp", "Pick a channel only your moderators can see"),
   start: c("alertsStart", "Start Watching"),

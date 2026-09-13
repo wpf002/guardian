@@ -49,8 +49,6 @@ export function WebhookPanel({ view, saveAction, testAction }: WebhookPanelProps
    */
   return (
     <div className={styles.webhook}>
-      <p className={styles.cardIntro}>Guardian sends each alert to this web address, signed, without messages or images</p>
-
       <div className={styles.hookRow}>
         <form action={urlFormAction} className={styles.hookForm}>
           <input
@@ -97,24 +95,10 @@ export function WebhookPanel({ view, saveAction, testAction }: WebhookPanelProps
 
       <details className={styles.developer}>
         <summary className={styles.shortcutsSummary}>For Your Developer</summary>
-        <dl className={styles.devList}>
-          <div>
-            <dt>Headers</dt>
-            <dd>
-              <code>x-guardian-timestamp</code> and <code>x-guardian-signature</code>
-            </dd>
-          </div>
-          <div>
-            <dt>Checking a request</dt>
-            <dd>
-              <code>verifySignature</code> in <code>@guardian/sdk-ts</code>, with your shared secret
-            </dd>
-          </div>
-          <div>
-            <dt>What is sent</dt>
-            <dd>Which conversation, how serious it is, and why. Never messages, images or reports</dd>
-          </div>
-        </dl>
+        <p className={styles.devNote}>
+          Verify each request with <code>verifySignature</code> from <code>@guardian/sdk-ts</code>, using
+          the <code>x-guardian-timestamp</code> and <code>x-guardian-signature</code> headers
+        </p>
         {testState.sample ? <pre className={styles.sample}>{testState.sample}</pre> : null}
       </details>
     </div>
